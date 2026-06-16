@@ -1,0 +1,128 @@
+{
+  "entities": {
+    "Worker": {
+      "title": "Worker",
+      "description": "水電工班師傅資料",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "唯一識別碼" },
+        "name": { "type": "string", "description": "師傅姓名" },
+        "phone": { "type": "string", "description": "電話號碼" },
+        "role": { "type": "string", "description": "職級角色（如半技、師傅）" },
+        "baseSalary": { "type": "number", "description": "日薪或底薪" },
+        "active": { "type": "boolean", "description": "是否在職" }
+      },
+      "required": ["id", "name", "role"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "業主與客戶通訊錄",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "唯一識別碼" },
+        "name": { "type": "string", "description": "客戶名稱/公司行號" },
+        "contactPerson": { "type": "string", "description": "聯絡負責人" },
+        "phone": { "type": "string", "description": "聯絡電話" },
+        "notes": { "type": "string", "description": "備註說明" }
+      },
+      "required": ["id", "name"]
+    },
+    "Supplier": {
+      "title": "Supplier",
+      "description": "特約材料店家五金商行",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "唯一識別碼" },
+        "name": { "type": "string", "description": "店家名稱" },
+        "phone": { "type": "string", "description": "店家電話" },
+        "address": { "type": "string", "description": "店家地址" },
+        "contactPerson": { "type": "string", "description": "聯絡人" }
+      },
+      "required": ["id", "name"]
+    },
+    "MaterialPreset": {
+      "title": "MaterialPreset",
+      "description": "耗用建材大庫模板",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "唯一識別碼" },
+        "name": { "type": "string", "description": "建材品名" },
+        "category": { "type": "string", "description": "類別" },
+        "defaultUnit": { "type": "string", "description": "基本單位" }
+      },
+      "required": ["id", "name", "category", "defaultUnit"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "工程案場資訊",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "唯一識別碼" },
+        "clientId": { "type": "string", "description": "關聯客戶ID" },
+        "serialNumber": { "type": "string", "description": "工程編號/合約號" },
+        "companyOrOwner": { "type": "string", "description": "客戶公司名稱" },
+        "addressAbbreviated": { "type": "string", "description": "案場簡述名稱" },
+        "fullAddress": { "type": "string", "description": "案場完整施工地址" },
+        "status": { "type": "string", "description": "工程狀態" },
+        "estimateStatus": { "type": "string", "description": "報價狀態" }
+      },
+      "required": ["id", "clientId", "serialNumber", "addressAbbreviated"]
+    },
+    "DailyRecord": {
+      "title": "DailyRecord",
+      "description": "每日施工點工及建材登記日誌",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "唯一識別碼" },
+        "date": { "type": "string", "description": "施工日期" },
+        "projectId": { "type": "string", "description": "案場ID" },
+        "weather": { "type": "string", "description": "當日天氣" },
+        "note": { "type": "string", "description": "施工進度工作備註" }
+      },
+      "required": ["id", "date", "projectId"]
+    },
+    "PaymentTransaction": {
+      "title": "PaymentTransaction",
+      "description": "案場款項收款與核銷交易紀錄",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "交易帳目ID" },
+        "projectId": { "type": "string", "description": "案場ID" },
+        "date": { "type": "string", "description": "收付款日期" },
+        "type": { "type": "string", "description": "款項類型（估驗、請款、收現等）" },
+        "amount": { "type": "number", "description": "金額" }
+      },
+      "required": ["id", "projectId", "date", "type", "amount"]
+    }
+  },
+  "firestore": {
+    "/workers/{workerId}": {
+      "schema": "Worker",
+      "description": "水電工班名冊"
+    },
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "業主客戶電話簿"
+    },
+    "/suppliers/{supplierId}": {
+      "schema": "Supplier",
+      "description": "特約店家管理大庫"
+    },
+    "/materials/{materialId}": {
+      "schema": "MaterialPreset",
+      "description": "常用建材項目"
+    },
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "施工中工程案場"
+    },
+    "/records/{recordId}": {
+      "schema": "DailyRecord",
+      "description": "每日施工點工日誌與進料表"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "PaymentTransaction",
+      "description": "進度領款與材料公积金核銷帳目"
+    }
+  }
+}

@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 預設拒絕所有未授權之讀寫
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 基礎安全認證輔助
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // 九大工務管理模組安全同步規則 (限擁有者自己讀寫自己的資料)
+    
+    match /workers/{id} {
+      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+    }
+    
+    match /customers/{id} {
+      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+    }
+    
+    match /suppliers/{id} {
+      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+    }
+    
+    match /materials/{id} {
+      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+    }
+    
+    match /projects/{id} {
+      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+    }
+    
+    match /records/{id} {
+      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+    }
+    
+    match /transactions/{id} {
+      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+    }
+    
+    match /worker_advances/{id} {
+      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+    }
+    
+    match /petty_cash/{id} {
+      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+    }
+  }
+}

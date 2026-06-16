@@ -1,0 +1,23 @@
+{
+  "short_name": "工程 ERP",
+  "name": "工程 ERP 主計與外勤管理系統",
+  "icons": [
+    {
+      "src": "https://img.icons8.com/neon/512/wrench.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://img.icons8.com/neon/192/wrench.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#171717",
+  "theme_color": "#d97706",
+  "display": "standalone",
+  "orientation": "portrait"
+}
