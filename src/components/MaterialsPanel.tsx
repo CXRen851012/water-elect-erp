@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MaterialPreset, Supplier, MaterialUnitOption, MaterialSupplier } from '../types';
 import { Plus, Trash2, Edit, ShoppingBag, Info, ShieldCheck, ChevronDown, ChevronUp, Scale, Settings, Check, X } from 'lucide-react';
 
@@ -71,6 +71,24 @@ export default function MaterialsPanel({
 
   // Input state for adding new units under a material
   const [newUnitStr, setNewUnitStr] = useState<{ [matId: string]: string }>({});
+
+  // Synchronize new/edited material category selection with active categories list dynamically
+  useEffect(() => {
+    if (categories.length > 0) {
+      // 1. If currently filtering on a specific valid custom category, default the newly added material category to it
+      if (settingsMatCategoryFilter !== '全部' && categories.includes(settingsMatCategoryFilter)) {
+        setNewMatCategory(settingsMatCategoryFilter);
+      } else if (!categories.includes(newMatCategory)) {
+        // 2. Otherwise if current selection is deleted/invalidated, reset to the first category
+        setNewMatCategory(categories[0]);
+      }
+      
+      // Also keep edit category valid
+      if (!categories.includes(editMatCategory)) {
+        setEditMatCategory(categories[0]);
+      }
+    }
+  }, [categories, settingsMatCategoryFilter, newMatCategory, editMatCategory]);
 
   const [deleteConfirmCategory, setDeleteConfirmCategory] = useState<string | null>(null);
   const [deleteConfirmMatId, setDeleteConfirmMatId] = useState<string | null>(null);
@@ -887,9 +905,43 @@ export default function MaterialsPanel({
             return a.name.localeCompare(b.name, 'zh-TW');
           });
 
+          // Group by category based on categories list
+          const groups: { [cat: string]: typeof sortedFiltered } = {};
+          categories.forEach(cat => {
+            groups[cat] = [];
+          });
+          groups['其它/未分類'] = [];
+
+          sortedFiltered.forEach(m => {
+            const cat = m.category || '其它/未分類';
+            if (groups[cat]) {
+              groups[cat].push(m);
+            } else {
+              groups['其它/未分類'].push(m);
+            }
+          });
+
           return (
-            <>
-              {sortedFiltered.map(m => {
+            <div className="space-y-8">
+              {Object.entries(groups).map(([catName, list]) => {
+                if (list.length === 0) return null;
+
+                let emoji = '📦 ';
+                if (catName.includes('電')) emoji = '⚡ ';
+                else if (catName.includes('水') || catName.includes('管')) emoji = '💧 ';
+                else if (catName.includes('廚') || catName.includes('衛') || catName.includes('浴')) emoji = '🛁 ';
+                else if (catName.includes('五') || catName.includes('緊') || catName.includes('金')) emoji = '🔩 ';
+                else if (catName.includes('工') || catName.includes('耗') || catName.includes('雜')) emoji = '🛠️ ';
+
+                return (
+                  <div key={catName} className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-neutral-250 font-bold select-none text-neutral-800">
+                      <span className="text-sm sm:text-base">{emoji}</span>
+                      <span className="text-sm sm:text-base text-neutral-850 font-black">{catName}</span>
+                      <span className="text-xs text-neutral-400 font-mono font-medium">({list.length} 筆耗材)</span>
+                    </div>
+                    <div className="space-y-5">
+                      {list.map(m => {
                 const isEditing = editingMatId === m.id;
                 const options = ensureUnitOptions(m);
 
@@ -1381,14 +1433,18 @@ export default function MaterialsPanel({
                     )}
                   </div>
                 );
+                      })}
+                    </div>
+                  </div>
+                );
               })}
 
               {filteredMaterials.length === 0 && (
                 <div className="text-center py-12 border border-dashed border-neutral-200 text-neutral-400 text-xs italic rounded-2xl bg-neutral-50/20">
-                  💡 大庫中依您目前的篩選條件（分類: {settingsMatCategoryFilter}、材料行: {settingsMatSupplierFilter}）查無相符耗材。您可使用上方表單新增，或變更篩選。
+                  💡 大庫中依您目前的篩選條件（分類: {settingsMatCategoryFilter}、材料行: {settingsMatSupplierFilter}）查查無相符耗材。您可使用上方表單新增，或變更篩選。
                 </div>
               )}
-            </>
+            </div>
           );
         })()}
       </div>

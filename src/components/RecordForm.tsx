@@ -80,6 +80,7 @@ export default function RecordForm({
   const [materials, setMaterials] = useState<RecordMaterial[]>([]);
   const [selectedAddCategory, setSelectedAddCategory] = useState<string>('全部');
   const [selectedAddSupplier, setSelectedAddSupplier] = useState<string>('全部');
+  const [addSearchQuery, setAddSearchQuery] = useState<string>('');
 
   // 3. Common Expenses directly loaded in UI blocks, plus optional blanks
   const [mealAmount, setMealAmount] = useState<number>(0);
@@ -808,6 +809,27 @@ export default function RecordForm({
               </span>
             </div>
 
+            {/* 🔍 Dynamic Material Search Input */}
+            <div className="relative group">
+              <input
+                id="recordform-material-search-input"
+                type="text"
+                value={addSearchQuery}
+                onChange={(e) => setAddSearchQuery(e.target.value)}
+                placeholder="🔍 輸入大庫耗材規格品名、單位或分類關鍵字進行快速搜尋... (例如：PVC、南亞、白扁線、個)"
+                className="w-full pl-9 pr-12 py-1.5 border border-neutral-250 bg-white rounded-xl text-xs text-neutral-800 placeholder-neutral-450 focus:ring-1 focus:ring-amber-500 font-bold shadow-2xs transition"
+              />
+              {addSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setAddSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-neutral-400 hover:text-neutral-700 bg-neutral-100 hover:bg-neutral-200 px-1.5 py-0.5 rounded font-bold cursor-pointer transition select-none"
+                >
+                  清除
+                </button>
+              )}
+            </div>
+
             {/* Category Filter Buttons */}
             <div className="flex flex-wrap gap-1">
               {categoriesList.map(cat => (
@@ -853,15 +875,24 @@ export default function RecordForm({
                 </button>
                 {activeSuppliersPreset.map(sup => {
                   // Count matches dynamically
-                  const matchedCount = sortedMaterialsPreset.filter(p => {
-                    const matchesCategory = selectedAddCategory === '全部' || p.category === selectedAddCategory;
-                    if (!matchesCategory) return false;
-                    
-                    const unitOpts = p.unitOptions || [];
-                    const hasStoreInUnit = unitOpts.some(uo => uo.suppliers?.some(s => s.storeName === sup.name && (s.listPrice > 0 || s.costPrice > 0)));
-                    const hasStoreInLegacy = p.suppliers?.some(s => s.storeName === sup.name && (s.listPrice > 0 || s.costPrice > 0));
-                    return hasStoreInUnit || hasStoreInLegacy;
-                  }).length;
+                  const matchedCount = sortedMaterialsPreset
+                    .filter(p => {
+                      const matchesCategory = selectedAddCategory === '全部' || p.category === selectedAddCategory;
+                      if (!matchesCategory) return false;
+                      
+                      const matchesSearch = !addSearchQuery.trim() || (() => {
+                        const kw = addSearchQuery.trim().toLowerCase();
+                        return p.name.toLowerCase().includes(kw) || 
+                               (p.category || '').toLowerCase().includes(kw) ||
+                               (p.unit || '').toLowerCase().includes(kw);
+                      })();
+                      if (!matchesSearch) return false;
+
+                      const unitOpts = p.unitOptions || [];
+                      const hasStoreInUnit = unitOpts.some(uo => uo.suppliers?.some(s => s.storeName === sup.name && (s.listPrice > 0 || s.costPrice > 0)));
+                      const hasStoreInLegacy = p.suppliers?.some(s => s.storeName === sup.name && (s.listPrice > 0 || s.costPrice > 0));
+                      return hasStoreInUnit || hasStoreInLegacy;
+                    }).length;
 
                   return (
                     <button
@@ -893,6 +924,13 @@ export default function RecordForm({
                   const hasStoreInLegacy = p.suppliers?.some(s => s.storeName === selectedAddSupplier && (s.listPrice > 0 || s.costPrice > 0));
                   return hasStoreInUnit || hasStoreInLegacy;
                 })
+                .filter(p => {
+                  if (!addSearchQuery.trim()) return true;
+                  const kw = addSearchQuery.trim().toLowerCase();
+                  return p.name.toLowerCase().includes(kw) || 
+                         (p.category || '').toLowerCase().includes(kw) ||
+                         (p.unit || '').toLowerCase().includes(kw);
+                })
                 .map(p => {
                   const uniqueSuppliers = p.suppliers?.length || 0;
                   return (
@@ -920,9 +958,16 @@ export default function RecordForm({
                   const hasStoreInUnit = unitOpts.some(uo => uo.suppliers?.some(s => s.storeName === selectedAddSupplier && (s.listPrice > 0 || s.costPrice > 0)));
                   const hasStoreInLegacy = p.suppliers?.some(s => s.storeName === selectedAddSupplier && (s.listPrice > 0 || s.costPrice > 0));
                   return hasStoreInUnit || hasStoreInLegacy;
+                })
+                .filter(p => {
+                  if (!addSearchQuery.trim()) return true;
+                  const kw = addSearchQuery.trim().toLowerCase();
+                  return p.name.toLowerCase().includes(kw) || 
+                         (p.category || '').toLowerCase().includes(kw) ||
+                         (p.unit || '').toLowerCase().includes(kw);
                 }).length === 0 && (
                 <div className="col-span-12 text-center py-4 text-[10px] text-neutral-400 italic">
-                  💡 依此分類及材料行過濾，大庫中查無對應耗材。您可變更上方篩選條件。
+                  💡 依此分類、店家過濾或關鍵字【{addSearchQuery}】搜尋，大庫中查無符合之消耗性耗材。
                 </div>
               )}
             </div>
