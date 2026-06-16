@@ -178,28 +178,66 @@ export async function uploadAllToFirebase(
 
   for (const [key, mapping] of Object.entries(collectionsMapping)) {
     try {
-      if (mapping.data.length > 0) {
+      // 1. 查詢該使用者在雲端所有的現存資料，找出對應的 document IDs
+      const q = query(collection(db, mapping.name), where('ownerUid', '==', ownerUid));
+      const querySnapshot = await getDocs(q);
+      
+      const remoteIds = new Set<string>();
+      querySnapshot.forEach((docSnap) => {
+        remoteIds.add(docSnap.id);
+      });
+
+      // 2. 統整本地目前的項目 ID
+      const localIds = new Set<string>(mapping.data.map(item => item.id));
+
+      // 3. 找出需要清除的雲端 ID（即雲端有，但本地目前不存在/已被刪除之資料）
+      const toDeleteIds: string[] = [];
+      remoteIds.forEach(id => {
+        if (!localIds.has(id)) {
+          toDeleteIds.push(id);
+        }
+      });
+
+      // 4. 將寫入/更新與刪除操作彙整，分批執行
+      const operations: { type: 'set' | 'delete'; id: string; data?: any }[] = [];
+      
+      for (const id of toDeleteIds) {
+        operations.push({ type: 'delete', id });
+      }
+      for (const item of mapping.data) {
+        operations.push({ type: 'set', id: item.id, data: item });
+      }
+
+      if (operations.length > 0) {
         // 分批：一次最多 400 筆，避免超過 500 的 Firestore 寫入限制
         const chunks: any[][] = [];
-        for (let i = 0; i < mapping.data.length; i += 400) {
-          chunks.push(mapping.data.slice(i, i + 400));
+        for (let i = 0; i < operations.length; i += 400) {
+          chunks.push(operations.slice(i, i + 400));
         }
 
         for (const chunk of chunks) {
           const batch = writeBatch(db);
-          for (const item of chunk) {
-            const docRef = doc(db, mapping.name, item.id);
-            // 寫入 document 並補齊 ownerUid 屬性 (安全認證)
-            batch.set(docRef, {
-              ...item,
-              ownerUid: ownerUid
-            });
+          for (const op of chunk) {
+            const docRef = doc(db, mapping.name, op.id);
+            if (op.type === 'delete') {
+              batch.delete(docRef);
+            } else {
+              batch.set(docRef, {
+                ...op.data,
+                ownerUid: ownerUid
+              });
+            }
           }
           await batch.commit();
         }
-        successes.push(`${mapping.label} (${mapping.data.length} 筆)`);
+
+        if (toDeleteIds.length > 0) {
+          successes.push(`${mapping.label} (已上傳 ${mapping.data.length} 筆，同步清除已刪除之 ${toDeleteIds.length} 筆)`);
+        } else {
+          successes.push(`${mapping.label} (已上傳/更新 ${mapping.data.length} 筆)`);
+        }
       } else {
-        successes.push(`${mapping.label} (尚無本地資料未上傳)`);
+        successes.push(`${mapping.label} (保持為空/同步無異動)`);
       }
     } catch (err: any) {
       console.error(`Firebase upload failed for ${key}`, err);
