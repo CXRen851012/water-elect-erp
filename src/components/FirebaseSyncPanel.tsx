@@ -3,7 +3,7 @@ import {
   Cloud, RefreshCw, Upload, Download, ShieldAlert, Check, LogIn, LogOut, AlertCircle
 } from 'lucide-react';
 import { 
-  auth, loginWithGoogle, logoutUser, uploadAllToFirebase, downloadAllFromFirebase 
+  auth, loginWithGoogle, logoutUser, uploadAllToFirebase, downloadAllFromFirebase, getBackupSnapshotsList
 } from '../firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { Worker, Supplier, MaterialPreset, Customer, Project, DailyRecord, PaymentTransaction, WorkerAdvance, PettyCashTransaction } from '../types';
@@ -53,6 +53,10 @@ export default function FirebaseSyncPanel({
   const [syncError, setSyncError] = useState<string | null>(null);
   const [syncSuccessInfo, setSyncSuccessInfo] = useState<string | null>(null);
 
+  // 滾動循環歷史快照狀態
+  const [backups, setBackups] = useState<any[]>([]);
+  const [backupsLoading, setBackupsLoading] = useState(false);
+
   // Custom Elegant Confirm Modal State
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -68,6 +72,18 @@ export default function FirebaseSyncPanel({
 
   // ---- 🛠️ 自定義 Firebase 金鑰配置導引狀態 ----
   const [showConfigGuide, setShowConfigGuide] = useState(false);
+
+  const fetchBackups = async (uid: string) => {
+    try {
+      setBackupsLoading(true);
+      const list = await getBackupSnapshotsList(uid);
+      setBackups(list);
+    } catch (e) {
+      console.error('取得備份快照失敗:', e);
+    } finally {
+      setBackupsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (syncError && (
@@ -101,6 +117,11 @@ export default function FirebaseSyncPanel({
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       setAuthLoading(false);
+      if (user) {
+        fetchBackups(user.uid);
+      } else {
+        setBackups([]);
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -162,7 +183,8 @@ export default function FirebaseSyncPanel({
         setLastSync(nowStr);
         localStorage.setItem('firebase_last_sync', nowStr);
         setSyncSuccessInfo(result.message);
-        onSaveToast('☁️ 雲端全庫備份程序已圓滿完成！');
+        onSaveToast('☁️ 雲端全庫備份與循環快照已建立！');
+        fetchBackups(currentUser.uid); // 刷新備份快照列表
       } else {
         setSyncError(result.message);
         onSaveToast('⚠️ 雲端備份有部分失敗，請查看控制診斷報告。');
@@ -215,6 +237,42 @@ export default function FirebaseSyncPanel({
           onSaveToast('❌ 同步還原遭遇攔截。');
         } finally {
           setIsSyncing(false);
+        }
+      }
+    );
+  };
+
+  // ---- 雲端歷史快照滾動還原 ----
+  const handleRestoreFromSnapshot = (snapshot: any) => {
+    if (!currentUser) return;
+    const dateStr = new Date(snapshot.timestamp).toLocaleString('zh-TW');
+    triggerConfirm(
+      `確定還原至歷史備份快照？`,
+      `⚠️ 警告！此操作將徹底覆蓋您目前瀏覽器中的所有 ERP 數據，倒帶並還原至歷史時間點：[ ${dateStr} ]。該快照共包含 ${snapshot.totalCount} 筆資料項目。此動作執行後無法復原，是否確定？`,
+      () => {
+        try {
+          const d = snapshot.data;
+          if (d) {
+            if (d.workers) setWorkers(d.workers);
+            if (d.suppliers) setSuppliers(d.suppliers);
+            if (d.materials) setMaterials(d.materials);
+            if (d.customers) setCustomers(d.customers);
+            if (d.projects) setProjects(d.projects);
+            if (d.records) setRecords(d.records);
+            if (d.transactions) setTransactions(d.transactions);
+            if (d.workerAdvances) setWorkerAdvances(d.workerAdvances);
+            if (d.pettyCashTransactions) setPettyCashTransactions(d.pettyCashTransactions);
+            
+            // 同時更新上次同步到 localStorage 保持對齊
+            setLastSync(dateStr);
+            localStorage.setItem('firebase_last_sync', dateStr);
+            
+            onSaveToast(`✨ 倒帶還原成功！已回復至歷史時間快照：[ ${dateStr} ]！`);
+          } else {
+            onSaveToast('❌ 還原失敗：該歷史快照資料格式有缺損。');
+          }
+        } catch (err: any) {
+          onSaveToast(`❌ 快照還原倒帶失敗：${err.message || err}`);
         }
       }
     );
@@ -379,6 +437,103 @@ export default function FirebaseSyncPanel({
           </div>
         </div>
       </div>
+
+      {/* 💾 雲端備份歷史快照還原中心 (滾動自動備份) */}
+      {currentUser && (
+        <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-3xs space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 bg-amber-500 rounded-full inline-block animate-pulse"></span>
+                <span className="text-[10px] font-black text-amber-800 tracking-wider uppercase block">Rolling Backups</span>
+              </div>
+              <h3 className="text-sm font-black text-neutral-900 flex items-center gap-1.5">
+                <span>💾 雲端歷史快照備份中心 (最多保留 5 份快照)</span>
+              </h3>
+              <p className="text-[11px] text-neutral-500 leading-relaxed">
+                系統會在您每次點擊<strong>「一鍵同步」</strong>時，自動在雲端為您存下一份完整的「資料庫時間戳快照」。
+                若發生誤刪或誤覆蓋，您隨時可以點擊下方對應的時間點「還原此快照」！
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => fetchBackups(currentUser.uid)}
+              className="px-3 py-1.5 text-xs font-bold text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg flex items-center gap-1 border border-neutral-200 self-start md:self-center cursor-pointer select-none"
+            >
+              <RefreshCw size={12} className={backupsLoading ? 'animate-spin' : ''} />
+              <span>重整列表</span>
+            </button>
+          </div>
+
+          {backupsLoading ? (
+            <div className="py-6 flex justify-center items-center text-xs text-neutral-500 gap-2 font-mono">
+              <RefreshCw size={14} className="animate-spin text-amber-500" />
+              <span>正在向 Google Cloud 請求歷史快照清單...</span>
+            </div>
+          ) : backups.length === 0 ? (
+            <div className="p-6 bg-neutral-50 rounded-xl text-center border border-dashed border-neutral-200 text-xs text-neutral-400">
+              📭 雲端目前尚無任何歷史快照備份。當您點擊「一鍵同步」時，此處將自動觸發備份建立！
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {backups.map((bk, idx) => {
+                const bkDate = new Date(bk.timestamp);
+                const showDate = bkDate.toLocaleString('zh-TW', {
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  hour12: false
+                });
+                return (
+                  <div key={bk.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3.5 bg-neutral-50 hover:bg-neutral-100 border border-neutral-250/60 rounded-xl transition-all gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center justify-center w-5 h-5 bg-neutral-800 text-white rounded-md text-[10px] font-mono font-bold select-none">
+                          #{idx + 1}
+                        </span>
+                        <span className="text-xs font-black font-mono text-neutral-800">
+                          {showDate}
+                        </span>
+                        {idx === 0 && (
+                          <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-800 font-extrabold text-[9px] rounded-md border border-amber-200/40 font-sans">
+                            最新一期快照
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-neutral-500 font-mono flex flex-wrap gap-x-2 gap-y-0.5">
+                        <span>📊 總量: <strong className="text-neutral-700">{bk.totalCount} 筆</strong></span>
+                        <span>•</span>
+                        <span>工班: {bk.data?.workers?.length || 0} 👤</span>
+                        <span>•</span>
+                        <span>案場: {bk.data?.projects?.length || 0} 🏗️</span>
+                        <span>•</span>
+                        <span>派工: {bk.data?.records?.length || 0} 📄</span>
+                        <span>•</span>
+                        <span>合作商: {bk.data?.suppliers?.length || 0} 🛒</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRestoreFromSnapshot(bk)}
+                      className="px-3.5 py-2 border border-neutral-300 hover:border-amber-600 hover:bg-amber-100 bg-white text-neutral-800 font-black text-xs rounded-lg transition-all self-end sm:self-center flex items-center gap-1.5 hover:text-amber-850 shadow-3xs cursor-pointer select-none"
+                    >
+                      <RefreshCw size={12} className="text-amber-600" />
+                      <span>還原此快照</span>
+                    </button>
+                  </div>
+                );
+              })}
+              <p className="text-[9px] text-neutral-400 font-mono text-right italic">
+                * 本滾動歷史備份包含點工、材料廠商、案場、派工日誌、借支預支及零用公金流水等全部 9 大模組。最多保留 5 份，超額自動洗牌清除最舊紀錄，請安心存取！
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 🛠️ 自定義 Firebase 雲端備份庫金鑰配置指南 */}
       <div className="bg-white rounded-2xl border border-neutral-205 p-6 shadow-3xs space-y-4">

@@ -10,17 +10,18 @@ import {
 import { 
   getFirestore, 
   doc, 
-  setDoc,
-  getDoc,
-  getDocs,
-  updateDoc,
-  deleteDoc,
-  collection,
-  query,
-  where,
-  onSnapshot,
-  getDocFromServer,
-  writeBatch
+  setDoc, 
+  getDoc, 
+  getDocs, 
+  updateDoc, 
+  deleteDoc, 
+  collection, 
+  query, 
+  where, 
+  onSnapshot, 
+  getDocFromServer, 
+  writeBatch,
+  addDoc
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -254,7 +255,17 @@ export async function uploadAllToFirebase(
     };
   }
 
-  return { success: true, message: '🎉 成功將本地 ERP 資料全部同步至 Google Cloud Firestore 雲端資料庫！' };
+  // 成功同步後，自動在雲端建立本次上傳的歷史還原點複本（最大 5 份快照循環）
+  try {
+    await createRollingBackup(ownerUid, data);
+  } catch (backupErr) {
+    console.error("雲端滾動歷史備份建立失敗，但不影響主資料同步:", backupErr);
+  }
+
+  return { 
+    success: true, 
+    message: '🎉 成功將本地 ERP 資料全部同步至 Google Cloud Firestore 雲端資料庫！\n(系統已自動在雲端為您存下一筆「滾動歷史還原快照」，保護您的資料不被誤刪覆蓋)' 
+  };
 }
 
 // 彙總下載自 Firebase Firestore
@@ -339,5 +350,110 @@ export async function downloadAllFromFirebase(uid: string): Promise<{
     message: '☁️ 成功自 Google Cloud Firestore 下載同步所有工務與 Excel 級 ERP 資料！',
     data: results
   };
+}
+
+/**
+ * 建立雲端歷史還原點備份（僅保留最近 5 份作為滾動循環）
+ */
+export async function createRollingBackup(
+  uid: string,
+  data: {
+    workers: any[];
+    suppliers: any[];
+    materials: any[];
+    customers: any[];
+    projects: any[];
+    records: any[];
+    transactions: any[];
+    workerAdvances: any[];
+    pettyCashTransactions: any[];
+  }
+): Promise<void> {
+  if (!uid) return;
+  try {
+    const totalCount = 
+      (data.workers || []).length +
+      (data.suppliers || []).length +
+      (data.materials || []).length +
+      (data.customers || []).length +
+      (data.projects || []).length +
+      (data.records || []).length +
+      (data.transactions || []).length +
+      (data.workerAdvances || []).length +
+      (data.pettyCashTransactions || []).length;
+
+    // 1. 新增當前備份
+    await addDoc(collection(db, 'backups'), {
+      ownerUid: uid,
+      createdAt: new Date().toISOString(),
+      timestamp: Date.now(),
+      totalCount,
+      data: {
+        workers: data.workers || [],
+        suppliers: data.suppliers || [],
+        materials: data.materials || [],
+        customers: data.customers || [],
+        projects: data.projects || [],
+        records: data.records || [],
+        transactions: data.transactions || [],
+        workerAdvances: data.workerAdvances || [],
+        pettyCashTransactions: data.pettyCashTransactions || []
+      }
+    });
+
+    // 2. 獲取該使用者所有備份並排序，只保留最新的 5 份
+    const q = query(collection(db, 'backups'), where('ownerUid', '==', uid));
+    const snap = await getDocs(q);
+    const backupsList: { id: string; timestamp: number }[] = [];
+    snap.forEach((docSnap) => {
+      const d = docSnap.data();
+      backupsList.push({ id: docSnap.id, timestamp: d.timestamp || 0 });
+    });
+
+    // 降序排序：最新在前，最舊在後
+    backupsList.sort((a, b) => b.timestamp - a.timestamp);
+
+    // 超過 5 份時，清除最舊的
+    if (backupsList.length > 5) {
+      const toDelete = backupsList.slice(5);
+      for (const item of toDelete) {
+        try {
+          await deleteDoc(doc(db, 'backups', item.id));
+        } catch (e) {
+          console.error(`刪除舊備份 ${item.id} 失敗:`, e);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('建立循環備份失敗:', error);
+  }
+}
+
+/**
+ * 取得雲端所有歷史備份還原點
+ */
+export async function getBackupSnapshotsList(uid: string): Promise<any[]> {
+  if (!uid) return [];
+  try {
+    const q = query(collection(db, 'backups'), where('ownerUid', '==', uid));
+    const snap = await getDocs(q);
+    const list: any[] = [];
+    snap.forEach((docSnap) => {
+      const d = docSnap.data();
+      list.push({
+        id: docSnap.id,
+        createdAt: d.createdAt,
+        timestamp: d.timestamp || 0,
+        totalCount: d.totalCount || 0,
+        data: d.data
+      });
+    });
+    // 降序排序
+    list.sort((a, b) => b.timestamp - a.timestamp);
+    return list;
+  } catch (error) {
+    console.error('取得備份列表失敗:', error);
+    return [];
+  }
 }
 
