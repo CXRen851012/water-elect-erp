@@ -3,8 +3,15 @@ import { Worker, EmergencyContact, SalaryAdjustment } from '../types';
 import { 
   Plus, Trash2, Edit, HardHat, Phone, Mail, CreditCard, MapPin, 
   User, ShieldAlert, BadgeInfo, TrendingUp, DollarSign, Briefcase, 
-  ArrowRight, Check, X, ChevronDown, ChevronUp, Users, AlertCircle, Sparkles
+  ArrowRight, Check, X, ChevronDown, ChevronUp, Users, AlertCircle, Sparkles,
+  Eye, EyeOff
 } from 'lucide-react';
+import { 
+  getRoleBillingConfigs, 
+  saveRoleBillingConfigs, 
+  RoleBillingConfig,
+  calculateWorkerBillingRate
+} from '../utils/billingUtils';
 
 interface WorkersPanelProps {
   workers: Worker[];
@@ -19,9 +26,8 @@ export default function WorkersPanel({
 }: WorkersPanelProps) {
   // New worker registration state
   const [newWorkerName, setNewWorkerName] = useState('');
-  const [newWorkerRole, setNewWorkerRole] = useState('專業師傅');
+  const [newWorkerRole, setNewWorkerRole] = useState('');
   const [newWorkerRate, setNewWorkerRate] = useState(300);
-  const [newWorkerBillingRate, setNewWorkerBillingRate] = useState(400);
   const [newWorkerStatus, setNewWorkerStatus] = useState<'在職' | '離職'>('在職');
   const [newWorkerPhone, setNewWorkerPhone] = useState('');
   const [newWorkerIdNumber, setNewWorkerIdNumber] = useState('');
@@ -29,6 +35,9 @@ export default function WorkersPanel({
   const [newWorkerNotes, setNewWorkerNotes] = useState('');
   const [newWorkerJoinDate, setNewWorkerJoinDate] = useState(new Date().toISOString().substring(0, 10));
   const [newWorkerLeaveDate, setNewWorkerLeaveDate] = useState('');
+  
+  // 後台角色計報酬與牌價設定
+  const [roleConfigs, setRoleConfigs] = useState<RoleBillingConfig[]>(() => getRoleBillingConfigs());
   
   // New employee fields
   const [newWorkerBirthDate, setNewWorkerBirthDate] = useState('');
@@ -60,6 +69,55 @@ export default function WorkersPanel({
   const saveWorkerRoles = (newRoles: string[]) => {
     setWorkerRoles(newRoles);
     localStorage.setItem('engineering_worker_roles', JSON.stringify(newRoles));
+    
+    // 同步更新角色計酬加成設定：新增的補上預設，移除的過濾掉
+    const currentConfigs = getRoleBillingConfigs();
+    const updatedConfigs: RoleBillingConfig[] = [];
+    newRoles.forEach(r => {
+      const existing = currentConfigs.find(c => c.role === r);
+      if (existing) {
+        updatedConfigs.push(existing);
+      } else {
+        updatedConfigs.push({
+          role: r,
+          mode: 'multiplier',
+          multiplier: 1.15
+        });
+      }
+    });
+    saveRoleBillingConfigs(updatedConfigs);
+    setRoleConfigs(updatedConfigs);
+  };
+
+  // 職能高階計費更新處理函數
+  const handleUpdateRoleConfig = (role: string, updatedFields: Partial<RoleBillingConfig>) => {
+    const updatedConfigs = roleConfigs.map(c => {
+      if (c.role === role) {
+        return { ...c, ...updatedFields };
+      }
+      return c;
+    });
+    if (!updatedConfigs.some(c => c.role === role)) {
+      updatedConfigs.push({
+        role,
+        mode: 'multiplier',
+        multiplier: 1.15,
+        ...updatedFields
+      });
+    }
+    setRoleConfigs(updatedConfigs);
+    saveRoleBillingConfigs(updatedConfigs);
+    
+    // 同步更新所有在職與此職等相符之同仁的 billingHourlyRate
+    setWorkers(prevWorkers =>
+      prevWorkers.map(w => {
+        if (w.role === role) {
+          const billingHourlyRate = calculateWorkerBillingRate(role, w.defaultHourlyRate, updatedConfigs);
+          return { ...w, billingHourlyRate };
+        }
+        return w;
+      })
+    );
   };
 
   // 職稱編輯管理員之顯示控制
@@ -73,7 +131,6 @@ export default function WorkersPanel({
   const [editWorkerName, setEditWorkerName] = useState('');
   const [editWorkerRole, setEditWorkerRole] = useState('');
   const [editWorkerRate, setEditWorkerRate] = useState(0);
-  const [editWorkerBillingRate, setEditWorkerBillingRate] = useState(0);
   const [editWorkerStatus, setEditWorkerStatus] = useState<'在職' | '離職'>('在職');
   const [editWorkerPhone, setEditWorkerPhone] = useState('');
   const [editWorkerIdNumber, setEditWorkerIdNumber] = useState('');
@@ -229,7 +286,7 @@ export default function WorkersPanel({
       name: newWorkerName.trim(),
       role: newWorkerRole.trim(),
       defaultHourlyRate: newWorkerRate,
-      billingHourlyRate: newWorkerBillingRate,
+      billingHourlyRate: calculateWorkerBillingRate(newWorkerRole.trim(), newWorkerRate),
       status: newWorkerStatus,
       phone: newWorkerPhone.trim() || undefined,
       idNumber: newWorkerIdNumber.trim() || undefined,
@@ -256,9 +313,8 @@ export default function WorkersPanel({
     
     // Reset fields
     setNewWorkerName('');
-    setNewWorkerRole('專業師傅');
+    setNewWorkerRole('');
     setNewWorkerRate(300);
-    setNewWorkerBillingRate(400);
     setNewWorkerStatus('在職');
     setNewWorkerPhone('');
     setNewWorkerIdNumber('');
@@ -286,7 +342,6 @@ export default function WorkersPanel({
     setEditWorkerName(w.name);
     setEditWorkerRole(w.role || '');
     setEditWorkerRate(w.defaultHourlyRate);
-    setEditWorkerBillingRate(w.billingHourlyRate || w.defaultHourlyRate);
     setEditWorkerStatus(w.status || '在職');
     setEditWorkerPhone(w.phone || '');
     setEditWorkerIdNumber(w.idNumber || '');
@@ -341,7 +396,7 @@ export default function WorkersPanel({
       name: editWorkerName.trim(),
       role: editWorkerRole.trim(),
       defaultHourlyRate: editWorkerRate,
-      billingHourlyRate: editWorkerBillingRate,
+      billingHourlyRate: calculateWorkerBillingRate(editWorkerRole.trim(), editWorkerRate),
       status: editWorkerStatus,
       phone: editWorkerPhone.trim() || undefined,
       idNumber: editWorkerIdNumber.trim() || undefined,
@@ -369,15 +424,15 @@ export default function WorkersPanel({
   // Start special promoting or salary adjustments
   const handleStartAdjustment = (w: Worker) => {
     setAdjustingWorkerId(w.id);
-    setAdjNewRole(w.role || '專業師傅');
+    setAdjNewRole(''); // 預設空白，讓主管可以自由填寫或點選下方快選
     setAdjNewRate(w.defaultHourlyRate);
     setAdjReason('配合能力提升調整薪級/認證職稱');
     setAdjType('both');
   };
 
   const handleSaveAdjustment = (w: Worker) => {
-    // Modify based on adjType setting
-    const updatedRole = (adjType === 'both' || adjType === 'role') ? adjNewRole : w.role;
+    // Modify based on adjType setting. 若新職稱為空則保留原職等。
+    const updatedRole = (adjType === 'both' || adjType === 'role') ? (adjNewRole.trim() || w.role) : w.role;
     const updatedRate = (adjType === 'both' || adjType === 'salary') ? adjNewRate : w.defaultHourlyRate;
 
     const todayStr = new Date().toISOString().substring(0, 10);
@@ -483,27 +538,15 @@ export default function WorkersPanel({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[10px] text-neutral-500 font-bold mb-1">對內派工時薪 ($/hr)</label>
-                <input
-                  type="number"
-                  value={newWorkerRate}
-                  onChange={(e) => setNewWorkerRate(parseInt(e.target.value, 10) || 0)}
-                  className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-800 font-mono font-bold text-center focus:border-amber-500 focus:outline-none"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] text-amber-700 font-bold mb-1">對客報價時薪 ($/hr)</label>
-                <input
-                  type="number"
-                  value={newWorkerBillingRate}
-                  onChange={(e) => setNewWorkerBillingRate(parseInt(e.target.value, 10) || 0)}
-                  className="w-full px-3 py-2 border border-amber-200 rounded-lg text-xs bg-white text-amber-900 font-mono font-bold text-center focus:border-amber-500 focus:outline-none"
-                  required
-                />
-              </div>
+            <div>
+              <label className="block text-[10px] text-neutral-500 font-bold mb-1">對內派工時薪 ($/hr)</label>
+              <input
+                type="number"
+                value={newWorkerRate}
+                onChange={(e) => setNewWorkerRate(parseInt(e.target.value, 10) || 0)}
+                className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-808 font-mono font-bold text-center focus:border-amber-500 focus:outline-none"
+                required
+              />
             </div>
 
             <div>
@@ -878,81 +921,188 @@ export default function WorkersPanel({
               </button>
             </div>
 
-            {/* 職稱列表 */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 pt-1">
+            {/* 職稱列表與高階計費配置系統 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-1">
               {workerRoles.map((role, idx) => {
                 const isRenaming = renamingRoleIndex === idx;
+                const cfg = roleConfigs.find(c => c.role === role) || {
+                  role,
+                  mode: 'multiplier' as const,
+                  multiplier: 1.15
+                };
+
                 return (
-                  <div key={idx} className="flex items-center justify-between p-2 bg-white rounded-lg border border-neutral-200 shadow-3xs">
-                    {isRenaming ? (
-                      <div className="flex items-center gap-1.5 w-full">
-                        <input
-                          type="text"
-                          value={renamingRoleInput}
-                          onChange={(e) => setRenamingRoleInput(e.target.value)}
-                          className="w-full px-2 py-0.5 border border-amber-300 rounded text-xs focus:outline-none"
-                          autoFocus
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const val = renamingRoleInput.trim();
-                            if (!val) {
-                              setRenamingRoleIndex(null);
-                              return;
-                            }
-                            if (workerRoles.includes(val) && workerRoles[idx] !== val) {
-                              onSaveToast('⚠️ 已有名稱相同的職稱！');
-                              return;
-                            }
-                            const updated = [...workerRoles];
-                            updated[idx] = val;
-                            saveWorkerRoles(updated);
-                            setRenamingRoleIndex(null);
-                            onSaveToast(`✏️ 職稱已更新為：【${val}】！`);
-                          }}
-                          className="p-1 bg-green-500 text-white rounded hover:bg-green-600 transition flex items-center justify-center cursor-pointer"
-                        >
-                          <Check size={11} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRenamingRoleIndex(null)}
-                          className="p-1 bg-neutral-200 text-neutral-600 rounded hover:bg-neutral-300 transition flex items-center justify-center cursor-pointer"
-                        >
-                          <X size={11} />
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <span className="text-xs font-bold text-neutral-755">{role}</span>
-                        <div className="flex items-center gap-1">
+                  <div key={idx} className="flex flex-col p-3.5 bg-white rounded-xl border border-neutral-200/80 hover:border-amber-300 transition-all gap-2.5">
+                    {/* 頂部：職稱與編輯/變更按鈕 */}
+                    <div className="flex items-center justify-between border-b border-neutral-100 pb-2 min-h-[30px]">
+                      {isRenaming ? (
+                        <div className="flex items-center gap-1.5 w-full">
+                          <input
+                            type="text"
+                            value={renamingRoleInput}
+                            onChange={(e) => setRenamingRoleInput(e.target.value)}
+                            className="w-full px-2 py-0.5 border border-amber-300 rounded text-xs focus:outline-none"
+                            autoFocus
+                          />
                           <button
                             type="button"
                             onClick={() => {
-                              setRenamingRoleIndex(idx);
-                              setRenamingRoleInput(role);
+                              const val = renamingRoleInput.trim();
+                              if (!val) {
+                                setRenamingRoleIndex(null);
+                                return;
+                              }
+                              if (workerRoles.includes(val) && workerRoles[idx] !== val) {
+                                onSaveToast('⚠️ 已有名稱相同的職稱！');
+                                return;
+                              }
+                              const oldRoleName = workerRoles[idx];
+                              const updated = [...workerRoles];
+                              updated[idx] = val;
+
+                              // 同步更新 roleConfigs
+                              const currentConfigs = getRoleBillingConfigs();
+                              const updatedConfigs = currentConfigs.map(c => {
+                                if (c.role === oldRoleName) {
+                                  return { ...c, role: val };
+                                }
+                                return c;
+                              });
+                              saveRoleBillingConfigs(updatedConfigs);
+                              setRoleConfigs(updatedConfigs);
+
+                              saveWorkerRoles(updated);
+                              setRenamingRoleIndex(null);
+                              onSaveToast(`✏️ 職稱已更新為：【${val}】！`);
                             }}
-                            className="p-1.5 text-neutral-400 hover:text-amber-600 hover:bg-neutral-50 rounded transition cursor-pointer"
-                            title="變更此職稱名稱"
+                            className="p-1 bg-green-500 text-white rounded hover:bg-green-600 transition flex items-center justify-center cursor-pointer shrink-0"
                           >
-                            <Edit size={11} />
+                            <Check size={11} />
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
-                              const updated = workerRoles.filter((_, i) => i !== idx);
-                              saveWorkerRoles(updated);
-                              onSaveToast(`🗑️ 已成功移除職稱快選：【${role}】！`);
-                            }}
-                            className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded transition cursor-pointer"
-                            title="刪除此職稱"
+                            onClick={() => setRenamingRoleIndex(null)}
+                            className="p-1 bg-neutral-200 text-neutral-600 rounded hover:bg-neutral-300 transition flex items-center justify-center cursor-pointer shrink-0"
                           >
-                            <Trash2 size={11} />
+                            <X size={11} />
                           </button>
                         </div>
-                      </>
-                    )}
+                      ) : (
+                        <>
+                          <span className="text-xs font-black text-neutral-800 flex items-center gap-1">
+                            👷 {role}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRenamingRoleIndex(idx);
+                                setRenamingRoleInput(role);
+                              }}
+                              className="p-1 text-neutral-400 hover:text-amber-600 hover:bg-neutral-50 rounded transition cursor-pointer"
+                              title="變更此職稱名稱"
+                            >
+                              <Edit size={11} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = workerRoles.filter((_, i) => i !== idx);
+                                saveWorkerRoles(updated);
+                                onSaveToast(`🗑️ 已成功移除職稱快選：【${role}】！`);
+                              }}
+                              className="p-1 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded transition cursor-pointer"
+                              title="刪除此職稱"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* 計費模式切換器 */}
+                    <div className="flex items-center justify-between gap-1 bg-neutral-50 p-1 rounded-lg border border-neutral-150">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateRoleConfig(role, { mode: 'multiplier' })}
+                        className={`flex-1 py-0.5 text-[10px] font-bold rounded text-center transition-all ${
+                          cfg.mode === 'multiplier' 
+                            ? 'bg-amber-600 text-white shadow-3xs' 
+                            : 'text-neutral-400 hover:text-neutral-600'
+                        }`}
+                      >
+                        📈 工資倍率加成
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateRoleConfig(role, { mode: 'fixed' })}
+                        className={`flex-1 py-0.5 text-[10px] font-bold rounded text-center transition-all ${
+                          cfg.mode === 'fixed' 
+                            ? 'bg-amber-600 text-white shadow-3xs' 
+                            : 'text-neutral-400 hover:text-neutral-600'
+                        }`}
+                      >
+                        🏷️ 固定報價時薪
+                      </button>
+                    </div>
+
+                    {/* 細項配置欄位 */}
+                    <div className="bg-amber-50/20 p-2 rounded-lg border border-amber-100/50">
+                      {cfg.mode === 'fixed' ? (
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] text-neutral-500 font-bold flex items-center justify-between">
+                            <span>固定對客報價時薪:</span>
+                            <span className="text-amber-700 font-mono font-black">${cfg.fixedRate ?? 0} / hr</span>
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400 text-[10px] font-bold font-mono">$</span>
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="請輸入固定的報價時薪"
+                              value={cfg.fixedRate ?? ''}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10) || 0;
+                                handleUpdateRoleConfig(role, { fixedRate: val });
+                              }}
+                              className="w-full pl-5 pr-2 py-1 border border-neutral-200 rounded text-xs font-mono font-bold text-center bg-white text-neutral-800 focus:outline-none focus:border-amber-500"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[10px] text-neutral-500 font-black">加成倍率 (如 1.2):</label>
+                            <input
+                              type="number"
+                              step="0.05"
+                              min="1.0"
+                              max="5.0"
+                              value={cfg.multiplier ?? 1.15}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 1.15;
+                                handleUpdateRoleConfig(role, { multiplier: val });
+                              }}
+                              className="w-full px-1 py-1 border border-neutral-200 rounded text-xs font-mono font-extrabold text-center bg-white text-neutral-808 focus:outline-none focus:border-amber-500"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[10px] text-neutral-500 font-black">最高上限 ($/hr):</label>
+                            <input
+                              type="number"
+                              placeholder="0 (無上限)"
+                              value={cfg.maxLimit || ''}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10) || 0;
+                                handleUpdateRoleConfig(role, { maxLimit: val });
+                              }}
+                              className="w-full px-1 py-1 border border-neutral-200 rounded text-xs font-mono font-extrabold text-center bg-white text-neutral-808 focus:outline-none focus:border-amber-500"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -1063,7 +1213,7 @@ export default function WorkersPanel({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="block text-[10px] text-neutral-500 font-bold mb-0.5">對內時薪</label>
                           <input
@@ -1071,16 +1221,6 @@ export default function WorkersPanel({
                             value={editWorkerRate}
                             onChange={(e) => setEditWorkerRate(parseInt(e.target.value, 10) || 0)}
                             className="w-full px-2 py-1 border border-neutral-200 rounded text-xs font-mono text-center bg-white text-neutral-805 font-bold"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-amber-700 font-bold mb-0.5">對外報價</label>
-                          <input
-                            type="number"
-                            value={editWorkerBillingRate}
-                            onChange={(e) => setEditWorkerBillingRate(parseInt(e.target.value, 10) || 0)}
-                            className="w-full px-2 py-1 border border-neutral-200 rounded text-xs font-mono text-center bg-white text-amber-900 font-bold"
                             required
                           />
                         </div>
@@ -1533,7 +1673,7 @@ export default function WorkersPanel({
                             )}
                           </div>
                         </div>
-                        
+
                         <div className="flex items-center gap-1">
                           {/* Promoted trigger */}
                           <button
@@ -1555,7 +1695,7 @@ export default function WorkersPanel({
                           >
                             <Edit size={13} />
                           </button>
-                          
+
                           <button
                             onClick={() => setDeleteConfirmId(w.id)}
                             className="p-1 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded transition cursor-pointer"
@@ -1590,15 +1730,11 @@ export default function WorkersPanel({
 
                         {isExpanded && (
                           <div className="mt-2 text-[11px] space-y-2.5 bg-neutral-50 p-3 rounded-lg border border-neutral-150 text-neutral-700 animate-slideDown">
-                            {/* Salary & Billing Details */}
-                            <div className="grid grid-cols-2 gap-2 border-b border-neutral-200/60 pb-2 text-xs">
+                             {/* Salary & Billing Details */}
+                            <div className="grid grid-cols-1 gap-2 border-b border-neutral-200/60 pb-2 text-xs">
                               <div className="bg-white p-2 rounded border border-neutral-200 flex flex-col">
                                 <span className="text-neutral-500 text-[10px] font-bold">預約派工時薪 (對內):</span>
                                 <strong className="text-neutral-800 font-mono mt-0.5 text-xs">${w.defaultHourlyRate} / hr</strong>
-                              </div>
-                              <div className="bg-amber-50/55 p-2 rounded border border-amber-200 flex flex-col">
-                                <span className="text-amber-800 text-[10px] font-bold">對客報價時薪 (對外):</span>
-                                <strong className="text-amber-900 font-mono mt-0.5 text-xs">${w.billingHourlyRate || w.defaultHourlyRate} / hr</strong>
                               </div>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

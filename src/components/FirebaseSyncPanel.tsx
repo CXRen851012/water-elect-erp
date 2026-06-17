@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Cloud, RefreshCw, Upload, Download, ShieldAlert, Check, LogIn, LogOut, AlertCircle
+  Cloud, RefreshCw, Upload, Download, ShieldAlert, LogIn, LogOut, AlertCircle,
+  Eye, EyeOff
 } from 'lucide-react';
 import { 
   auth, loginWithGoogle, logoutUser, uploadAllToFirebase, downloadAllFromFirebase, getBackupSnapshotsList
@@ -70,8 +71,85 @@ export default function FirebaseSyncPanel({
     onConfirm: () => {}
   });
 
-  // ---- 🛠️ 自定義 Firebase 金鑰配置導引狀態 ----
-  const [showConfigGuide, setShowConfigGuide] = useState(false);
+  // 展開備份細節紀錄狀態
+  const [expandedBackupId, setExpandedBackupId] = useState<string | null>(null);
+
+  // 比較當前系統資料與備份快照的差異
+  const getSnapshotDiff = (bk: any) => {
+    if (!bk || !bk.data) return [];
+    
+    const categories = [
+      { key: 'workers', label: '工班人員', current: workers, getName: (item: any) => item.name || item.id },
+      { key: 'suppliers', label: '耗材材料大庫合作商', current: suppliers, getName: (item: any) => item.name || item.id },
+      { key: 'materials', label: '材料大庫規格牌價', current: materials, getName: (item: any) => item.name || item.id },
+      { key: 'customers', label: '客戶專案檔案', current: customers, getName: (item: any) => item.name || item.id },
+      { key: 'projects', label: '工程案場資料', current: projects, getName: (item: any) => item.companyOrOwner || item.id },
+      { key: 'records', label: '每日工務日誌記錄', current: records, getName: (item: any) => `${item.date} - ${item.projectName || '未命名'}` },
+      { key: 'transactions', label: '收付款與預支流水帳', current: transactions, getName: (item: any) => `${item.date} (${item.type === 'income' ? '收款' : '支出'}: $${item.amount})` },
+      { key: 'workerAdvances', label: '同仁借支預支紀錄表', current: workerAdvances, getName: (item: any) => `${item.date} (${item.workerName}: $${item.amount})` },
+      { key: 'pettyCashTransactions', label: '工地零用公金流動記帳', current: pettyCashTransactions, getName: (item: any) => `${item.date} ($${item.amount} - ${item.desc || '無備註'})` },
+    ];
+
+    const diffResult: { 
+      category: string; 
+      added: string[]; 
+      deleted: string[]; 
+      modified: string[] 
+    }[] = [];
+
+    const cleanForCompare = (obj: any): any => {
+      if (!obj || typeof obj !== 'object') return obj;
+      const copy = { ...obj };
+      delete copy.updatedAt;
+      delete copy.createdAt;
+      delete copy.lastSyncTime;
+      return copy;
+    };
+
+    categories.forEach(cat => {
+      const snapList = bk.data[cat.key] || [];
+      const currList = cat.current || [];
+
+      const snapMap = new Map<string, any>(snapList.map((item: any) => [item.id, item] as [string, any]));
+      const currMap = new Map<string, any>(currList.map((item: any) => [item.id, item] as [string, any]));
+
+      const added: string[] = [];
+      const deleted: string[] = [];
+      const modified: string[] = [];
+
+      // Detect added & modified
+      currMap.forEach((item, id) => {
+        if (!snapMap.has(id)) {
+          added.push(cat.getName(item));
+        } else {
+          const snapItem = snapMap.get(id);
+          const cleanSnapStr = JSON.stringify(cleanForCompare(snapItem));
+          const cleanCurrStr = JSON.stringify(cleanForCompare(item));
+          if (cleanSnapStr !== cleanCurrStr) {
+            modified.push(cat.getName(item));
+          }
+        }
+      });
+
+      // Detect deleted
+      snapMap.forEach((item, id) => {
+        if (!currMap.has(id)) {
+          deleted.push(cat.getName(item));
+        }
+      });
+
+      if (added.length > 0 || deleted.length > 0 || modified.length > 0) {
+        diffResult.push({
+          category: cat.label,
+          added,
+          deleted,
+          modified
+        });
+      }
+    });
+
+    return diffResult;
+  };
 
   const fetchBackups = async (uid: string) => {
     try {
@@ -84,17 +162,6 @@ export default function FirebaseSyncPanel({
       setBackupsLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (syncError && (
-      syncError.toLowerCase().includes('api-key-not-valid') || 
-      syncError.toLowerCase().includes('api key') ||
-      syncError.toLowerCase().includes('unauthorized-domain') ||
-      syncError.toLowerCase().includes('unauthorized domain')
-    )) {
-      setShowConfigGuide(true);
-    }
-  }, [syncError]);
 
   const triggerConfirm = (title: string, message: string, onConfirm: () => void) => {
     setConfirmModal({
@@ -155,7 +222,7 @@ export default function FirebaseSyncPanel({
     });
   };
 
-  // ---- 雲端一鍵備份 (上傳所有 9 大模組至 Firestore) ----
+  // ---- 雲端一鍵備份 ----
   const handleUploadToFirebase = async () => {
     if (!currentUser) {
       onSaveToast('⚠️ 請先登入 Google 帳號，才能將備份安全寫入 Firebase 雲端機房！');
@@ -184,10 +251,10 @@ export default function FirebaseSyncPanel({
         localStorage.setItem('firebase_last_sync', nowStr);
         setSyncSuccessInfo(result.message);
         onSaveToast('☁️ 雲端全庫備份與循環快照已建立！');
-        fetchBackups(currentUser.uid); // 刷新備份快照列表
+        fetchBackups(currentUser.uid);
       } else {
         setSyncError(result.message);
-        onSaveToast('⚠️ 雲端備份有部分失敗，請查看控制診斷報告。');
+        onSaveToast('⚠️ 雲端備份有部分失敗，請查看控制診報告。');
       }
     } catch (err: any) {
       setSyncError(err?.message || '不明連線或安全性權限拒絕錯誤。');
@@ -197,7 +264,7 @@ export default function FirebaseSyncPanel({
     }
   };
 
-  // ---- 雲端一鍵還原 (從 Firestore 下載 9 大模組覆蓋本地) ----
+  // ---- 雲端一鍵還原 ----
   const handleDownloadFromFirebase = () => {
     if (!currentUser) {
       onSaveToast('⚠️ 請先登入 Google 帳號，才能從雲端還原您的多載資料！');
@@ -263,7 +330,6 @@ export default function FirebaseSyncPanel({
             if (d.workerAdvances) setWorkerAdvances(d.workerAdvances);
             if (d.pettyCashTransactions) setPettyCashTransactions(d.pettyCashTransactions);
             
-            // 同時更新上次同步到 localStorage 保持對齊
             setLastSync(dateStr);
             localStorage.setItem('firebase_last_sync', dateStr);
             
@@ -423,75 +489,49 @@ export default function FirebaseSyncPanel({
                   {syncError}
                 </div>
                 <p className="text-[10px] text-neutral-500">
-                  💡 建議解決方案：1) 確認在 AWS / Cloud Run 或 Vercel 環境中的 IP 能對外網建立 HTTP 連接。2) 確認專案已成功執行過 Firebase set_up 生效。3) 重新按 Google 登入對齊認證身分。
+                  💡 建議解決方案：請確認您已正確配置專案環境變數，並在 Firebase 設定中新增目前運行系統的網域為授權登入網址。
                 </p>
-              </div>
-            )}
-
-            {!isSyncing && !syncSuccessInfo && !syncError && (
-              <div className="text-neutral-500 text-[11px] leading-relaxed">
-                [診斷器] 機房信號正常。等待操作指引。
-                {!currentUser && '（提示：當前處於「離線暫存模式」，為防資料丟失，建議隨時點擊登入以便儲存至 Google 雲端資料庫中。）'}
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* 💾 雲端備份歷史快照還原中心 (滾動自動備份) */}
-      {currentUser && (
-        <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-3xs space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 bg-amber-500 rounded-full inline-block animate-pulse"></span>
-                <span className="text-[10px] font-black text-amber-800 tracking-wider uppercase block">Rolling Backups</span>
-              </div>
-              <h3 className="text-sm font-black text-neutral-900 flex items-center gap-1.5">
-                <span>💾 雲端歷史快照備份中心 (最多保留 5 份快照)</span>
-              </h3>
-              <p className="text-[11px] text-neutral-500 leading-relaxed">
-                系統會在您每次點擊<strong>「一鍵同步」</strong>時，自動在雲端為您存下一份完整的「資料庫時間戳快照」。
-                若發生誤刪或誤覆蓋，您隨時可以點擊下方對應的時間點「還原此快照」！
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => fetchBackups(currentUser.uid)}
-              className="px-3 py-1.5 text-xs font-bold text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg flex items-center gap-1 border border-neutral-200 self-start md:self-center cursor-pointer select-none"
-            >
-              <RefreshCw size={12} className={backupsLoading ? 'animate-spin' : ''} />
-              <span>重整列表</span>
-            </button>
-          </div>
+      {/* 💾 雲端歷史快照備份中心 (滾動自動備份) */}
+      <div className="bg-white rounded-2xl border border-neutral-205 p-6 shadow-3xs space-y-4">
+        <div className="flex items-center gap-2 text-neutral-800 border-b border-neutral-100 pb-3">
+          <Cloud size={18} className="text-amber-500 animate-pulse" />
+          <span className="font-black text-sm text-neutral-900">💾 雲端歷史快照備份中心 (最多保留 5 份快照)</span>
+        </div>
 
-          {backupsLoading ? (
-            <div className="py-6 flex justify-center items-center text-xs text-neutral-500 gap-2 font-mono">
-              <RefreshCw size={14} className="animate-spin text-amber-500" />
-              <span>正在向 Google Cloud 請求歷史快照清單...</span>
-            </div>
-          ) : backups.length === 0 ? (
-            <div className="p-6 bg-neutral-50 rounded-xl text-center border border-dashed border-neutral-200 text-xs text-neutral-400">
-              📭 雲端目前尚無任何歷史快照備份。當您點擊「一鍵同步」時，此處將自動觸發備份建立！
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {backups.map((bk, idx) => {
-                const bkDate = new Date(bk.timestamp);
-                const showDate = bkDate.toLocaleString('zh-TW', {
-                  year: 'numeric',
-                  month: '2-digit',
-                  day: '2-digit',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  second: '2-digit',
-                  hour12: false
-                });
-                return (
-                  <div key={bk.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3.5 bg-neutral-50 hover:bg-neutral-100 border border-neutral-250/60 rounded-xl transition-all gap-4">
+        {backupsLoading ? (
+          <div className="py-8 text-center text-neutral-400 text-xs flex items-center justify-center gap-2 font-black">
+            <RefreshCw size={14} className="animate-spin text-amber-500" />
+            <span>正在取得 Google 備份快照備份列表...</span>
+          </div>
+        ) : backups.length === 0 ? (
+          <div className="p-6 bg-neutral-50 rounded-xl text-center border border-dashed border-neutral-200 text-xs text-neutral-400">
+            📭 雲端目前尚無任何歷史快照備份。當您點擊「一鍵同步」時，此處將自動觸發備份建立！
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {backups.map((bk, idx) => {
+              const bkDate = new Date(bk.timestamp);
+              const showDate = bkDate.toLocaleString('zh-TW', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+              });
+              return (
+                <div key={bk.id} className="p-3.5 bg-neutral-50 hover:bg-neutral-100 border border-neutral-250/60 rounded-xl transition-all space-y-3">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center justify-center w-5 h-5 bg-neutral-800 text-white rounded-md text-[10px] font-mono font-bold select-none">
+                        <span className="inline-flex items-center justify-center w-5 h-5 bg-neutral-800 text-white rounded-md text-[10px] font-mono font-bold select-none font-black">
                           #{idx + 1}
                         </span>
                         <span className="text-xs font-black font-mono text-neutral-800">
@@ -516,165 +556,131 @@ export default function FirebaseSyncPanel({
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleRestoreFromSnapshot(bk)}
-                      className="px-3.5 py-2 border border-neutral-300 hover:border-amber-600 hover:bg-amber-100 bg-white text-neutral-800 font-black text-xs rounded-lg transition-all self-end sm:self-center flex items-center gap-1.5 hover:text-amber-850 shadow-3xs cursor-pointer select-none"
-                    >
-                      <RefreshCw size={12} className="text-amber-600" />
-                      <span>還原此快照</span>
-                    </button>
-                  </div>
-                );
-              })}
-              <p className="text-[9px] text-neutral-400 font-mono text-right italic">
-                * 本滾動歷史備份包含點工、材料廠商、案場、派工日誌、借支預支及零用公金流水等全部 9 大模組。最多保留 5 份，超額自動洗牌清除最舊紀錄，請安心存取！
-              </p>
-            </div>
-          )}
-        </div>
-      )}
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedBackupId(expandedBackupId === bk.id ? null : bk.id)}
+                        className={`px-3 py-1.5 border text-xs font-black rounded-lg transition-all flex items-center gap-1.5 cursor-pointer select-none ${
+                          expandedBackupId === bk.id 
+                            ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
+                            : 'border-neutral-300 hover:border-neutral-500 hover:bg-neutral-100 bg-white text-neutral-700'
+                        }`}
+                      >
+                        {expandedBackupId === bk.id ? <EyeOff size={11} /> : <Eye size={11} />}
+                        <span>{expandedBackupId === bk.id ? '收合詳情差異' : '對比實時異動 (增/刪/改)'}</span>
+                      </button>
 
-      {/* 🛠️ 自定義 Firebase 雲端備份庫金鑰配置指南 */}
-      <div className="bg-white rounded-2xl border border-neutral-205 p-6 shadow-3xs space-y-4">
-        <button
-          type="button"
-          onClick={() => setShowConfigGuide(!showConfigGuide)}
-          className="w-full flex items-center justify-between text-left select-none cursor-pointer focus:outline-none"
-        >
-          <div className="flex items-center gap-2.5">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-amber-700 transition-colors ${showConfigGuide ? 'bg-amber-100' : 'bg-neutral-100'}`}>
-              <ShieldAlert size={16} />
-            </div>
-            <div>
-              <span className="text-xs font-black text-amber-800 tracking-wider uppercase block">Self-Service Configuration</span>
-              <h3 className="text-sm font-black text-neutral-900">🛠️ 點我展開：專屬自定義 Firebase 備份金鑰配置修復手冊</h3>
-            </div>
-          </div>
-          <span className="text-xs text-neutral-400 font-extrabold font-mono select-none">
-            {showConfigGuide ? '▲ 點擊收合' : '▼ 點擊展開修復'}
-          </span>
-        </button>
-
-        {showConfigGuide && (
-          <div className="text-xs text-neutral-700 font-sans leading-relaxed pt-3 border-t border-dotted border-neutral-200 animate-fadeIn space-y-4">
-            
-            {/* Warning block */}
-            {syncError && (syncError.toLowerCase().includes('unauthorized') || syncError.toLowerCase().includes('authority') || syncError.toLowerCase().includes('domain')) ? (
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2.5">
-                <span className="text-xs font-black text-amber-800 flex items-center gap-1.5">
-                  <ShieldAlert size={16} /> 偵測到 Firebase 安全阻擋：`auth/unauthorized-domain` (未授權網域)
-                </span>
-                <p className="text-[11px] text-amber-940 font-medium leading-relaxed">
-                  為保護您的 Google Sign-In 帳務安全，您的自建 Firebase 專案必須授權當前運行 ERP 系統之網頁網域進行登入驗證。
-                  請跟隨以下 3 步操作，在 Firebase 控制台解鎖當前網域：
-                </p>
-                <div className="space-y-1.5 pl-1.5 text-[11px] text-neutral-700">
-                  <div className="flex gap-1.5">
-                    <strong>1.</strong> 
-                    <span>前往 <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" className="text-amber-850 font-extrabold underline hover:text-amber-900">Firebase 控制台 (console.firebase.google.com)</a> 並點擊進入您的專案中。</span>
-                  </div>
-                  <div className="flex gap-1.5">
-                    <strong>2.</strong> 
-                    <span>點擊左側選單的 <strong>「Authentication (身分驗證)」</strong>，進入上方的 <strong>「設定 (Settings)」</strong> 標籤頁 → 點擊 <strong>「授權網域 (Authorized domains)」</strong>。</span>
-                  </div>
-                  <div className="flex gap-1.5">
-                    <strong>3.</strong> 
-                    <span>點選 <strong>「新增網域」</strong>，將以下您 ERP 系統當前使用的兩個專用網際網路網域（不含 https:// 與尾巴斜線路徑）拷貝新增進去：</span>
-                  </div>
-                  <div className="mt-1 pb-1 font-mono text-[10px] bg-white text-neutral-800 p-2.5 rounded-lg border border-amber-200 space-y-1 block">
-                    <div className="flex items-center select-all cursor-pointer">
-                      <code>ais-dev-ithpyf7klw4jrc27hgbubh-9881502283.asia-northeast1.run.app</code>
-                    </div>
-                    <div className="flex items-center select-all cursor-pointer">
-                      <code>ais-pre-ithpyf7klw4jrc27hgbubh-9881502283.asia-northeast1.run.app</code>
+                      <button
+                        type="button"
+                        onClick={() => handleRestoreFromSnapshot(bk)}
+                        className="px-3.5 py-2 border border-neutral-300 hover:border-amber-600 hover:bg-amber-100 bg-white text-neutral-800 font-black text-xs rounded-lg transition-all flex items-center gap-1.5 hover:text-amber-850 shadow-3xs cursor-pointer select-none"
+                      >
+                        <RefreshCw size={11} className="text-amber-600" />
+                        <span>還原此快照</span>
+                      </button>
                     </div>
                   </div>
-                  <p className="text-[10px] text-amber-700 font-extrabold mt-1">
-                    💡 貼心提示：新增完畢並點擊儲存後，請【重新整理網頁 (F5)】，再次點擊 Google 登入就完成了！
-                  </p>
+
+                  {/* Detailed expandable differences section */}
+                  {expandedBackupId === bk.id && (
+                    <div className="mt-3 pt-3 border-t border-dashed border-neutral-300/80 animate-fadeIn space-y-3">
+                      <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-200/50">
+                        <span className="text-[11px] font-extrabold text-amber-850 flex items-center gap-1">
+                          🔍 實時核對報告：此歷史備份至今「已存在的流失或增減更改」分析
+                        </span>
+                        <span className="text-[9.5px] text-neutral-500 block leading-normal mt-1">
+                          系統偵測自該備份（#{idx+1}）存檔後，您目前瀏覽器相比這份雲端備份發生的 新增 (+), 刪除 (-), 或 修改 (✎) 資料細目。
+                        </span>
+                      </div>
+
+                      {(() => {
+                        const diff = getSnapshotDiff(bk);
+                        if (diff.length === 0) {
+                          return (
+                            <div className="p-3 bg-emerald-50 rounded-lg text-emerald-900 border border-emerald-200/50 text-xs font-bold text-center">
+                              🎉 所有資料比對成功！此快照與您目前的本期大資料完全一致，沒有任何未同步異動。
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="space-y-3.5">
+                            {diff.map((catDiff, cidx) => (
+                              <div key={cidx} className="bg-white p-3 rounded-lg border border-neutral-200/75 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-black text-neutral-800 bg-neutral-100 px-2.5 py-0.5 rounded border border-neutral-200">
+                                    📁 {catDiff.category}
+                                  </span>
+                                  <span className="text-[10px] text-neutral-400 font-mono">
+                                    異動: {catDiff.added.length + catDiff.deleted.length + catDiff.modified.length} 筆
+                                  </span>
+                                </div>
+
+                                <div className="space-y-1.5 pl-1.5 font-sans">
+                                  {/* ADDED */}
+                                  {catDiff.added.length > 0 && (
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-1.5 text-[10.5px] font-black text-emerald-700">
+                                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                        <span>新增項目 (您在快照建立後另外「新增」的資料):</span>
+                                      </div>
+                                      <div className="flex flex-wrap gap-1 pl-3">
+                                        {catDiff.added.map((name, nIdx) => (
+                                          <span key={nIdx} className="text-[10.5px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded font-black">
+                                            + {name}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* DELETED */}
+                                  {catDiff.deleted.length > 0 && (
+                                    <div className="space-y-1 mt-1">
+                                      <div className="flex items-center gap-1.5 text-[10.5px] font-black text-rose-700">
+                                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                        <span>已刪除項目 (存在於此快照，但我目前本地「已移除」的資料):</span>
+                                      </div>
+                                      <div className="flex flex-wrap gap-1 pl-3">
+                                        {catDiff.deleted.map((name, nIdx) => (
+                                          <span key={nIdx} className="text-[10.5px] bg-rose-50 text-rose-800 border border-rose-200 px-1.5 py-0.5 rounded font-black line-through decoration-rose-400">
+                                            - {name}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* MODIFIED */}
+                                  {catDiff.modified.length > 0 && (
+                                    <div className="space-y-1 mt-1">
+                                      <div className="flex items-center gap-1.5 text-[10.5px] font-black text-amber-700">
+                                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                        <span>已修改項目 (兩邊皆有，但有「更改過」內容的資料):</span>
+                                      </div>
+                                      <div className="flex flex-wrap gap-1 pl-3">
+                                        {catDiff.modified.map((name, nIdx) => (
+                                          <span key={nIdx} className="text-[10.5px] bg-amber-50 text-amber-805 border border-amber-300 px-1.5 py-0.5 rounded font-black">
+                                            ✎ {name}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ) : (
-              <div className="p-3 bg-red-50/70 border border-red-200/50 rounded-xl space-y-1.5">
-                <span className="text-xs font-black text-red-650 flex items-center gap-1">
-                  <AlertCircle size={14} /> 為什麼會出現 `auth/api-key-not-valid` 錯誤？
-                </span>
-                <p className="text-[11px] text-red-950 font-medium">
-                  本系統原本預設綁定的 Firebase 基礎建設屬於原作者開發環境。當您在 AI Studio 分叉/複製 (Remix)
-                  此專案時，您目前的 Google 測試帳號沒有寫入或託管該預置專案的系統層權限。所以會引發安全攔截與憑證失效。
-                </p>
-                <p className="text-[11px] text-neutral-650 font-bold block">
-                  💡 別擔心！您可以按照下方指引，在一分鐘內完成您專屬的「完全免費」雲端備份機房配置，讓數據即刻開始對齊雲端！
-                </p>
-              </div>
-            )}
-
-            {/* List steps */}
-            <div className="space-y-3.5 pl-1">
-              <div className="flex items-start gap-2.5">
-                <span className="w-5 h-5 rounded-full bg-amber-500 text-neutral-900 flex items-center justify-center font-black font-mono text-[10px] shrink-0 mt-0.5">1</span>
-                <div>
-                  <h4 className="font-extrabold text-neutral-900 text-xs">創建免費 Firebase 雲端專案</h4>
-                  <p className="text-neutral-500 text-[11px]">
-                    請點選前往 <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" className="text-amber-600 font-bold underline hover:text-amber-700">Firebase 控制台 (console.firebase.google.com)</a> 並使用您的 Google 帳號登入。
-                    點擊 <strong>「新增專案」</strong>，為專案隨意命名（如 <code>watelect-erp</code>），並一路下一步直到完成創建。
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-2.5">
-                <span className="w-5 h-5 rounded-full bg-amber-500 text-neutral-900 flex items-center justify-center font-black font-mono text-[10px] shrink-0 mt-0.5">2</span>
-                <div>
-                  <h4 className="font-extrabold text-neutral-900 text-xs">啟用 Firestore Database 雲端存儲</h4>
-                  <p className="text-neutral-500 text-[11px]">
-                    進入 Firebase 專案大廳後，在側邊欄進入 <strong>「Firestore Database」</strong>，點擊「建立資料庫」。
-                    在安全規則選擇 <strong>「測試模式」</strong> (以方便您免配置複雜權限即刻存取)，機房位置選擇東亞或台灣 <strong>(如 asia-east1 或 asia-northeast1)</strong> 後點擊完成啟用。
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-2.5">
-                <span className="w-5 h-5 rounded-full bg-amber-500 text-neutral-900 flex items-center justify-center font-black font-mono text-[10px] shrink-0 mt-0.5">3</span>
-                <div>
-                  <h4 className="font-extrabold text-neutral-900 text-xs">生成 Web 應用程式憑證 (Web SDK Config)</h4>
-                  <p className="text-neutral-500 text-[11px]">
-                    回到專案首頁大廳，點擊齒輪下的首頁大標題，在正中間點擊 <strong>「Web {"(</>)"}」圖示</strong> 來註冊一個網頁 App (例如命名為 <code>web-client</code>)。
-                    完成後，畫面將會顯示您的 <strong>firebaseConfig JSON 程式碼</strong>。裡面將包含 <code>apiKey</code>、<code>authDomain</code>、<code>projectId</code>、<code>appId</code> 等專屬金鑰。
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-2.5">
-                <span className="w-5 h-5 rounded-full bg-amber-500 text-neutral-900 flex items-center justify-center font-black font-mono text-[10px] shrink-0 mt-0.5">4</span>
-                <div>
-                  <h4 className="font-extrabold text-neutral-900 text-xs">在 AI Studio 核心面板綁定環境變數</h4>
-                  <p className="text-neutral-500 text-[11px] leading-relaxed">
-                    現在回到您正在閱讀的 AI Studio 視窗，點擊右上角控制列的 <strong>「Settings ⚙️ (設定)」</strong> → 
-                    進入 <strong>「Environment Variables (環境變數)」</strong> 選項，並逐一<strong>新增</strong>貼上您剛剛複製的參數（大小寫與底線必須完全符合）：
-                  </p>
-                  <div className="mt-2 text-[10px] font-mono bg-neutral-900 text-neutral-300 p-2.5 rounded-xl border border-neutral-800 space-y-1 block leading-relaxed">
-                    <div><span className="text-sky-400">VITE_FIREBASE_API_KEY</span> = (對應畫面中的 apiKey)</div>
-                    <div><span className="text-sky-400">VITE_FIREBASE_AUTH_DOMAIN</span> = (對應畫面中的 authDomain)</div>
-                    <div><span className="text-sky-400">VITE_FIREBASE_PROJECT_ID</span> = (對應畫面中的 projectId)</div>
-                    <div><span className="text-sky-400">VITE_FIREBASE_APP_ID</span> = (對應畫面中的 appId)</div>
-                    <div><span className="text-sky-400">VITE_FIREBASE_STORAGE_BUCKET</span> = (對應畫面中的 storageBucket)</div>
-                    <div><span className="text-sky-400">VITE_FIREBASE_MESSAGING_SENDER_ID</span> = (對應畫面中的 messagingSenderId)</div>
-                    <div><span className="text-sky-400">VITE_FIREBASE_FIRESTORE_DB_ID</span> = <span className="text-amber-500">"(default)"</span> (保持預設即可)</div>
-                  </div>
-                  <p className="text-[10px] text-amber-600 font-extrabold mt-1.5 leading-none">
-                    ⚠️ 提示：填寫完畢後，點選儲存成功後，請直接【重新整理瀏覽器 (F5)】，系統即能無縫對齊您自定義的安全雲端通道！
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-150 text-[11px] text-neutral-500 space-y-1">
-              <span className="font-black text-neutral-800 block">💡 專業級備審建議與優化 (ERP 帳務安全層面)</span>
-              <div>• <strong>安全规则强化：</strong>當完成功能串接後，請儘快將 Firestore rules 由測試模式改為屬性防衛 (ABAC)，保障個人與企業之工務帳務隱私。</div>
-              <div>• <strong>完全免費：</strong>Firebase 提供免費每月萬次資料讀寫額度 (Firestore Spark Free Plan)，非常適合全日工務紀錄與小團隊備份，不收取任何一毛錢。</div>
-            </div>
-
+              );
+            })}
+            <p className="text-[9px] text-neutral-400 font-mono text-right italic">
+              * 本滾動歷史備份包含點工、材料廠商、案場、派工日誌、借支預支及零用公金流水等全部 9 大模組。最多保留 5 份，超額自動洗牌清除最舊紀錄，請安心存取！
+            </p>
           </div>
         )}
       </div>

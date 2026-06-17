@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Project, Worker, MaterialPreset, DailyRecord, RecordMaterial, RecordExpense, RecordWorker, Supplier } from '../types';
 import { 
   Plus, Trash2, Calendar, ClipboardList, HardHat, 
-  FileText, ShoppingCart, DollarSign, Wrench, PlusCircle, AlertCircle, Sparkles, Check, Scale
+  FileText, ShoppingCart, DollarSign, Wrench, PlusCircle, AlertCircle, Sparkles, Check, Scale,
+  ShieldCheck, Lock, Unlock, Settings
 } from 'lucide-react';
 
 interface RecordFormProps {
@@ -78,6 +79,7 @@ export default function RecordForm({
 
   // 2. Materials log (No visible prices inside logger!)
   const [materials, setMaterials] = useState<RecordMaterial[]>([]);
+  const [overridePricingMode, setOverridePricingMode] = useState<boolean>(false);
   const [selectedAddCategory, setSelectedAddCategory] = useState<string>('全部');
   const [selectedAddSupplier, setSelectedAddSupplier] = useState<string>('全部');
   const [addSearchQuery, setAddSearchQuery] = useState<string>('');
@@ -104,8 +106,19 @@ export default function RecordForm({
   const activeProjects = projects.filter(p => !p.isCompleted);
   const completedProjects = projects.filter(p => p.isCompleted);
 
+  const isInitializedRef = React.useRef<string | null>(null);
+
   // Initialization & Loading values for Editing or Defaults
   useEffect(() => {
+    const currentInitKey = initialRecordToEdit ? initialRecordToEdit.id : 'new';
+    if (isInitializedRef.current === currentInitKey) {
+      // Avoid resetting any of the user entered logs if we are already initialized
+      if (!initialRecordToEdit && activeProjects.length > 0 && !selectedProjectId) {
+        setSelectedProjectId(activeProjects[0].id);
+      }
+      return;
+    }
+
     if (initialRecordToEdit) {
       setDate(initialRecordToEdit.date);
       setSelectedProjectId(initialRecordToEdit.projectId);
@@ -198,7 +211,9 @@ export default function RecordForm({
       setWorkers([]);
       setCollectedAmount(0);
     }
-  }, [initialRecordToEdit, projects]);
+
+    isInitializedRef.current = currentInitKey;
+  }, [initialRecordToEdit, projects, selectedProjectId, activeProjects]);
 
   const selectedProjDetails = projects.find(p => p.id === selectedProjectId);
 
@@ -246,13 +261,14 @@ export default function RecordForm({
     }
   };
 
-  // Track previous project's estimation state to clear/reset workers on mismatch
+  // Track previous project's estimation state
   const [prevIsEstimation, setPrevIsEstimation] = useState<boolean | undefined>(undefined);
   useEffect(() => {
     if (selectedProjectId && selectedProjDetails) {
       const isEst = selectedProjDetails.isEstimation || false;
       if (prevIsEstimation !== undefined && prevIsEstimation !== isEst) {
-        setWorkers([]);
+        // According to user request, do NOT clear inputs or attendance when selecting project/changing status
+        // setWorkers([]);
       }
       setPrevIsEstimation(isEst);
     }
@@ -669,6 +685,40 @@ export default function RecordForm({
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        {/* Administrator Pricing Override Toggle (Discrete hidden-style button) */}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              setOverridePricingMode(!overridePricingMode);
+              if (onSaveToast) {
+                onSaveToast(
+                  !overridePricingMode 
+                    ? '🔓 已開啟「進階計費與牌價覆寫模式」！您現在可以直接微調此日誌中的對客材料牌價與同仁派遣時薪，這不會影響您的後台大庫常規設定。' 
+                    : '🔒 已關閉進階覆寫模式並恢復常規保密狀態。'
+                );
+              }
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10.5px] font-black transition-all cursor-pointer ${
+              overridePricingMode 
+                ? 'bg-amber-100 text-amber-805 border border-amber-400 font-extrabold shadow-sm'
+                : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-400 border border-neutral-200/60'
+            }`}
+          >
+            {overridePricingMode ? (
+              <>
+                <Unlock size={11} className="text-amber-600 animate-pulse" />
+                <span>⚙️ 工務主管已啟用</span>
+              </>
+            ) : (
+              <>
+                <Lock size={11} className="text-neutral-400" />
+                <span>🔒 啟用工務主管</span>
+              </>
+            )}
+          </button>
+        </div>
+
         {/* SECTION 1: Case details & date picker */}
         <section className="bg-neutral-50 p-4.5 rounded-xl border border-neutral-200/60 space-y-4">
           <div className="flex items-center gap-1.5 pb-2 border-b border-neutral-200 text-neutral-700 font-bold">
@@ -986,25 +1036,23 @@ export default function RecordForm({
                     <td className="py-2 px-3 w-[15%]">數量</td>
                     <td className="py-2 px-3 w-[12%]">單位</td>
                     <td className="py-2 px-3 w-[18%]">緊急臨時採購</td>
-                    <td className="py-2 px-3 w-[20%]">臨購購買單價 (非必填)</td>
+                    <td className="py-2 px-3 w-[20%]">
+                      {overridePricingMode ? "出庫報帳對客牌價 (微調覆寫)" : "臨購購買單價 (非必填)"}
+                    </td>
                     <td className="py-2 px-3 w-[50px] text-center"></td>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100">
                   {(() => {
                     const sortedRegistered = [...materials].sort((a, b) => {
-                      if (a.materialId && !b.materialId) return -1;
-                      if (!a.materialId && b.materialId) return 1;
-                      if (a.materialId && b.materialId) {
-                        const idxA = sortedMaterialsPreset.findIndex(p => p.id === a.materialId);
-                        const idxB = sortedMaterialsPreset.findIndex(p => p.id === b.materialId);
-                        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-                        if (idxA !== -1) return -1;
-                        if (idxB !== -1) return 1;
-                      }
-                      const nameA = a.name || '';
-                      const nameB = b.name || '';
-                      return nameA.localeCompare(nameB, 'zh-TW');
+                      // 依據新增/載入時的時間戳記進行反向排序，讓最後新增的工地耗材顯示在最上方，省去上下拉動選單
+                      const getTs = (id: string) => {
+                        const match = id.match(/\d+/);
+                        return match ? parseInt(match[0], 10) : 0;
+                      };
+                      const tsDiff = getTs(b.id) - getTs(a.id);
+                      if (tsDiff !== 0) return tsDiff;
+                      return materials.indexOf(b) - materials.indexOf(a);
                     });
                     return sortedRegistered.map(m => (
                       <tr key={m.id} className="hover:bg-neutral-50/30">
@@ -1200,22 +1248,58 @@ export default function RecordForm({
                         </div>
                       </td>
 
-                      {/* Hand price (Only for nearby purchasing reimbursement) */}
+                       {/* Hand price or Master Override Price */}
                       <td className="py-2.5 px-3">
                         {m.isNearbyPurchased ? (
-                          <div className="flex items-center gap-1 bg-amber-50/20 p-1 rounded border border-amber-200/40">
-                            <span className="text-amber-700 font-bold">$</span>
-                            <input
-                              type="number"
-                              min="0"
-                              placeholder="收據實付單價"
-                              value={m.unitPrice || ''}
-                              onChange={(e) => handleUpdateMaterialField(m.id, 'unitPrice', parseInt(e.target.value, 15) || 0)}
-                              className="w-full p-1 bg-white border border-neutral-200 rounded text-xs font-mono font-bold text-neutral-850"
-                            />
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1 bg-amber-50/20 p-1 rounded border border-amber-200/40">
+                              <span className="text-amber-700 font-bold">$</span>
+                              <input
+                                type="number"
+                                min="0"
+                                placeholder="收據實付單價"
+                                value={m.unitPrice || ''}
+                                onChange={(e) => handleUpdateMaterialField(m.id, 'unitPrice', parseInt(e.target.value, 10) || 0)}
+                                className="w-full p-1 bg-white border border-neutral-200 rounded text-xs font-mono font-bold text-neutral-850 text-center"
+                              />
+                            </div>
+                            {m.costPrice !== undefined && m.costPrice > 0 && (
+                              <span className="text-[9px] text-neutral-400 text-center font-bold">臨購成本: ${m.costPrice}</span>
+                            )}
+                          </div>
+                        ) : overridePricingMode ? (
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1 bg-amber-50/30 p-1 border border-dashed border-amber-400 rounded-lg">
+                              <span className="text-amber-700 font-black text-xs">$</span>
+                              <input
+                                type="number"
+                                min="0"
+                                placeholder="出庫牌價覆寫"
+                                value={m.unitPrice || 0}
+                                onChange={(e) => handleUpdateMaterialField(m.id, 'unitPrice', parseInt(e.target.value, 10) || 0)}
+                                className="w-full p-0.5 bg-white border border-neutral-200 rounded text-xs font-mono font-black text-amber-950 text-center focus:outline-none focus:border-amber-500"
+                              />
+                            </div>
+                            {(() => {
+                              const preset = m.materialId ? sortedMaterialsPreset.find(p => p.id === m.materialId) : null;
+                              if (preset) {
+                                const pricing = getUnitAndSupplierPrices(preset, m.unit, m.storeName);
+                                return (
+                                  <div className="space-y-1 block mt-0.5 text-center">
+                                    <span className="text-[9px] text-emerald-800 bg-emerald-100/80 border border-emerald-300 px-1 py-0.5 rounded font-black block leading-none">
+                                      🏢 供貨成本: ${pricing.costPrice}
+                                    </span>
+                                    <span className="text-[9px] text-neutral-400 block leading-none select-none italic">
+                                      原規牌價: ${pricing.unitPrice}
+                                    </span>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
                         ) : (
-                          <span className="text-[11px] text-neutral-400 italic block pt-1.5">倉庫耗支 (不顯示金流)</span>
+                          <span className="text-[11px] text-neutral-400 italic block pt-1.5 font-bold">倉庫出庫 (已加密隱藏)</span>
                         )}
                       </td>
 
@@ -1430,11 +1514,66 @@ export default function RecordForm({
                           <div className="pt-2 pl-2 bg-neutral-50/60 p-2.5 rounded-lg border border-neutral-200/50 max-w-md">
                             <div className="flex items-center justify-between mb-1.5">
                               <span className="text-[10px] text-neutral-400 font-extrabold block">💼 常規在職人員</span>
-                              <span className="text-[9px] text-neutral-400 bg-neutral-200/60 px-1.5 py-0.5 rounded font-bold">已鎖定安全加密 🔒</span>
+                              {overridePricingMode ? (
+                                <span className="text-[9px] text-amber-700 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded font-black flex items-center gap-0.5 animate-pulse">
+                                  ⚡ 派遣對客報價覆寫中
+                                </span>
+                              ) : (
+                                <span className="text-[9px] text-neutral-400 bg-neutral-200/60 px-1.5 py-0.5 rounded font-bold">已鎖定安全加密 🔒</span>
+                              )}
                             </div>
-                            <span className="text-[10px] text-neutral-400 font-medium leading-relaxed block">
-                              本欄位為在職員工。其內部工資時薪與對客派遣牌價皆已由系統保密隱藏，僅能在後台與報表分析頁面進行彙整。
-                            </span>
+                            {overridePricingMode ? (
+                              <div className="space-y-2 mt-1">
+                                <span className="text-[10px] text-neutral-500 font-bold leading-relaxed block">
+                                  您已啟動進階計費模式，可調整此同仁的「今日對客派遣報價時薪」而不影響後台常規設定：
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <div className="relative w-32">
+                                    <span className="absolute left-1.5 top-1 -translate-y-0.5 text-amber-600 font-black text-[10px]">$</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={w.billingHourlyRate ?? w.hourlyRate ?? 250}
+                                      onChange={(e) => {
+                                        const rate = parseInt(e.target.value, 10) || 0;
+                                        setWorkers(prev => prev.map(item => item.id === w.id ? { ...item, billingHourlyRate: rate } : item));
+                                      }}
+                                      className="w-full pl-5 pr-2 py-1 border border-amber-300 rounded font-mono font-bold text-amber-950 bg-amber-50/20 text-center text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none"
+                                    />
+                                  </div>
+                                  <span className="text-[10px] text-neutral-400 font-mono">
+                                    今日派遣總計: <strong className="text-amber-800">${Math.round((w.billingHourlyRate ?? w.hourlyRate ?? 250) * w.hoursWork)}</strong>
+                                  </span>
+                                </div>
+                                {(() => {
+                                  const staff = workersPreset.find(wp => wp.id === w.workerId);
+                                  if (staff) {
+                                    const defaultBilling = staff.billingHourlyRate ?? staff.defaultHourlyRate;
+                                    return (
+                                      <div className="bg-emerald-50/40 p-2 rounded border border-dashed border-emerald-300 space-y-1">
+                                        <div className="flex items-center justify-between text-[10px] text-emerald-800 font-black">
+                                          <span>🪙 對內在職時薪 (工資成本):</span>
+                                          <span className="font-mono bg-emerald-100 px-1 py-0.5 rounded">${staff.defaultHourlyRate} / hr</span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-[10px] text-emerald-700 font-bold">
+                                          <span>👥 師傅今日薪資成本累計 ({w.hoursWork}h):</span>
+                                          <span className="font-mono font-black">${Math.round(staff.defaultHourlyRate * w.hoursWork)}</span>
+                                        </div>
+                                        <div className="text-[9px] text-neutral-400 border-t border-neutral-200/50 pt-1 flex justify-between select-none">
+                                          <span>原系統外派計費建議:</span>
+                                          <span>${defaultBilling} / hr</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-neutral-400 font-medium leading-relaxed block">
+                                本欄位為在職員工。其內部工資時薪與對客派遣牌價皆已由系統保密隱藏，僅能在後台與報表分析頁面進行彙整。
+                              </span>
+                            )}
                           </div>
                         )}
                       </td>

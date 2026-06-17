@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MaterialPreset, Supplier, MaterialUnitOption, MaterialSupplier } from '../types';
 import { Plus, Trash2, Edit, ShoppingBag, Info, ShieldCheck, ChevronDown, ChevronUp, Scale, Settings, Check, X } from 'lucide-react';
+import { calculateMaterialListPrice, getCategoryMaterialConfigs, saveCategoryMaterialConfigs } from '../utils/billingUtils';
 
 interface MaterialsPanelProps {
   materials: MaterialPreset[];
@@ -16,6 +17,8 @@ export default function MaterialsPanel({
   onSaveToast
 }: MaterialsPanelProps) {
   const activeSuppliers = suppliers.filter(s => s.showInMaterialsDatabase !== false);
+
+  const [categoryConfigs, setCategoryConfigs] = useState(() => getCategoryMaterialConfigs());
 
   // Material categories state
   const [categories, setCategories] = useState<string[]>(() => {
@@ -60,6 +63,10 @@ export default function MaterialsPanel({
   const [newMatName, setNewMatName] = useState('');
   const [newMatCategory, setNewMatCategory] = useState(categories[0] || '水路管材類');
 
+  // 類似/重複材料防呆提示機制
+  const [dupConflictMaterials, setDupConflictMaterials] = useState<MaterialPreset[]>([]);
+  const [pendingMaterialToAdd, setPendingMaterialToAdd] = useState<MaterialPreset | null>(null);
+
   // Inline Material basic editing state (name & category only)
   const [editingMatId, setEditingMatId] = useState<string | null>(null);
   const [editMatName, setEditMatName] = useState('');
@@ -72,23 +79,24 @@ export default function MaterialsPanel({
   // Input state for adding new units under a material
   const [newUnitStr, setNewUnitStr] = useState<{ [matId: string]: string }>({});
 
-  // Synchronize new/edited material category selection with active categories list dynamically
+  // 1. 當篩選分類變更時，自動引導將「新增材料的選單分類」代入該篩選，方便使用者在該單一種類下快速建檔
+  useEffect(() => {
+    if (settingsMatCategoryFilter !== '全部' && categories.includes(settingsMatCategoryFilter)) {
+      setNewMatCategory(settingsMatCategoryFilter);
+    }
+  }, [settingsMatCategoryFilter]);
+
+  // 2. 當 categories 變更時，確保現選的新增和編輯分類依然合法存在於名單中，避免被刪除後報錯
   useEffect(() => {
     if (categories.length > 0) {
-      // 1. If currently filtering on a specific valid custom category, default the newly added material category to it
-      if (settingsMatCategoryFilter !== '全部' && categories.includes(settingsMatCategoryFilter)) {
-        setNewMatCategory(settingsMatCategoryFilter);
-      } else if (!categories.includes(newMatCategory)) {
-        // 2. Otherwise if current selection is deleted/invalidated, reset to the first category
+      if (!categories.includes(newMatCategory)) {
         setNewMatCategory(categories[0]);
       }
-      
-      // Also keep edit category valid
       if (!categories.includes(editMatCategory)) {
         setEditMatCategory(categories[0]);
       }
     }
-  }, [categories, settingsMatCategoryFilter, newMatCategory, editMatCategory]);
+  }, [categories]);
 
   const [deleteConfirmCategory, setDeleteConfirmCategory] = useState<string | null>(null);
   const [deleteConfirmMatId, setDeleteConfirmMatId] = useState<string | null>(null);
@@ -104,6 +112,11 @@ export default function MaterialsPanel({
     }
     const updatedCats = [...categories, val];
     saveCategories(updatedCats);
+
+    const updatedConfigs = [...categoryConfigs, { category: val, multiplier: 1.10 }];
+    setCategoryConfigs(updatedConfigs);
+    saveCategoryMaterialConfigs(updatedConfigs);
+
     setNewCategoryInput('');
     onSaveToast(`➕ 已成功新增大庫材料分類：【${val}】！`);
   };
@@ -120,6 +133,11 @@ export default function MaterialsPanel({
     }
     const updatedCats = categories.map(c => c === oldVal ? newVal : c);
     saveCategories(updatedCats);
+
+    const updatedConfigs = categoryConfigs.map(c => c.category === oldVal ? { ...c, category: newVal } : c);
+    setCategoryConfigs(updatedConfigs);
+    saveCategoryMaterialConfigs(updatedConfigs);
+
     // Sync all existing presets in the database
     setMaterials(materials.map(m => m.category === oldVal ? { ...m, category: newVal } : m));
     setRenamingCategoryOld(null);
@@ -129,6 +147,11 @@ export default function MaterialsPanel({
   const handleDeleteCategory = (catName: string) => {
     const updatedCats = categories.filter(c => c !== catName);
     saveCategories(updatedCats);
+
+    const updatedConfigs = categoryConfigs.filter(c => c.category !== catName);
+    setCategoryConfigs(updatedConfigs);
+    saveCategoryMaterialConfigs(updatedConfigs);
+
     setMaterials(materials.map(m => m.category === catName ? { ...m, category: '工具與雜耗' } : m));
     onSaveToast(`🗑️ 成功撤銷分類【${catName}】。原分類材料已安全歸類至「工具與雜耗」！`);
   };
@@ -173,9 +196,52 @@ export default function MaterialsPanel({
       ]
     };
 
-    setMaterials([...materials, item]);
+    // 進行相似名稱、完全重複名稱之模糊比對
+    const trimmedInput = newMatName.trim().toLowerCase();
+    const conflicts = materials.filter(m => {
+      const existingName = m.name.toLowerCase().trim();
+      // 1. 完全一致
+      if (existingName === trimmedInput) return true;
+      // 2. 子字串包含
+      if (existingName.includes(trimmedInput) || trimmedInput.includes(existingName)) return true;
+      // 3. 寬鬆比例字元重疊 (去空格比對)
+      const setA = new Set<string>(trimmedInput.replace(/\s+/g, '').split(''));
+      const setB = new Set<string>(existingName.replace(/\s+/g, '').split(''));
+      let intersectCount = 0;
+      setA.forEach(char => {
+        if (setB.has(char)) intersectCount++;
+      });
+      const maxLength = Math.max(setA.size, setB.size);
+      if (maxLength > 0) {
+        const ratio = intersectCount / maxLength;
+        if (ratio >= 0.65) return true; // 重疊度超 65% 為相近
+      }
+      return false;
+    });
+
+    if (conflicts.length > 0) {
+      setPendingMaterialToAdd(item);
+      setDupConflictMaterials(conflicts);
+    } else {
+      setMaterials([...materials, item]);
+      setNewMatName('');
+      onSaveToast(`✅ 材料品項【${item.name}】已成功建檔！可於下方直接追加不同包裝單位，或編輯配合廠商牌價與進價。`);
+    }
+  };
+
+  const handleProceedAddMaterial = () => {
+    if (!pendingMaterialToAdd) return;
+    setMaterials([...materials, pendingMaterialToAdd]);
+    const addedName = pendingMaterialToAdd.name;
+    setPendingMaterialToAdd(null);
+    setDupConflictMaterials([]);
     setNewMatName('');
-    onSaveToast(`✅ 材料品項【${item.name}】已成功建檔！可於下方直接追加不同包裝單位，或編輯配合廠商牌價與進價。`);
+    onSaveToast(`✅ 已忽略重複警告，材料品項【${addedName}】已成功強制建檔！`);
+  };
+
+  const handleCancelAddMaterial = () => {
+    setPendingMaterialToAdd(null);
+    setDupConflictMaterials([]);
   };
 
   const handleStartEditMat = (m: MaterialPreset) => {
@@ -511,6 +577,11 @@ export default function MaterialsPanel({
                 ...updatedSuppliers[existingIndex],
                 [field]: numericVal
               };
+
+              // 當輸入特約材料行之進價成本(costPrice)時，依分類加成倍率自動將成本計算為牌價，但仍可手動覆寫修改牌價
+              if (field === 'costPrice') {
+                updatedRecord.listPrice = calculateMaterialListPrice(m.category, numericVal);
+              }
               
               if (updatedRecord.listPrice === 0 && updatedRecord.costPrice === 0) {
                 updatedSuppliers = updatedSuppliers.filter((_, idx) => idx !== existingIndex);
@@ -518,10 +589,11 @@ export default function MaterialsPanel({
                 updatedSuppliers[existingIndex] = updatedRecord;
               }
             } else if (numericVal > 0) {
+              const initialListPrice = field === 'costPrice' ? calculateMaterialListPrice(m.category, numericVal) : (field === 'listPrice' ? numericVal : 0);
               updatedSuppliers.push({
                 id: `sup-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
                 storeName,
-                listPrice: field === 'listPrice' ? numericVal : 0,
+                listPrice: initialListPrice,
                 costPrice: field === 'costPrice' ? numericVal : 0
               });
             }
@@ -697,7 +769,7 @@ export default function MaterialsPanel({
                 </form>
 
                 {/* Categories items config lists */}
-                <div className="max-h-[160px] overflow-y-auto space-y-1.5 pr-1 divide-y divide-neutral-50">
+                <div className="max-h-[260px] overflow-y-auto space-y-1.5 pr-1 divide-y divide-neutral-50">
                   {categories.map((cat, idx) => {
                     const isRenaming = renamingCategoryOld === cat;
                     return (
@@ -728,9 +800,36 @@ export default function MaterialsPanel({
                           </div>
                         ) : (
                           <>
-                            <span className="font-extrabold text-neutral-800 text-[11px] text-left truncate flex-1 leading-none">
-                              {idx + 1}. 📦 {cat}
-                            </span>
+                            <div className="flex flex-col flex-1 text-left min-w-0 pr-1.5">
+                              <span className="font-extrabold text-neutral-805 text-[11px] truncate flex-1 leading-none">
+                                {idx + 1}. 📦 {cat}
+                              </span>
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <span className="text-[10px] text-neutral-400 font-bold">加成倍率:</span>
+                                <input
+                                  type="number"
+                                  step="0.05"
+                                  min="1.0"
+                                  max="3.0"
+                                  title="此材料類別之牌價/成本加成倍率"
+                                  value={categoryConfigs.find(cfg => cfg.category === cat)?.multiplier ?? 1.10}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 1.10;
+                                    const updated = [...categoryConfigs];
+                                    const foundIdx = updated.findIndex(cfg => cfg.category === cat);
+                                    if (foundIdx > -1) {
+                                      updated[foundIdx].multiplier = val;
+                                    } else {
+                                      updated.push({ category: cat, multiplier: val });
+                                    }
+                                    setCategoryConfigs(updated);
+                                    saveCategoryMaterialConfigs(updated);
+                                  }}
+                                  className="w-11 px-1 py-0.2 border border-neutral-200 rounded text-[10px] font-mono text-center bg-amber-50/40 text-amber-950 font-extrabold focus:outline-none focus:border-amber-500"
+                                />
+                                <span className="text-[9.5px] text-neutral-400">(如: 1.10)</span>
+                              </div>
+                            </div>
                             {deleteConfirmCategory === cat ? (
                               <div className="flex items-center gap-1 bg-red-50 px-1.5 py-0.5 border border-red-250 rounded animate-fadeIn shrink-0">
                                 <span className="text-[10px] font-bold text-red-900">確定刪除？</span>
@@ -1448,6 +1547,77 @@ export default function MaterialsPanel({
           );
         })()}
       </div>
+
+      {/* ⚠️ 耗材重覆或相近名稱警示彈窗 / Elegant Similarity Warning Modal */}
+      {dupConflictMaterials.length > 0 && pendingMaterialToAdd && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-neutral-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-neutral-200 p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-6 animate-scaleUp">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl shrink-0">
+                <Info size={28} className="animate-bounce" />
+              </div>
+              <div className="space-y-1">
+                <span className="text-[10px] font-black text-amber-800 tracking-wider uppercase block">Duplicate Check</span>
+                <h3 className="text-base font-black text-neutral-900 leading-tight">
+                  ⚠️ 檢測到大庫已存在相同或極相近之材料名稱！
+                </h3>
+                <p className="text-xs text-neutral-500">
+                  您準備新增：<strong className="text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded text-xs font-mono">
+                    {pendingMaterialToAdd.name}
+                  </strong>（分類：{pendingMaterialToAdd.category}）
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-neutral-50 rounded-2xl border border-neutral-200/65 p-4.5 space-y-3">
+              <span className="block text-[11px] font-extrabold text-neutral-700">
+                📋 目前大庫中與之相同或高度相似的耗材清單如下：
+              </span>
+              <div className="max-h-[160px] overflow-y-auto space-y-2 pr-1.5 division-y division-neutral-100">
+                {dupConflictMaterials.map((m, i) => (
+                  <div key={m.id} className="flex justify-between items-center text-xs py-1.5 first:pt-0 last:pb-0">
+                    <div className="space-y-0.5 text-left">
+                      <span className="font-bold text-neutral-800">
+                        {i + 1}. 📦 {m.name}
+                      </span>
+                      <span className="block text-[10px] text-neutral-400 font-mono">
+                        種類：{m.category || '未分類'} 
+                        {m.unitOptions && m.unitOptions.length > 0 ? ` • 單位: ${m.unitOptions.map(uo => uo.unit).join('/')}` : ''}
+                      </span>
+                    </div>
+                    {m.name.toLowerCase().trim() === pendingMaterialToAdd.name.toLowerCase().trim() && (
+                      <span className="px-1.5 py-0.5 bg-red-100 text-red-800 font-black text-[9px] rounded-md border border-red-200/40">
+                        完全相同
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="text-xs text-neutral-500 leading-relaxed bg-amber-50/40 border border-amber-200/30 rounded-xl p-3 text-left">
+              💡 <strong>提示：</strong> 為了維護「施工耗料規格大庫」的資料整潔，建議您可直接在下方現有耗材卡內<strong>點擊「新增其他規格單位 / 店家配合報價」</strong>即可，無需重複建立多個相同的新品項。
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleCancelAddMaterial}
+                className="flex-1 order-2 sm:order-1 px-5 py-3 border border-neutral-250 bg-white hover:bg-neutral-50 text-neutral-700 font-black text-xs rounded-xl shadow-3xs cursor-pointer select-none transition-all duration-150 focus:ring-1 focus:ring-neutral-205"
+              >
+                取消建立 (返回檢查)
+              </button>
+              <button
+                type="button"
+                onClick={handleProceedAddMaterial}
+                className="flex-1 order-1 sm:order-2 px-5 py-3 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer select-none transition-all duration-150 flex items-center justify-center gap-1.5"
+              >
+                <span>忽略警告，仍要建立</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
