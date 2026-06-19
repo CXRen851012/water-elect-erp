@@ -655,17 +655,17 @@ return (
 
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col lg:flex-row gap-3 items-center justify-between p-3 bg-neutral-50 rounded-xl border border-neutral-205">
+      <div className="flex flex-col lg:flex-row gap-3 items-center justify-between p-3.5 bg-neutral-100 rounded-xl border-2 border-neutral-300">
         <div className="flex gap-1.5 w-full lg:w-auto flex-wrap m-px">
           {(['全部', '報價中', '施工進行中', '已完工', '未成'] as const).map(f => (
             <button
               key={f}
               type="button"
               onClick={() => setStatusFilter(f)}
-              className={`px-3.5 py-1.5 text-xs font-extrabold rounded-lg transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 text-xs font-extrabold rounded-lg transition-all cursor-pointer border ${
                 statusFilter === f
-                  ? 'bg-amber-600 text-white shadow-3xs'
-                  : 'bg-white hover:bg-neutral-100 border border-neutral-200 text-neutral-600'
+                  ? 'bg-amber-600 text-white border-amber-700 shadow-3xs'
+                  : 'bg-white hover:bg-neutral-50 border-neutral-300 text-neutral-800'
               }`}
             >
               {f === '報價中' && '⏳ '}
@@ -679,8 +679,8 @@ return (
 
         <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto items-center">
           {/* 排序選擇器 */}
-          <div className="flex items-center gap-1.5 w-full sm:w-auto shrink-0 bg-white border border-neutral-250 rounded-lg px-2.5 py-2 text-xs text-neutral-700 font-bold shadow-3xs">
-            <span className="text-neutral-500 font-extrabold">📅 排序顯示:</span>
+          <div className="flex items-center gap-1.5 w-full sm:w-auto shrink-0 bg-white border-2 border-neutral-300 rounded-lg px-2.5 py-2 text-xs text-neutral-800 font-bold shadow-3xs">
+            <span className="text-neutral-500 font-black">📅 排序顯示:</span>
             <select
               value={sortMethod}
               onChange={(e) => setSortMethod(e.target.value as any)}
@@ -694,13 +694,13 @@ return (
           </div>
 
           <div className="relative w-full sm:w-64">
-            <Search size={15} className="absolute left-3 top-3 text-neutral-400" />
+            <Search size={16} className="absolute left-3 top-3 text-neutral-500" />
             <input
               type="text"
               placeholder="搜尋案場、業主、地址或流水號..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border border-neutral-250 bg-white rounded-lg text-sm text-neutral-805 font-sans focus:outline-none focus:ring-1 focus:ring-amber-500"
+              className="w-full pl-9 pr-3 py-2 border-2 border-neutral-300 bg-white rounded-lg text-sm text-neutral-900 font-sans font-bold focus:outline-none focus:border-amber-600 focus:ring-0"
             />
           </div>
         </div>
@@ -827,12 +827,12 @@ return (
             return (
               <div 
                 key={p.id} 
-                className={`p-4 rounded-xl border transition-all flex flex-col justify-between gap-4 bg-white ${
+                className={`p-5 rounded-2xl border-2 transition-all flex flex-col justify-between gap-4 bg-white ${
                   hasBudgetWarning
-                    ? 'border-red-300 ring-2 ring-red-50 hover:shadow-sm'
+                    ? 'border-red-500 ring-2 ring-red-50 hover:shadow-md shadow-sm'
                     : p.isCompleted 
-                      ? 'border-neutral-200 bg-neutral-50/10 opacity-80' 
-                      : 'border-amber-205/85 shadow-3xs hover:border-amber-400/80 hover:shadow-xs'
+                      ? 'border-neutral-300 bg-neutral-100/50 opacity-80' 
+                      : 'border-neutral-200 hover:border-amber-500 hover:shadow-md shadow-3xs'
                 }`}
               >
                 <div className="space-y-2 bg-white">

@@ -134,20 +134,20 @@ export default function SuppliersPanel({
   };
 
   return (
-    <div id="suppliers-panel" className="bg-white p-6 rounded-2xl border border-neutral-200/80 shadow-xs space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-neutral-100">
+    <div id="suppliers-panel" className="bg-white p-6 rounded-2xl border-2 border-neutral-300 shadow-sm space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b-2 border-neutral-200">
         <div className="space-y-1">
-          <span className="text-[9px] uppercase tracking-wider font-extrabold text-amber-600 block font-mono">Supplier Directory</span>
-          <h2 className="text-base font-black text-neutral-800 flex items-center gap-2">
-            <Store className="text-amber-600 animate-pulse" size={20} />
+          <span className="text-xs uppercase tracking-wider font-extrabold text-amber-700 block font-mono">Supplier Directory</span>
+          <h2 className="text-lg font-black text-neutral-950 flex items-center gap-2">
+            <Store className="text-amber-700 animate-pulse stroke-[2.5]" size={24} />
             特約材料行名冊管理
           </h2>
         </div>
       </div>
 
       {/* Add Supplier Form */}
-      <div className="bg-neutral-50 p-4 border border-neutral-150 rounded-xl">
-        <h3 className="text-xs font-bold text-neutral-700 mb-3 block">➕ 新增特約材料行 / 五金商家</h3>
+      <div className="bg-neutral-50 p-5 border-2 border-neutral-250 rounded-xl">
+        <h3 className="text-sm font-black text-neutral-950 mb-3 block">➕ 新增特約材料行 及 五金商家</h3>
         <form onSubmit={handleCreateSupplier} className="grid grid-cols-12 gap-3">
           <div className="col-span-12 sm:col-span-3">
             <label className="block text-[10px] text-neutral-500 font-bold mb-1">商家名稱 (例如：大山電料行) <span className="text-red-500">*</span></label>

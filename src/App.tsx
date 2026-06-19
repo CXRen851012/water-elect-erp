@@ -7,7 +7,7 @@ import {
   Check, Info, FileSpreadsheet, Sparkles, Building2, Calendar, HardHat,
   ShoppingBag, FolderLock, Store, Coins,
   Database, AlertTriangle, Download, Upload, Trash2, Settings, ShieldAlert,
-  Cloud, CloudOff, RefreshCw, LogOut, LogIn
+  Cloud, CloudOff, RefreshCw, LogOut, LogIn, Search, ArrowUpDown, SlidersHorizontal
 } from 'lucide-react';
 
 import { onAuthStateChanged } from 'firebase/auth';
@@ -444,6 +444,14 @@ export default function App() {
   }, []);
   const [materialsSubTab, setMaterialsSubTab] = useState<'records' | 'suppliers'>('records');
   const [historySearch, setHistorySearch] = useState<string>('');
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<string>('all');
+  const [historyProjectFilter, setHistoryProjectFilter] = useState<string>('all');
+  const [historySortBy, setHistorySortBy] = useState<string>('date_desc');
+  const [historyVisibleLimit, setHistoryVisibleLimit] = useState<number>(30);
+
+  useEffect(() => {
+    setHistoryVisibleLimit(30);
+  }, [historySearch, historyStatusFilter, historyProjectFilter, historySortBy]);
   const [showRecordForm, setShowRecordForm] = useState<boolean>(false);
   const [recordToEdit, setRecordToEdit] = useState<DailyRecord | undefined>(undefined);
   const [showProjectModal, setShowProjectModal] = useState<boolean>(false);
@@ -646,7 +654,7 @@ export default function App() {
       setRecords(prev => prev.map(r => r.id === recordToEdit.id ? {
         ...r,
         ...recordData,
-        createdAt: r.createdAt // preserve initial creation stamp
+        createdAt: r.createdAt
       } : r));
 
       triggerToast('💾 工務日誌修改成功，修改紀錄已成功存檔！');
@@ -701,11 +709,11 @@ export default function App() {
           }
 
           const baseName = `${prefixDate}-${clientPart}-${addressPart}-${serial}`;
-          nextGenName = `[估]${baseName}`;
+          nextGenName = baseName;
 
           setTimeout(() => {
-            triggerToast('⚡ 偵測到登錄日誌：已自動結轉為「正式施作工程」！原預估工料預算已保留作爲比對基準（[估] 字頭名稱已依您要求予以保留）。');
-          }, 800);
+            triggerToast('⚡ 偵測到登錄日誌：已自動結轉為「正式施作工程」！原預估工料預算已保留作爲比對基準。');
+          }, 850);
         }
 
         return {
@@ -785,9 +793,9 @@ export default function App() {
   };
 
   return (
-    <div id="app-root-container" className="min-h-screen bg-[#fcfbfa] text-neutral-800 font-sans selection:bg-amber-100 antialiased pb-12">
+    <div id="app-root-container" className="min-h-screen bg-neutral-950 text-neutral-100 font-sans selection:bg-amber-500/25 antialiased pb-12 dark">
       {/* Upper Navigation Header bar */}
-      <header className="bg-white border-b border-neutral-200/80 sticky top-0 z-40 shadow-xs">
+      <header className="bg-neutral-900 border-b border-neutral-800 sticky top-0 z-40 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Logo area */}
@@ -796,11 +804,11 @@ export default function App() {
                 <Landmark size={20} className="stroke-[2.5]" />
               </div>
               <div>
-                <span className="text-[9px] uppercase font-black tracking-widest text-amber-600 font-mono leading-none block">
+                <span className="text-[9px] uppercase font-black tracking-widest text-amber-500 font-mono leading-none block">
                   水電工程專業管理系統
                 </span>
-                <h1 className="text-base font-black text-neutral-900 tracking-tight mt-0.5">
-                  水電工務通
+                <h1 className="text-base font-black text-white tracking-tight mt-0.5 animate-fadeIn">
+                  水電工務通 <span className="text-xs text-amber-500 font-extrabold font-mono ml-1 px-1.5 py-0.5 bg-neutral-850 rounded">PRO</span>
                 </h1>
               </div>
             </div>
@@ -812,20 +820,20 @@ export default function App() {
                 onClick={() => { setActiveTab('supabase-excel'); setShowRecordForm(false); setRecordToEdit(undefined); }}
                 className={`flex text-xs font-bold px-3.5 py-2 rounded-lg border items-center gap-1.5 transition-all cursor-pointer ${
                   firebaseConnected 
-                    ? 'text-amber-700 bg-amber-50 border-amber-200/70 hover:bg-emerald-100' 
-                    : 'text-neutral-700 bg-neutral-100 border-neutral-300/70 hover:bg-neutral-200'
+                    ? 'text-amber-400 bg-amber-950/80 border-amber-800/80 hover:bg-amber-900/60' 
+                    : 'text-neutral-300 bg-neutral-800 border-neutral-700/80 hover:bg-neutral-750'
                 }`}
                 title={firebaseConnected ? "Firebase 雲端已登入連線，點擊開啟備份與對控管理" : "目前為離線或未登入模式，點擊至管理分頁對齊 Google 雲端庫"}
               >
                 {firebaseConnected ? (
                   <>
-                    <Cloud size={14} className="text-amber-650 shrink-0 select-none animate-pulse" />
+                    <Cloud size={14} className="text-amber-500 shrink-0 select-none animate-pulse" />
                     <span className="hidden sm:inline">Firebase 雲端已接通</span>
                     <span className="inline sm:hidden">已接通</span>
                   </>
                 ) : (
                   <>
-                    <CloudOff size={14} className="text-neutral-500 shrink-0" />
+                    <CloudOff size={14} className="text-neutral-450 shrink-0" />
                     <span className="hidden sm:inline">Firebase 未登入 (離線)</span>
                     <span className="inline sm:hidden font-medium">離線模式</span>
                   </>
@@ -839,15 +847,15 @@ export default function App() {
                   setPreSelAddress(undefined);
                   setShowProjectModal(true);
                 }}
-                className="hidden sm:flex text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-3.5 py-2 rounded-lg border border-amber-200/70 items-center gap-1.5 transition-all cursor-pointer"
+                className="hidden sm:flex text-xs font-bold text-amber-400 bg-amber-950 hover:bg-amber-900/40 px-3.5 py-2 rounded-lg border border-amber-800/85 items-center gap-1.5 transition-all cursor-pointer"
               >
-                <Plus size={14} />
+                <Plus size={14} className="text-amber-450" />
                 新開案場專案
               </button>
               
-              <div className="hidden md:flex flex-col text-right pl-3 border-l border-neutral-200 text-xs">
-                <span className="text-neutral-400 font-semibold block uppercase text-[8px] tracking-wider font-mono">SERVER REAL DATE</span>
-                <span className="font-mono text-neutral-700 font-bold">{new Date().toISOString().substring(0, 10)}</span>
+              <div className="hidden md:flex flex-col text-right pl-3 border-l border-neutral-800 text-xs">
+                <span className="text-neutral-500 font-semibold block uppercase text-[8px] tracking-wider font-mono">SERVER REAL DATE</span>
+                <span className="font-mono text-neutral-300 font-bold">{new Date().toISOString().substring(0, 10)}</span>
               </div>
             </div>
           </div>
@@ -995,63 +1003,63 @@ export default function App() {
                 {activeTab === 'construction' && (
                   <div className="space-y-6 animate-fadeIn">
                     {/* Integrated Sub-Navigation Controls */}
-                    <div className="flex border-b border-neutral-200 bg-neutral-50 p-1.2 sm:p-1.5 rounded-xl max-w-4xl select-none gap-1 shadow-3xs overflow-x-auto scrollbar-none">
+                    <div className="flex border-2 border-neutral-300 bg-neutral-100 p-1.5 rounded-xl max-w-4xl select-none gap-2 shadow-3xs overflow-x-auto scrollbar-none">
                       <button
                         onClick={() => { setRecordsSubTab('today'); setShowRecordForm(false); }}
-                        className={`flex-1 py-2 px-2 sm:px-3 text-[10px] sm:text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap min-w-max ${
+                        className={`flex-1 py-2.5 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
                           recordsSubTab === 'today'
-                            ? 'bg-amber-600 text-white shadow-xs'
-                            : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'
+                            ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
+                            : 'bg-white text-neutral-800 border-neutral-300 hover:text-neutral-950 hover:bg-neutral-50 font-bold'
                         }`}
                       >
-                        <Calendar size={13} className="shrink-0" />
+                        <Calendar size={15} className="shrink-0 stroke-[2.5]" />
                         <span>
-                          <span className="hidden sm:inline">📌 當日施工 (今日派工)</span>
-                          <span className="inline sm:hidden">📌 今日派工</span>
+                          <span className="hidden sm:inline">📌 當日施工</span>
+                          <span className="inline sm:hidden">📌 當日施工</span>
                         </span>
                       </button>
                       
                       <button
                         onClick={() => { setRecordsSubTab('projects'); setShowRecordForm(false); }}
-                        className={`flex-1 py-2 px-2 sm:px-3 text-[10px] sm:text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap min-w-max ${
+                        className={`flex-1 py-2.5 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
                           recordsSubTab === 'projects'
-                            ? 'bg-amber-600 text-white shadow-xs'
-                            : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'
+                            ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
+                            : 'bg-white text-neutral-800 border-neutral-300 hover:text-neutral-950 hover:bg-neutral-50 font-bold'
                         }`}
                       >
-                        <FolderLock size={13} className="shrink-0" />
+                        <FolderLock size={15} className="shrink-0 stroke-[2.5]" />
                         <span>
-                          <span className="hidden sm:inline">🏗️ 工程案場 (案場進度)</span>
-                          <span className="inline sm:hidden">🏗️ 案場進度</span>
+                          <span className="hidden sm:inline">🏗️ 工程案場</span>
+                          <span className="inline sm:hidden">🏗️ 工程案場</span>
                         </span>
                       </button>
 
                       <button
                         onClick={() => { setRecordsSubTab('history'); setShowRecordForm(false); }}
-                        className={`flex-1 py-2 px-2 sm:px-3 text-[10px] sm:text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap min-w-max ${
+                        className={`flex-1 py-2.5 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
                           recordsSubTab === 'history'
-                            ? 'bg-amber-600 text-white shadow-xs'
-                            : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'
+                            ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
+                            : 'bg-white text-neutral-800 border-neutral-305 hover:text-neutral-950 hover:bg-neutral-50 font-bold'
                         }`}
                       >
-                        <ClipboardList size={13} className="shrink-0" />
+                        <ClipboardList size={15} className="shrink-0 stroke-[2.5]" />
                         <span>
-                          <span className="hidden sm:inline">📜 歷史日誌彙整 (調閱歷史)</span>
+                          <span className="hidden sm:inline">📜 歷史日誌彙整</span>
                           <span className="inline sm:hidden">📜 歷史日誌</span>
                         </span>
                       </button>
 
                       <button
                         onClick={() => { setRecordsSubTab('customers'); setShowRecordForm(false); }}
-                        className={`flex-1 py-2 px-2 sm:px-3 text-[10px] sm:text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap min-w-max ${
+                        className={`flex-1 py-2.5 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
                           recordsSubTab === 'customers'
-                            ? 'bg-amber-600 text-white shadow-xs'
-                            : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'
+                            ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
+                            : 'bg-white text-neutral-800 border-neutral-300 hover:text-neutral-950 hover:bg-neutral-50 font-bold'
                         }`}
                       >
-                        <Users size={13} className="shrink-0" />
+                        <Users size={15} className="shrink-0 stroke-[2.5]" />
                         <span>
-                          <span className="hidden sm:inline">👥 特約業主 (業主登記)</span>
+                          <span className="hidden sm:inline">👥 特約業主</span>
                           <span className="inline sm:hidden">👥 特約業主</span>
                         </span>
                       </button>
@@ -1288,55 +1296,186 @@ export default function App() {
                     {recordsSubTab === 'history' && (
                       <div className="space-y-4">
                         {/* Search and Filters bar */}
-                        <div className="bg-white p-4 rounded-xl border border-neutral-200/80 shadow-3xs flex flex-col sm:flex-row items-center justify-between gap-4">
-                          <div className="relative w-full sm:max-w-md">
-                            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-neutral-400">
-                              <Calendar size={14} />
-                            </span>
-                            <input
-                              type="text"
-                              placeholder="搜尋日期、案場名稱或施工說明關鍵字..."
-                              value={historySearch}
-                              onChange={(e) => setHistorySearch(e.target.value)}
-                              className="w-full pl-9 pr-4 py-2 bg-neutral-50 hover:bg-neutral-100/50 focus:bg-white text-xs text-neutral-800 font-medium rounded-lg border border-neutral-200 outline-hidden focus:border-amber-500 transition-all"
-                            />
+                        <div className="bg-white p-5 rounded-2xl border border-neutral-200/80 shadow-3xs space-y-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                            {/* 1. Keyword Search */}
+                            <div className="relative">
+                              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-neutral-400">
+                                <Search size={14} />
+                              </span>
+                              <input
+                                type="text"
+                                placeholder="搜尋日期、案場、施工說明..."
+                                value={historySearch}
+                                onChange={(e) => setHistorySearch(e.target.value)}
+                                className="w-full pl-9 pr-4 py-2 bg-neutral-50 hover:bg-neutral-100/40 focus:bg-white text-xs text-neutral-800 font-semibold rounded-xl border border-neutral-200 outline-hidden focus:border-amber-500 transition-all placeholder:text-neutral-450"
+                              />
+                            </div>
+
+                            {/* 2. Status Filter */}
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-extrabold text-neutral-400 shrink-0 uppercase tracking-widest hidden lg:inline">狀態:</span>
+                              <select
+                                value={historyStatusFilter}
+                                onChange={(e) => setHistoryStatusFilter(e.target.value)}
+                                className="w-full bg-neutral-50 hover:bg-neutral-100/40 border border-neutral-200 rounded-xl text-xs px-2.5 py-2 font-bold text-neutral-700 focus:outline-hidden focus:border-amber-500 cursor-pointer"
+                              >
+                                <option value="all">📁 結案狀態：全部</option>
+                                <option value="completed">✔ 已宣告結案</option>
+                                <option value="ongoing">🏗️ 持續施作中</option>
+                              </select>
+                            </div>
+
+                            {/* 3. Project Filter */}
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-extrabold text-neutral-400 shrink-0 uppercase tracking-widest hidden lg:inline">案場:</span>
+                              <select
+                                value={historyProjectFilter}
+                                onChange={(e) => setHistoryProjectFilter(e.target.value)}
+                                className="w-full bg-neutral-50 hover:bg-neutral-100/40 border border-neutral-200 rounded-xl text-xs px-2.5 py-2 font-bold text-neutral-700 focus:outline-hidden focus:border-amber-500 cursor-pointer"
+                              >
+                                <option value="all">🏗️ 指定工程案場：全部</option>
+                                {projects.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    🏢 {getProjectDisplayName(p)}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* 4. Sorting Selector */}
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-extrabold text-neutral-400 shrink-0 uppercase tracking-widest hidden lg:inline">排序:</span>
+                              <select
+                                value={historySortBy}
+                                onChange={(e) => setHistorySortBy(e.target.value)}
+                                className="w-full bg-neutral-50 hover:bg-neutral-100/40 border border-neutral-200 rounded-xl text-xs px-2.5 py-2 font-bold text-neutral-700 focus:outline-hidden focus:border-amber-500 cursor-pointer"
+                              >
+                                <option value="date_desc">📅 日期：由新到舊 (最新優先)</option>
+                                <option value="date_asc">📅 日期：由舊到新 (歷史優先)</option>
+                                <option value="cost_desc">💰 估計費用：由高到低</option>
+                                <option value="cost_asc">💰 估計費用：由低到高</option>
+                              </select>
+                            </div>
                           </div>
 
-                          <div className="text-xs text-neutral-400 font-bold">
-                            共計 {records.length} 筆施工紀錄
-                          </div>
+                          {/* Active Filters Clear Indicators */}
+                          {(historySearch || historyStatusFilter !== 'all' || historyProjectFilter !== 'all' || historySortBy !== 'date_desc') && (
+                            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-neutral-101">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-[10px] bg-amber-500/10 text-amber-850 font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1">
+                                  <SlidersHorizontal size={10} />
+                                  <span>篩選條件已套用</span>
+                                </span>
+                                {historySearch && (
+                                  <span className="text-[10px] bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded-lg border border-neutral-200 flex items-center gap-1 font-medium">
+                                    關鍵字: "{historySearch}"
+                                    <button onClick={() => setHistorySearch('')} className="hover:text-neutral-900 font-extrabold cursor-pointer ml-1">×</button>
+                                  </span>
+                                )}
+                                {historyStatusFilter !== 'all' && (
+                                  <span className="text-[10px] bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded-lg border border-neutral-200 flex items-center gap-1 font-medium">
+                                    狀態: {historyStatusFilter === 'completed' ? '已結案' : '施工中'}
+                                    <button onClick={() => setHistoryStatusFilter('all')} className="hover:text-neutral-900 font-extrabold cursor-pointer ml-1">×</button>
+                                  </span>
+                                )}
+                                {historyProjectFilter !== 'all' && (
+                                  <span className="text-[10px] bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded-lg border border-neutral-200 flex items-center gap-1 font-medium">
+                                    特定案場限制
+                                    <button onClick={() => setHistoryProjectFilter('all')} className="hover:text-neutral-900 font-extrabold cursor-pointer ml-1">×</button>
+                                  </span>
+                                )}
+                              </div>
+
+                              <button
+                                onClick={() => {
+                                  setHistorySearch('');
+                                  setHistoryStatusFilter('all');
+                                  setHistoryProjectFilter('all');
+                                  setHistorySortBy('date_desc');
+                                }}
+                                className="text-[10px] text-amber-700 hover:text-amber-850 font-black cursor-pointer underline underline-offset-2 flex items-center gap-0.5 select-none"
+                              >
+                                重設全部篩選項目
+                              </button>
+                            </div>
+                          )}
                         </div>
 
-                        {/* List rendering */}
+                        {/* List rendering with complex filtering and sorting logic */}
                         {(() => {
+                          // 1. Filter
                           const filteredHistoryRecords = records.filter(r => {
-                            if (!historySearch) return true;
-                            const matchSearch = historySearch.toLowerCase();
-                            const matchedProj = projects.find(p => p.id === r.projectId);
-                            const projName = matchedProj ? getProjectDisplayName(matchedProj).toLowerCase() : (r.projectName || '').toLowerCase();
-                            return (
-                              r.date.includes(matchSearch) ||
-                              projName.includes(matchSearch) ||
-                              (r.notes || '').toLowerCase().includes(matchSearch)
-                            );
+                            // Keyword search
+                            if (historySearch) {
+                              const matchSearch = historySearch.toLowerCase();
+                              const matchedProj = projects.find(p => p.id === r.projectId);
+                              const projName = matchedProj ? getProjectDisplayName(matchedProj).toLowerCase() : (r.projectName || '').toLowerCase();
+                              const notesMatch = (r.notes || '').toLowerCase().includes(matchSearch);
+                              const dateMatch = r.date.includes(matchSearch);
+                              if (!projName.includes(matchSearch) && !notesMatch && !dateMatch) {
+                                return false;
+                              }
+                            }
+
+                            // StatusFilter
+                            if (historyStatusFilter !== 'all') {
+                              if (historyStatusFilter === 'completed' && !r.markAsCompleted) return false;
+                              if (historyStatusFilter === 'ongoing' && r.markAsCompleted) return false;
+                            }
+
+                            // ProjectFilter
+                            if (historyProjectFilter !== 'all') {
+                              if (r.projectId !== historyProjectFilter) return false;
+                            }
+
+                            return true;
                           });
 
-                          if (filteredHistoryRecords.length === 0) {
+                          // Map with computed costs to perform sorting
+                          const recordWithCosts = filteredHistoryRecords.map(record => {
+                            const matSum = record.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+                            const laborSum = record.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
+                            const expSum = record.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
+                            const recordTotalCost = matSum + laborSum + expSum;
+                            return { record, recordTotalCost };
+                          });
+
+                          // 2. Sort
+                          recordWithCosts.sort((a, b) => {
+                            if (historySortBy === 'date_desc') {
+                              return b.record.date.localeCompare(a.record.date);
+                            } else if (historySortBy === 'date_asc') {
+                              return a.record.date.localeCompare(b.record.date);
+                            } else if (historySortBy === 'cost_desc') {
+                              return b.recordTotalCost - a.recordTotalCost;
+                            } else if (historySortBy === 'cost_asc') {
+                              return a.recordTotalCost - b.recordTotalCost;
+                            }
+                            return 0;
+                          });
+
+                          if (recordWithCosts.length === 0) {
                             return (
-                              <div className="text-center py-12 bg-white rounded-2xl border border-neutral-200 border-dashed">
-                                <p className="text-sm text-neutral-500 font-medium">找不到符合條件的歷史施作紀錄！</p>
+                              <div className="text-center py-16 bg-white rounded-2xl border border-neutral-200 border-dashed space-y-2">
+                                <p className="text-sm text-neutral-500 font-bold">🔍 找不到符合目前篩選條件的歷史施工日誌！</p>
+                                <p className="text-xs text-neutral-400">試著更換關鍵字，或重設上方的多維度篩選選項。</p>
                               </div>
                             );
                           }
 
+                          const hasMore = recordWithCosts.length > historyVisibleLimit;
+                          const slicedRecords = recordWithCosts.slice(0, historyVisibleLimit);
+
                           return (
                             <div className="space-y-3">
-                              {filteredHistoryRecords.map(record => {
-                                const matSum = record.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
-                                const laborSum = record.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
-                                const expSum = record.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
-                                const recordTotalCost = matSum + laborSum + expSum;
+                              {/* Summary status tag */}
+                              <div className="flex items-center justify-between px-1 text-xs text-neutral-500 font-bold font-mono">
+                                <span>顯示派工日誌：{slicedRecords.length} / {recordWithCosts.length} 筆 (虛擬快取加速作用中)</span>
+                                <span>按：{historySortBy === 'date_desc' || historySortBy === 'date_asc' ? '日期排序' : '估算費用排序'}</span>
+                              </div>
 
+                              {slicedRecords.map(({ record, recordTotalCost }) => {
                                 const matchedProj = projects.find(p => p.id === record.projectId);
                                 const formattedProjName = matchedProj ? getProjectDisplayName(matchedProj) : record.projectName;
 
@@ -1356,7 +1495,7 @@ export default function App() {
                                       <h4 className="text-xs sm:text-sm font-extrabold text-neutral-800">
                                         {formattedProjName}
                                       </h4>
-                                      <p className="text-xs text-neutral-400 font-medium">
+                                      <p className="text-xs text-neutral-400 font-medium font-sans">
                                         {record.notes ? `施工說明：${record.notes}` : '工作正常，無特殊狀況。'}
                                       </p>
                                     </div>
@@ -1380,6 +1519,30 @@ export default function App() {
                                   </div>
                                 );
                               })}
+
+                              {hasMore && (
+                                <div className="pt-4 flex flex-col items-center justify-center gap-2 border-t border-neutral-150">
+                                  <p className="text-[11px] text-neutral-400 font-bold text-center">
+                                    💡 虛擬加速技術已作用：系統自動截取快顯前 {historyVisibleLimit} 筆，以防瀏覽器 DOM 過載卡頓 🚀
+                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setHistoryVisibleLimit(prev => prev + 50)}
+                                      className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-xl transition-all shadow-3xs cursor-pointer select-none"
+                                    >
+                                      ⏳ 載入下 50 筆紀錄
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setHistoryVisibleLimit(recordWithCosts.length)}
+                                      className="px-4 py-2 border border-neutral-300 hover:border-neutral-400 text-neutral-700 hover:bg-neutral-50 font-bold text-xs rounded-xl transition-all cursor-pointer select-none"
+                                    >
+                                      🚀 載入全部 ({recordWithCosts.length}筆)
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           );
                         })()}
@@ -1452,28 +1615,28 @@ export default function App() {
                 {activeTab === 'materials' && (
                   <div className="space-y-6 animate-fadeIn">
                     {/* Materials Integrated Sub-Navigation Controls */}
-                    <div className="flex border-b border-neutral-200 bg-neutral-50 p-1.2 sm:p-1.5 rounded-xl max-w-md select-none gap-1 shadow-3xs overflow-x-auto scrollbar-none">
+                    <div className="flex border-2 border-neutral-300 bg-neutral-100 p-1.5 rounded-xl max-w-md select-none gap-2 shadow-3xs overflow-x-auto scrollbar-none">
                       <button
                         onClick={() => setMaterialsSubTab('records')}
-                        className={`flex-1 py-1.5 px-3 text-[10px] sm:text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap min-w-max ${
+                        className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
                           materialsSubTab === 'records'
-                            ? 'bg-amber-600 text-white shadow-xs'
-                            : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'
+                            ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
+                            : 'bg-white text-neutral-800 border-neutral-300 hover:text-neutral-950 hover:bg-neutral-50 font-bold'
                         }`}
                       >
-                        <ShoppingBag size={13} className="shrink-0" />
+                        <ShoppingBag size={15} className="shrink-0 stroke-[2.5]" />
                         <span>箱米折算材料大庫</span>
                       </button>
                       
                       <button
                         onClick={() => setMaterialsSubTab('suppliers')}
-                        className={`flex-1 py-1.5 px-3 text-[10px] sm:text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap min-w-max ${
+                        className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
                           materialsSubTab === 'suppliers'
-                            ? 'bg-amber-600 text-white shadow-xs'
-                            : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'
+                            ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
+                            : 'bg-white text-neutral-800 border-neutral-300 hover:text-neutral-950 hover:bg-neutral-50 font-bold'
                         }`}
                       >
-                        <Store size={13} className="shrink-0" />
+                        <Store size={15} className="shrink-0 stroke-[2.5]" />
                         <span>特約合作材料商家</span>
                       </button>
                     </div>

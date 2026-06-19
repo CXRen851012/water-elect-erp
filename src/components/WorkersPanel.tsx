@@ -480,22 +480,22 @@ export default function WorkersPanel({
   });
 
   return (
-    <div id="workers-panel" className="bg-white p-6 rounded-2xl border border-neutral-200/80 shadow-xs space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-neutral-100">
+    <div id="workers-panel" className="bg-white p-6 rounded-2xl border-2 border-neutral-300 shadow-sm space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b-2 border-neutral-200">
         <div className="space-y-1">
-          <span className="text-[10px] uppercase tracking-wider font-extrabold text-amber-600 block">Dispatch Labor Management System</span>
-          <h2 className="text-base font-black text-neutral-800 flex items-center gap-2">
-            <HardHat className="text-amber-600 animate-pulse" size={20} />
+          <span className="text-xs uppercase tracking-wider font-extrabold text-amber-700 block">Dispatch Labor Management System</span>
+          <h2 className="text-lg font-black text-neutral-950 flex items-center gap-2">
+            <HardHat className="text-amber-700 animate-pulse stroke-[2.5]" size={24} />
             水電工班人事資料與薪資晉升
           </h2>
         </div>
       </div>
 
       {/* Advanced Register Form */}
-      <div className="bg-neutral-50 p-5 border border-neutral-150 rounded-xl">
-        <div className="flex items-center gap-1.5 mb-4 pb-2 border-b border-neutral-200">
-          <Sparkles size={14} className="text-amber-500" />
-          <h3 className="text-xs font-black text-neutral-800 uppercase tracking-tight">➕ 新增派工同仁 (詳細人事登錄與緊急聯絡人)</h3>
+      <div className="bg-neutral-50 p-6 border-2 border-neutral-250 rounded-xl">
+        <div className="flex items-center gap-1.5 mb-4 pb-3 border-b-2 border-neutral-200">
+          <Sparkles size={16} className="text-amber-600 stroke-[2.5]" />
+          <h3 className="text-sm font-black text-neutral-950 uppercase tracking-tight">➕ 新增派工同仁</h3>
         </div>
         
         <form onSubmit={handleAddWorker} className="space-y-4">

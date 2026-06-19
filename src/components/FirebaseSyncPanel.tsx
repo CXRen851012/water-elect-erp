@@ -58,11 +58,6 @@ export default function FirebaseSyncPanel({
   const [backups, setBackups] = useState<any[]>([]);
   const [backupsLoading, setBackupsLoading] = useState(false);
 
-  // 歷史快照搜尋、篩選與排序狀態
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'most_items' | 'fewest_items'>('newest');
-  const [filterType, setFilterType] = useState<string>('all');
-
   // Custom Elegant Confirm Modal State
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -154,88 +149,6 @@ export default function FirebaseSyncPanel({
     });
 
     return diffResult;
-  };
-
-  // 搜尋、篩選與排序歷史備份資料
-  const getFilteredAndSortedBackups = () => {
-    let result = [...backups];
-
-    // 1. 搜尋過濾
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      result = result.filter(bk => {
-        // 比對時間格式字串
-        const bkDate = new Date(bk.timestamp);
-        const dateStr = bkDate.toLocaleString('zh-TW').toLowerCase();
-        if (dateStr.includes(q)) return true;
-
-        // 比對工班人員
-        const hasWorker = bk.data?.workers?.some((w: any) => 
-          (w.name && w.name.toLowerCase().includes(q)) || 
-          (w.phone && w.phone.toLowerCase().includes(q)) ||
-          (w.role && w.role.toLowerCase().includes(q))
-        );
-        if (hasWorker) return true;
-
-        // 比對工程案場
-        const hasProject = bk.data?.projects?.some((p: any) => 
-          (p.companyOrOwner && p.companyOrOwner.toLowerCase().includes(q)) ||
-          (p.name && p.name.toLowerCase().includes(q)) ||
-          (p.location && p.location.toLowerCase().includes(q))
-        );
-        if (hasProject) return true;
-
-        // 比對業主/客戶
-        const hasCustomer = bk.data?.customers?.some((c: any) => 
-          (c.name && c.name.toLowerCase().includes(q)) ||
-          (c.phone && c.phone.toLowerCase().includes(q)) ||
-          (c.address && c.address.toLowerCase().includes(q))
-        );
-        if (hasCustomer) return true;
-
-        // 比對工務日誌
-        const hasRecord = bk.data?.records?.some((r: any) => 
-          (r.projectName && r.projectName.toLowerCase().includes(q)) ||
-          (r.summary && r.summary.toLowerCase().includes(q)) ||
-          (r.date && r.date.toLowerCase().includes(q))
-        );
-        if (hasRecord) return true;
-
-        // 比對耗材/材料合作商
-        const hasSupplier = bk.data?.suppliers?.some((s: any) => 
-          (s.name && s.name.toLowerCase().includes(q)) ||
-          (s.contact && s.contact.toLowerCase().includes(q))
-        );
-        if (hasSupplier) return true;
-
-        return false;
-      });
-    }
-
-    // 2. 篩選
-    if (filterType !== 'all') {
-      result = result.filter(bk => {
-        if (filterType === 'has_workers') return (bk.data?.workers?.length || 0) > 0;
-        if (filterType === 'has_projects') return (bk.data?.projects?.length || 0) > 0;
-        if (filterType === 'has_records') return (bk.data?.records?.length || 0) > 0;
-        if (filterType === 'has_suppliers') return (bk.data?.suppliers?.length || 0) > 0;
-        if (filterType === 'large_size') return (bk.totalCount || 0) >= 30;
-        if (filterType === 'medium_size') return (bk.totalCount || 0) >= 10 && (bk.totalCount || 0) < 30;
-        if (filterType === 'small_size') return (bk.totalCount || 0) < 10;
-        return true;
-      });
-    }
-
-    // 3. 排序
-    result.sort((a, b) => {
-      if (sortBy === 'newest') return b.timestamp - a.timestamp;
-      if (sortBy === 'oldest') return a.timestamp - b.timestamp;
-      if (sortBy === 'most_items') return b.totalCount - a.totalCount;
-      if (sortBy === 'fewest_items') return a.totalCount - b.totalCount;
-      return 0;
-    });
-
-    return result;
   };
 
   const fetchBackups = async (uid: string) => {
@@ -598,75 +511,6 @@ export default function FirebaseSyncPanel({
           )}
         </div>
 
-        {/* 搜尋、篩選與排序控制列 Panel */}
-        {backups.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3 bg-neutral-50 rounded-xl border border-neutral-200">
-            {/* Search Input */}
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-neutral-400">
-                <Search size={13} />
-              </span>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="搜尋日期、工班、案場或專案..."
-                className="w-full pl-8 pr-8 py-1.5 bg-white border border-neutral-250 rounded-lg text-xs font-semibold placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500 transition-colors"
-                id="backups-search-input"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-neutral-400 hover:text-neutral-600 text-[10px] font-bold cursor-pointer"
-                >
-                  清除
-                </button>
-              )}
-            </div>
-
-            {/* Filter Selector */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold text-neutral-500 shrink-0 flex items-center gap-0.5">
-                <SlidersHorizontal size={11} /> 篩選:
-              </span>
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-                className="w-full bg-white border border-neutral-250 rounded-lg text-xs px-2.5 py-1.5 font-bold text-neutral-700 focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
-                id="backups-filter-select"
-              >
-                <option value="all">📁 全部備份內容</option>
-                <option value="has_workers">👤 包含工班人員</option>
-                <option value="has_projects">🏗️ 包含工程案場</option>
-                <option value="has_records">📄 包含派工日誌</option>
-                <option value="has_suppliers">🛒 包含材料廠商</option>
-                <option value="large_size">📦 大型備份 (量 &ge; 30筆)</option>
-                <option value="medium_size">📦 中型備份 (10~29筆)</option>
-                <option value="small_size">📦 小型備份 (&lt; 10筆)</option>
-              </select>
-            </div>
-
-            {/* Sort Selector */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold text-neutral-500 shrink-0 flex items-center gap-0.5">
-                <ArrowUpDown size={11} /> 排序:
-              </span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="w-full bg-white border border-neutral-250 rounded-lg text-xs px-2.5 py-1.5 font-bold text-neutral-700 focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
-                id="backups-sort-select"
-              >
-                <option value="newest">🕒 時間：新 → 舊</option>
-                <option value="oldest">🕒 時間：舊 → 新</option>
-                <option value="most_items">📊 筆數：多 → 少</option>
-                <option value="fewest_items">📊 筆數：少 → 多</option>
-              </select>
-            </div>
-          </div>
-        )}
-
         {backupsLoading ? (
           <div className="py-8 text-center text-neutral-400 text-xs flex items-center justify-center gap-2 font-black">
             <RefreshCw size={14} className="animate-spin text-amber-500" />
@@ -676,15 +520,10 @@ export default function FirebaseSyncPanel({
           <div className="p-6 bg-neutral-50 rounded-xl text-center border border-dashed border-neutral-200 text-xs text-neutral-400">
             📭 雲端目前尚無任何歷史快照備份。當您點擊「一鍵同步」時，此處將自動觸發備份建立！
           </div>
-        ) : getFilteredAndSortedBackups().length === 0 ? (
-          <div className="p-8 bg-neutral-50 rounded-xl text-center border border-dashed border-neutral-200 text-xs text-neutral-500 font-bold space-y-1">
-            <p>🔍 查無符合搜尋與篩選條件的歷史備份快照。</p>
-            <p className="text-[11px] text-neutral-450 font-normal">試著更換搜尋關鍵字，或切換頂部篩選器！</p>
-          </div>
         ) : (
           <div className="space-y-3">
-            {getFilteredAndSortedBackups().map((bk) => {
-              const originalIndex = backups.findIndex(b => b.id === bk.id);
+            {backups.map((bk, idx) => {
+              const originalIndex = idx;
               const bkDate = new Date(bk.timestamp);
               const showDate = bkDate.toLocaleString('zh-TW', {
                 year: 'numeric',
@@ -707,7 +546,7 @@ export default function FirebaseSyncPanel({
                           {showDate}
                         </span>
                         {originalIndex === 0 && (
-                          <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-805 font-extrabold text-[9px] rounded-md border border-amber-200/40 font-sans">
+                          <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-850 font-extrabold text-[9px] rounded-md border border-amber-200/40 font-sans">
                             最新一期快照
                           </span>
                         )}

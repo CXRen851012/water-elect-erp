@@ -63,8 +63,8 @@ export default function BlueprintPanel({
     {
       id: 'records-projects',
       num: '1',
-      title: '案場工作流看板 (Workflow)',
-      icon: <FolderLock className="text-amber-600" size={24} />,
+      title: '案場工作流看板',
+      icon: <FolderLock className="text-amber-700 stroke-[2.5]" size={24} />,
       badge: '已上線',
       stats: `${activeProjectsCount} 個在建中 / ${projects.length} 個案場總數`,
       desc: '視覺化管理工程進度（估價簽認、施工在建 WIP、會計對帳、結案歸檔）。卡片即時透視業主資訊、合約估值、累計實耗工料隱性成本、預收抵扣與現場收款狀況，根絕作帳黑洞。',
@@ -77,8 +77,8 @@ export default function BlueprintPanel({
     {
       id: 'customers',
       num: '2',
-      title: '顧客與業主登記簿 (Customers)',
-      icon: <Users className="text-amber-655" size={24} />,
+      title: '顧客與業主登記簿',
+      icon: <Users className="text-amber-700 stroke-[2.5]" size={24} />,
       badge: '已上線',
       stats: `${customers.length} 個特約建商/業主登記`,
       desc: '完整登載發包業主或工務採購單位基本資訊與旗下多個施作案場、地址（一對多位址關聯簿）。支援快速檢索歷史合約、現有在建專案與專款專用款餘額。',
@@ -91,8 +91,8 @@ export default function BlueprintPanel({
     {
       id: 'workers',
       num: '3',
-      title: '工班名冊與請款費率 (Workers)',
-      icon: <HardHat className="text-amber-600" size={24} />,
+      title: '工班名冊與請款費率',
+      icon: <HardHat className="text-amber-700 stroke-[2.5]" size={24} />,
       badge: '雙重費率',
       stats: `${workers.length} 位在登正規/臨時師傅`,
       desc: '登載正規班師傅與外僱臨時點工。核心支持「雙重費率」：標準每小時支付成本（工資底價）與向業主核實請款費率（報價費率），於登錄日誌時自動算出各案人次工時計價利潤。',
@@ -102,8 +102,8 @@ export default function BlueprintPanel({
     {
       id: 'materials',
       num: '4',
-      title: '材料原廠合約價格單 (Materials)',
-      icon: <ShoppingBag className="text-amber-600" size={24} />,
+      title: '材料原廠合約價格單',
+      icon: <ShoppingBag className="text-amber-700 stroke-[2.5]" size={24} />,
       badge: '多單位轉換',
       stats: `${materials.length} 項標準工料原廠資料`,
       desc: '捨棄傳統工程行繁重且無實效之期末盤點，改採「標準單價調撥」管理。提供逆向多單位折算（進貨以箱/捆計，出料以支/米計倍率換算），並支持多供應商合約進價與牌價比價對照。',
@@ -118,8 +118,8 @@ export default function BlueprintPanel({
     {
       id: 'estimations',
       num: '5',
-      title: '工程估價一件轉案 (Estimations)',
-      icon: <Landmark className="text-amber-600" size={24} />,
+      title: '工程估價一件轉案',
+      icon: <Landmark className="text-amber-700 stroke-[2.5]" size={24} />,
       badge: '預算防守線',
       stats: `合約總估值 ~$${totalContractVal.toLocaleString()} 元`,
       desc: '支持於案場中調用材料行牌價進行外報與內控毛利試算。業主簽認後，一鍵將「估價單」直接轉立為正式「案場專案」。估價上限將自動對接為耗料警報防線，預防施工時失控超支。',
@@ -132,8 +132,8 @@ export default function BlueprintPanel({
     {
       id: 'records-today',
       num: '6',
-      title: '施工日誌公務簿 (Daily Work Logs)',
-      icon: <ClipboardList className="text-amber-600" size={24} />,
+      title: '施工日誌公務簿',
+      icon: <ClipboardList className="text-amber-700 stroke-[2.5]" size={24} />,
       badge: '外勤快速登錄',
       stats: `累計已登記 ${records.length} 篇公務施作日誌`,
       desc: '為前線工長與師傅量身打造的快速鍵盤。每日登錄出勤點工、倉庫出料或現場臨時採購（自墊）、代墊雜支（涼水車油便當費）、現場追加變更（Add-On）以及前線現收工程款，現場數據零時差回報。',
@@ -146,8 +146,8 @@ export default function BlueprintPanel({
     {
       id: 'prepaid',
       num: '7',
-      title: '業主預付款專用池 (Prepaid Pool)',
-      icon: <Coins className="text-amber-600" size={24} />,
+      title: '業主預付款專用池',
+      icon: <Coins className="text-amber-700 stroke-[2.5]" size={24} />,
       badge: '專款專用隔離',
       stats: `預付款池總餘額 $${prepaidPoolBalance.toLocaleString()} 元`,
       desc: '控管業主開立之簽約訂金、期款。支持「一般型預收池」多案場彈性調撥，以及「案場限制型預收款」專款專用鎖定。避免工程行將 A 案訂金補繳 B 案材料債務而產生斷鍊爛尾風險。',
@@ -157,8 +157,8 @@ export default function BlueprintPanel({
     {
       id: 'advances',
       num: '8',
-      title: '融資借支＆零用金管理 (Advances)',
-      icon: <BarChart3 className="text-amber-600" size={24} />,
+      title: '融資借支＆零用金管理',
+      icon: <BarChart3 className="text-amber-700 stroke-[2.5]" size={24} />,
       badge: '師傅預支/墊付',
       stats: `師傅待扣借款 $${totalAdvancedDebt.toLocaleString()} 元`,
       desc: '系統化解水電裝修行師傅常態款項預支、周轉金借貸痛點。登錄借支流水與還款扣回計畫，並動態監管出納保險箱內的「公司小額備用金帳」，徹底釐清師傅對公司的墊款與借款透明度。',
@@ -168,8 +168,8 @@ export default function BlueprintPanel({
     {
       id: 'billing',
       num: '9',
-      title: '會計底沖核帳 (Accounting Offset)',
-      icon: <Landmark className="text-amber-600" size={24} />,
+      title: '會計底沖核帳',
+      icon: <Landmark className="text-amber-700 stroke-[2.5]" size={24} />,
       badge: 'B法合流沖銷',
       stats: '核心主計對帳引擎',
       desc: '將當日施作的實耗工料隱成本、期初估價合約與現場追加款，與已收預收款一鍵進行「底沖合流沖款」。自動扣抵、產生應收餘額對帳單，並於對帳確認後「一鍵🔒鎖案結算」，防止二次修改。',
@@ -200,43 +200,43 @@ export default function BlueprintPanel({
   return (
     <div className="space-y-8 animate-fadeIn">
       {/* Mega Hero Portal Header */}
-      <div className="bg-neutral-900 text-white rounded-3xl p-6 md:p-8 border border-neutral-800 shadow-xl relative overflow-hidden">
+      <div className="bg-neutral-950 text-white rounded-3xl p-6 md:p-8 border-2 border-neutral-800 shadow-xl relative overflow-hidden">
         {/* Subtle decorative grid lines */}
-        <div className="absolute inset-x-0 top-0 h-40 bg-linear-to-b from-amber-500/10 to-transparent pointer-events-none" />
+        <div className="absolute inset-x-0 top-0 h-40 bg-linear-to-b from-amber-500/15 to-transparent pointer-events-none" />
         
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="space-y-2.5 max-w-3xl">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 text-amber-500 font-extrabold text-[10px] uppercase tracking-wider rounded-full border border-amber-500/25">
-              <Sparkles size={12} className="animate-pulse" />
+          <div className="space-y-3.5 max-w-3xl">
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-amber-500/20 text-amber-400 font-extrabold text-xs uppercase tracking-wider rounded-full border border-amber-500/40">
+              <Sparkles size={14} className="animate-pulse text-amber-450" />
               Advanced Engineering ERP Specification
             </div>
-            <h1 className="text-xl md:text-2xl font-black tracking-tight leading-tight">
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight leading-tight text-white">
               水電、裝修、營建進階工程 ERP 主計外勤管理系統
             </h1>
-            <p className="text-xs md:text-sm text-neutral-400 font-medium leading-relaxed font-sans">
+            <p className="text-sm md:text-base text-neutral-200 font-bold leading-relaxed font-sans">
               完美打破前線外勤與後台財務天塹。將「估價簽認 ➔ 派工登錄 ➔ 原廠料品 ➔ 現場追加 ➔ 師傅借支融資 ➔ 預收池款」
-              以及「會計底沖鎖帳（B法核沖演算法）」融為一體，為台灣中小型工程行量身打磨之高度契合操作大廳。
+              以及「會計底沖鎖帳」融為一體，為台灣中小型工程行量身打磨之高度契合操作大廳。
             </p>
           </div>
           
-          <div className="bg-neutral-800/80 p-5 rounded-2xl border border-neutral-700/60 w-full md:w-auto shrink-0 space-y-3 font-mono">
-            <span className="text-[10px] text-amber-400 font-extrabold block uppercase tracking-widest">實時核心數據儲備</span>
-            <div className="grid grid-cols-2 gap-4 text-xs">
+          <div className="bg-neutral-850 p-6 rounded-2xl border-2 border-neutral-700 w-full md:w-auto shrink-0 space-y-4 font-mono shadow-md">
+            <span className="text-xs text-amber-400 font-black block uppercase tracking-widest border-b border-neutral-700 pb-1.5">實時核心數據儲備</span>
+            <div className="grid grid-cols-2 gap-5 text-sm">
               <div>
-                <span className="text-neutral-500 block font-bold text-[10px]">在建 / 二手案場</span>
-                <span className="text-sm font-black text-white">{activeProjectsCount} 案 / {projects.length} 案</span>
+                <span className="text-neutral-400 block font-black text-xs mb-0.5">在建 / 總案場</span>
+                <span className="text-base font-black text-white">{activeProjectsCount} 案 / {projects.length} 案</span>
               </div>
               <div>
-                <span className="text-neutral-500 block font-bold text-[10px]">累計公務日誌</span>
-                <span className="text-sm font-black text-white">{records.length} 篇</span>
+                <span className="text-neutral-400 block font-black text-xs mb-0.5">累計公務日誌</span>
+                <span className="text-base font-black text-white">{records.length} 篇</span>
               </div>
               <div>
-                <span className="text-neutral-500 block font-bold text-[10px]">師傅借支結餘</span>
-                <span className="text-sm font-black text-amber-500">${totalAdvancedDebt.toLocaleString()}</span>
+                <span className="text-neutral-400 block font-black text-xs mb-0.5">師傅借支結餘</span>
+                <span className="text-base font-black text-amber-400">${totalAdvancedDebt.toLocaleString()}</span>
               </div>
               <div>
-                <span className="text-neutral-500 block font-bold text-[10px]">預付款池存蓄</span>
-                <span className="text-sm font-black text-emerald-400">${prepaidPoolBalance.toLocaleString()}</span>
+                <span className="text-neutral-400 block font-black text-xs mb-0.5">預付款池存蓄</span>
+                <span className="text-base font-black text-emerald-400">${prepaidPoolBalance.toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -245,60 +245,60 @@ export default function BlueprintPanel({
 
       {/* 9 Core Modules Roadmap Grid */}
       <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-200 pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b-2 border-neutral-300 pb-4">
           <div>
-            <h2 className="text-base font-extrabold text-neutral-800 flex items-center gap-2">
-              <Layers size={18} className="text-amber-600" />
-              一、 系統九大核心功能模組 (全鏈路打通已上線)
+            <h2 className="text-lg md:text-xl font-black text-slate-900 flex items-center gap-2">
+              <Layers size={20} className="text-amber-600 stroke-[2.5]" />
+              一、 系統九大核心功能模組
             </h2>
-            <p className="text-xs text-neutral-400 font-medium">點選下方各功能模組即可直接跳轉至對應的操作看板與登記主檔</p>
+            <p className="text-sm text-neutral-600 font-bold mt-1">點選下方各功能模組即可直接跳轉至對應的操作看板與登記主檔</p>
           </div>
-          <span className="text-xs text-neutral-400 font-bold font-mono">2026 ERP PRODUCTION ENVIRONMENT</span>
+          <span className="text-xs text-neutral-600 font-black font-mono bg-neutral-100 px-3 py-1 rounded-lg border border-neutral-300">2026 ERP PRODUCTION ENVIRONMENT</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {modules.map((m) => (
             <div 
               key={m.id} 
-              className="bg-white rounded-2xl border border-neutral-200 hover:border-amber-350 transition-all shadow-3xs hover:shadow-xs flex flex-col justify-between overflow-hidden group"
+              className="bg-white rounded-2xl border-2 border-neutral-200 hover:border-amber-500 transition-all shadow-3xs hover:shadow-sm flex flex-col justify-between overflow-hidden group"
             >
               <div className="p-5 space-y-4">
                 {/* Module title portion */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-700 font-bold font-mono text-sm shrink-0 border border-amber-100/60">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500 text-white font-black font-mono text-base shrink-0 border border-amber-600 flex items-center justify-center shadow-xs">
                       {m.num}
                     </div>
                     <div>
-                      <h3 className="text-xs sm:text-sm font-black text-neutral-800 group-hover:text-amber-700 transition-colors">
+                      <h3 className="text-sm sm:text-base font-black text-neutral-950 group-hover:text-amber-800 transition-colors">
                         {m.title}
                       </h3>
-                      <span className="text-[10px] text-neutral-400 font-mono font-bold block mt-0.5">
+                      <span className="text-xs text-neutral-600 font-mono font-black block mt-0.5">
                         {m.stats}
                       </span>
                     </div>
                   </div>
-                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-neutral-100 text-neutral-500 font-mono rounded">
+                  <span className="text-xs font-black px-2 py-0.5 bg-neutral-150 text-neutral-800 font-mono rounded-lg border border-neutral-300">
                     {m.badge}
                   </span>
                 </div>
 
-                <p className="text-xs text-neutral-500 font-medium leading-relaxed font-sans line-clamp-4">
+                <p className="text-xs sm:text-sm text-neutral-850 font-bold leading-relaxed font-sans line-clamp-4">
                   {m.desc}
                 </p>
               </div>
 
               {/* Interaction Row representing the jump button */}
-              <div className="bg-neutral-50 px-5 py-3 border-t border-neutral-100 flex items-center justify-between">
-                <span className="text-[10px] text-neutral-400 font-bold font-mono flex items-center gap-1">
-                  <CheckCircle2 size={10} className="text-emerald-600" /> Active System Status
+              <div className="bg-neutral-50 px-5 py-3.5 border-t-2 border-neutral-200/80 flex items-center justify-between">
+                <span className="text-xs text-neutral-600 font-black font-mono flex items-center gap-1">
+                  <CheckCircle2 size={12} className="text-emerald-600 stroke-[2.5]" /> 系統正常啓用中
                 </span>
                 <button
                   onClick={m.action}
-                  className="text-xs font-bold text-amber-600 hover:text-amber-700 transition flex items-center gap-1 cursor-pointer"
+                  className="text-xs sm:text-sm font-black text-amber-700 hover:text-amber-900 transition flex items-center gap-1 cursor-pointer"
                 >
                   {m.actionText}
-                  <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
+                  <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform stroke-[2.5]" />
                 </button>
               </div>
             </div>
@@ -310,9 +310,9 @@ export default function BlueprintPanel({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
         {/* Dynamic Q&A Panel */}
-        <div className="lg:col-span-12 bg-white p-6 rounded-2xl border border-neutral-200/80 shadow-3xs space-y-4">
-          <h3 className="text-sm font-black text-neutral-800 border-b border-neutral-100 pb-3 flex items-center gap-1.5">
-            <HelpCircle size={16} className="text-amber-600" />
+        <div className="lg:col-span-12 bg-white p-6 rounded-2xl border-2 border-neutral-200 shadow-3xs space-y-4">
+          <h3 className="text-base font-black text-neutral-950 border-b-2 border-neutral-200 pb-3.5 flex items-center gap-1.5">
+            <HelpCircle size={20} className="text-amber-600 stroke-[2.5]" />
             工程業 ERP 問答操作手冊
           </h3>
 
@@ -320,19 +320,19 @@ export default function BlueprintPanel({
             {industryFaqs.map((faq, idx) => (
               <div 
                 key={idx} 
-                className="border-b border-neutral-100 pb-3 last:border-0 last:pb-0"
+                className="border-b border-neutral-200 pb-3 last:border-0 last:pb-0"
               >
                 <button
                   onClick={() => setActiveFaq(activeFaq === idx ? null : idx)}
-                  className="w-full flex items-center justify-between text-left py-1 text-xs font-bold text-neutral-800 hover:text-amber-700 transition-colors"
+                  className="w-full flex items-center justify-between text-left py-2.5 text-sm font-black text-neutral-950 hover:text-amber-850 transition-colors"
                 >
                   <span className="pr-4">{faq.q}</span>
-                  <span className="text-neutral-400 font-mono shrink-0">
+                  <span className="text-neutral-500 font-mono shrink-0 font-black">
                     {activeFaq === idx ? '▲' : '▼'}
                   </span>
                 </button>
                 {activeFaq === idx && (
-                  <p className="mt-2 text-neutral-500 text-xs font-medium leading-relaxed bg-neutral-50 p-3 rounded-lg border border-neutral-100">
+                  <p className="mt-2 text-neutral-850 text-sm font-bold leading-relaxed bg-neutral-100 p-4 rounded-xl border border-neutral-300">
                     {faq.a}
                   </p>
                 )}

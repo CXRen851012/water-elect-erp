@@ -127,10 +127,62 @@ export default function BillingPanel({
 
   // Worker Attendance Filters
   const [attendanceWorkerId, setAttendanceWorkerId] = useState<string>('all');
-  const [attendanceStartDate, setAttendanceStartDate] = useState<string>('');
-  const [attendanceEndDate, setAttendanceEndDate] = useState<string>('');
+  const [attendanceStartDate, setAttendanceStartDate] = useState<string>(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}-01`;
+  });
+  const [attendanceEndDate, setAttendanceEndDate] = useState<string>(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
   const [attendanceSortBy, setAttendanceSortBy] = useState<string>('dateDesc');
   const [attendanceSearchQuery, setAttendanceSearchQuery] = useState<string>('');
+
+  // 考勤對帳明細表虛擬滾動 (Virtual Scroll) 狀態與配置
+  const [tableScrollTop, setTableScrollTop] = useState<number>(0);
+  const tableContainerHeight = 520; // 固定的可視高度 520px
+  const rowHeight = 72; // 預估平均每列高度 72px
+
+  // 快速切換考勤月份 Helper 函數
+  const handlePrevMonth = () => {
+    const currentRef = attendanceStartDate ? new Date(attendanceStartDate) : new Date();
+    currentRef.setMonth(currentRef.getMonth() - 1);
+    const year = currentRef.getFullYear();
+    const month = String(currentRef.getMonth() + 1).padStart(2, '0');
+    const firstDay = `${year}-${month}-01`;
+    const lastDayObj = new Date(year, currentRef.getMonth() + 1, 0);
+    const lastDay = `${year}-${month}-${String(lastDayObj.getDate()).padStart(2, '0')}`;
+    setAttendanceStartDate(firstDay);
+    setAttendanceEndDate(lastDay);
+  };
+
+  const handleNextMonth = () => {
+    const currentRef = attendanceStartDate ? new Date(attendanceStartDate) : new Date();
+    currentRef.setMonth(currentRef.getMonth() + 1);
+    const year = currentRef.getFullYear();
+    const month = String(currentRef.getMonth() + 1).padStart(2, '0');
+    const firstDay = `${year}-${month}-01`;
+    const lastDayObj = new Date(year, currentRef.getMonth() + 1, 0);
+    const lastDay = `${year}-${month}-${String(lastDayObj.getDate()).padStart(2, '0')}`;
+    setAttendanceStartDate(firstDay);
+    setAttendanceEndDate(lastDay);
+  };
+
+  const handleCurrentMonth = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const firstDay = `${year}-${month}-01`;
+    const day = String(now.getDate()).padStart(2, '0');
+    const today = `${year}-${month}-${day}`;
+    setAttendanceStartDate(firstDay);
+    setAttendanceEndDate(today);
+  };
 
   // ---- 預支借支建立表單 States ----
   const [addAdvWorkerId, setAddAdvWorkerId] = useState<string>('');
@@ -976,8 +1028,8 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
   // WORKER ATTENDANCE & WAGES RECORD TAB (NEWLY ADDED!)
   // ----------------------------------------------------
   
-  // Aggregate worker timesheets from all records
-  const attendanceList = useMemo(() => {
+  // Base multi-worker sequential allocation list
+  const baseAttendanceList = useMemo(() => {
     const list: Array<{
       id: string;
       recordId: string;
@@ -1080,8 +1132,13 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
       });
     });
 
+    return list;
+  }, [records, projects]);
+
+  // Aggregate worker timesheets - with exact date filters for Monthly Payroll summaries and KPIs
+  const attendanceList = useMemo(() => {
     // Apply FILTERS
-    const filteredList = list.filter(item => {
+    const filteredList = baseAttendanceList.filter(item => {
       if (attendanceStartDate && item.date < attendanceStartDate) return false;
       if (attendanceEndDate && item.date > attendanceEndDate) return false;
 
@@ -1123,7 +1180,67 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
     });
 
     return filteredList;
-  }, [records, attendanceWorkerId, attendanceStartDate, attendanceEndDate, attendanceSortBy, attendanceSearchQuery, projects]);
+  }, [baseAttendanceList, attendanceWorkerId, attendanceStartDate, attendanceEndDate, attendanceSortBy, attendanceSearchQuery]);
+
+  // Filtered list specifically for bottom verification table - matches the active date range filters!
+  const tableAttendanceList = useMemo(() => {
+    // Apply FILTERS
+    const filteredList = baseAttendanceList.filter(item => {
+      // NOW COVERS DATE RANGE FILTERS FOR SYNCHRONIZED RECONCILIATION!
+      if (attendanceStartDate && item.date < attendanceStartDate) return false;
+      if (attendanceEndDate && item.date > attendanceEndDate) return false;
+
+      if (attendanceWorkerId !== 'all') {
+        if (attendanceWorkerId === 'support') {
+          if (!item.isSupport) return false;
+        } else {
+          if (item.workerId !== attendanceWorkerId) return false;
+        }
+      }
+
+      if (attendanceSearchQuery.trim()) {
+        const q = attendanceSearchQuery.toLowerCase();
+        const searchMatched = item.name.toLowerCase().includes(q) ||
+                              item.projectName.toLowerCase().includes(q) ||
+                              item.dailyNotes.toLowerCase().includes(q);
+        if (!searchMatched) return false;
+      }
+
+      return true;
+    });
+
+    // Apply SORTING
+    filteredList.sort((a, b) => {
+      if (attendanceSortBy === 'dateDesc') {
+        return b.date.localeCompare(a.date) || b.id.localeCompare(a.id);
+      } else if (attendanceSortBy === 'dateAsc') {
+        return a.date.localeCompare(b.date) || a.id.localeCompare(b.id);
+      } else if (attendanceSortBy === 'hoursDesc') {
+        return b.hoursWork - a.hoursWork;
+      } else if (attendanceSortBy === 'hoursAsc') {
+        return a.hoursWork - b.hoursWork;
+      } else if (attendanceSortBy === 'wageDesc') {
+        return b.totalWage - a.totalWage;
+      } else if (attendanceSortBy === 'wageAsc') {
+        return a.totalWage - b.totalWage;
+      }
+      return b.date.localeCompare(a.date);
+    });
+
+    return filteredList;
+  }, [baseAttendanceList, attendanceWorkerId, attendanceStartDate, attendanceEndDate, attendanceSortBy, attendanceSearchQuery]);
+
+  // 考勤對帳表的虛擬滾動 (Virtual Scroll) 可視範圍切片與高度補白計算 (Optimization 1)
+  const visibleCount = Math.ceil(tableContainerHeight / rowHeight);
+  const startIndex = Math.max(0, Math.floor(tableScrollTop / rowHeight) - 3);
+  const endIndex = Math.min(tableAttendanceList.length, startIndex + visibleCount + 6);
+
+  const visibleTableItems = useMemo(() => {
+    return tableAttendanceList.slice(startIndex, endIndex);
+  }, [tableAttendanceList, startIndex, endIndex]);
+
+  const paddingTopHeight = startIndex * rowHeight;
+  const paddingBottomHeight = (tableAttendanceList.length - endIndex) * rowHeight;
 
   // 計算每個工班同仁的預支、借支與還款餘額彙整
   const workerAdvancesSummary = useMemo(() => {
@@ -1264,15 +1381,18 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
     <div className="space-y-6">
       
       {/* 🚀 SUB-TAB VIEW HEADER NAVIGATION */}
-      <div className="bg-slate-900 text-white p-4.5 rounded-2xl border border-slate-950 shadow-md">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="space-y-1">
+      <div className="bg-neutral-950 text-white p-6 rounded-3xl border-2 border-neutral-800 shadow-xl relative overflow-hidden">
+        {/* Subtle decorative grid lines */}
+        <div className="absolute inset-x-0 top-0 h-24 bg-linear-to-b from-amber-500/10 to-transparent pointer-events-none" />
+        
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] bg-amber-500 font-extrabold text-slate-950 px-2.5 py-0.5 rounded-full uppercase tracking-wider">Enterprise Pro</span>
-              <span className="text-xs text-slate-300">統一營運中心</span>
+              <span className="text-[10px] bg-amber-600 font-extrabold text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-amber-500">Corporate FinTech</span>
+              <span className="text-xs text-neutral-300 font-bold">統一財務與出納調撥中心</span>
             </div>
-            <h2 className="text-sm sm:text-base font-black text-white flex items-center gap-1.5">
-              <Coins size={18} className="text-amber-400 stroke-[2.5]" />
+            <h2 className="text-base sm:text-xl font-black text-white flex items-center gap-1.5">
+              <Coins size={22} className="text-amber-500 stroke-[2.5]" />
               水電工程帳務與工班考勤中心
             </h2>
           </div>
@@ -1290,72 +1410,72 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
               setSingleAllocSubMode('normal');
               setShowAddPaymentModal(true);
             }}
-            className="px-4.5 py-2 hover:scale-[1.02] bg-amber-500 text-slate-950 font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md shrink-0 cursor-pointer"
+            className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-black text-sm rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md shrink-0 cursor-pointer border border-amber-500"
           >
-            <Plus size={15} className="stroke-[3]" />
+            <Plus size={16} className="stroke-[2.5]" />
             登錄客戶水電款項
           </button>
         </div>
 
-        {/* 4 Multi-sub-tabs controllers with micro-animations */}
-        <div className="flex items-center mt-4 border-t border-slate-800 pt-3 overflow-x-auto gap-2 no-scrollbar">
+        {/* 5 Multi-sub-tabs controllers with micro-animations */}
+        <div className="flex items-center mt-5 border-t-2 border-neutral-800 pt-4 overflow-x-auto gap-2.5 no-scrollbar scrollbar-none">
           <button
             onClick={() => setActiveSubTab('billing_records')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-black whitespace-nowrap transition-all border ${
               activeSubTab === 'billing_records' 
-                ? 'bg-amber-500 text-slate-950 shadow-sm' 
-                : 'text-slate-300 hover:bg-slate-800'
+                ? 'bg-amber-600 text-white border-amber-700 shadow-sm' 
+                : 'bg-neutral-900 text-neutral-300 border-neutral-800 hover:text-white hover:bg-neutral-800'
             }`}
           >
-            <Landmark size={14} />
+            <Landmark size={14} className="stroke-[2.5]" />
             款項對帳
           </button>
 
           <button
             onClick={() => setActiveSubTab('operating_analytics')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-black whitespace-nowrap transition-all border ${
               activeSubTab === 'operating_analytics' 
-                ? 'bg-amber-500 text-slate-950 shadow-sm' 
-                : 'text-slate-300 hover:bg-slate-800'
+                ? 'bg-amber-600 text-white border-amber-700 shadow-sm' 
+                : 'bg-neutral-900 text-neutral-300 border-neutral-800 hover:text-white hover:bg-neutral-800'
             }`}
           >
-            <TrendingUp size={14} />
+            <TrendingUp size={14} className="stroke-[2.5]" />
             利潤分析
           </button>
 
           <button
             onClick={() => setActiveSubTab('worker_attendance')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-black whitespace-nowrap transition-all border ${
               activeSubTab === 'worker_attendance' 
-                ? 'bg-amber-500 text-slate-950 shadow-sm' 
-                : 'text-slate-300 hover:bg-slate-800'
+                ? 'bg-amber-600 text-white border-amber-700 shadow-sm' 
+                : 'bg-neutral-900 text-neutral-300 border-neutral-800 hover:text-white hover:bg-neutral-800'
             }`}
           >
-            <HardHat size={14} />
+            <HardHat size={14} className="stroke-[2.5]" />
             工班考勤
           </button>
 
           <button
             onClick={() => setActiveSubTab('worker_advances')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-black whitespace-nowrap transition-all border ${
               activeSubTab === 'worker_advances' 
-                ? 'bg-amber-500 text-slate-950 shadow-sm' 
-                : 'text-slate-300 hover:bg-slate-800'
+                ? 'bg-amber-600 text-white border-amber-700 shadow-sm' 
+                : 'bg-neutral-900 text-neutral-300 border-neutral-800 hover:text-white hover:bg-neutral-800'
             }`}
           >
-            <DollarSign size={14} />
+            <DollarSign size={14} className="stroke-[2.5]" />
             預支借支
           </button>
 
           <button
             onClick={() => setActiveSubTab('petty_cash')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-black whitespace-nowrap transition-all border ${
               activeSubTab === 'petty_cash' 
-                ? 'bg-amber-500 text-slate-950 shadow-sm' 
-                : 'text-slate-300 hover:bg-slate-800'
+                ? 'bg-amber-600 text-white border-amber-700 shadow-sm' 
+                : 'bg-neutral-900 text-neutral-300 border-neutral-800 hover:text-white hover:bg-neutral-800'
             }`}
           >
-            <Wallet size={14} />
+            <Wallet size={14} className="stroke-[2.5]" />
             零用金簿
           </button>
         </div>
@@ -2410,20 +2530,23 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
           
           {/* Query Form & filters */}
           <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-3xs">
-            <div className="flex items-center justify-between pb-3 border-b border-neutral-100 mb-4 text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-200 mb-4 text-xs">
               <div className="flex items-center gap-2">
-                <Users size={16} className="text-amber-500 stroke-[2.5]" />
-                <span className="font-extrabold text-neutral-800">工班時數校對與工資審查條件</span>
+                <Users size={18} className="text-amber-500 stroke-[2.5]" />
+                <span className="font-extrabold text-sm md:text-base text-neutral-900">工班時數校對與工資審查條件</span>
               </div>
               <button
                 onClick={() => {
                   setAttendanceWorkerId('all');
-                  setAttendanceStartDate('');
-                  setAttendanceEndDate('');
+                  const now = new Date();
+                  const year = now.getFullYear();
+                  const month = String(now.getMonth() + 1).padStart(2, '0');
+                  setAttendanceStartDate(`${year}-${month}-01`);
+                  setAttendanceEndDate(`${year}-${month}-${String(now.getDate()).padStart(2, '0')}`);
                   setAttendanceSortBy('dateDesc');
                   setAttendanceSearchQuery('');
                 }}
-                className="text-[10px] bg-neutral-100 hover:bg-neutral-200 text-neutral-600 px-2 py-1 rounded font-bold transition flex items-center gap-1"
+                className="text-xs bg-neutral-100 hover:bg-neutral-200 text-neutral-800 px-3 py-1.5 rounded-lg border border-neutral-300 font-extrabold transition flex items-center gap-1 cursor-pointer select-none"
               >
                 🔄 重設篩選與排序
               </button>
@@ -2432,64 +2555,64 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               {/* Worker select selector */}
               <div>
-                <label className="block text-[11px] font-bold text-neutral-500 mb-1">派遣員工姓名</label>
+                <label className="block text-xs md:text-sm font-extrabold text-neutral-850 mb-1.5">派遣員工姓名</label>
                 <select
                   value={attendanceWorkerId}
                   onChange={(e) => setAttendanceWorkerId(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-800 font-bold"
+                  className="w-full px-2.5 py-2 border border-neutral-300 rounded-lg text-xs md:text-sm bg-white text-neutral-900 font-black focus:border-amber-500 focus:outline-hidden"
                 >
                   <option value="all">👥 所有出勤與外調人員 (不限)</option>
                   {workersPreset.map(w => (
                     <option key={w.id} value={w.id}>
-                      👷 {w.name} {w.role ? `(${w.role})` : ''} - 預設時薪: ${w.defaultHourlyRate}元
+                      👷 {w.name} {w.role ? `(${w.role})` : ''}
                     </option>
                   ))}
                   {/* Option for temporary support workers */}
-                  <option value="support">👤 僅看臨時外調人員 (support)</option>
+                  <option value="support">👤 僅看臨時外調人員</option>
                 </select>
               </div>
 
               {/* Start Date */}
               <div>
-                <label className="block text-[11px] font-bold text-neutral-500 mb-1">考勤開始日期</label>
+                <label className="block text-xs md:text-sm font-extrabold text-neutral-850 mb-1.5">考勤開始日期</label>
                 <input
                   type="date"
                   value={attendanceStartDate}
                   onChange={(e) => setAttendanceStartDate(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white font-medium"
+                  className="w-full px-2.5 py-1.5 border border-neutral-300 rounded-lg text-xs md:text-sm bg-white font-bold text-neutral-900 focus:border-amber-500 focus:outline-hidden"
                 />
               </div>
 
               {/* End Date */}
               <div>
-                <label className="block text-[11px] font-bold text-neutral-500 mb-1">考勤截止日期</label>
+                <label className="block text-xs md:text-sm font-extrabold text-neutral-850 mb-1.5">考勤截止日期</label>
                 <input
                   type="date"
                   value={attendanceEndDate}
                   onChange={(e) => setAttendanceEndDate(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white font-medium"
+                  className="w-full px-2.5 py-1.5 border border-neutral-300 rounded-lg text-xs md:text-sm bg-white font-bold text-neutral-900 focus:border-amber-500 focus:outline-hidden"
                 />
               </div>
 
               {/* Search Query */}
               <div>
-                <label className="block text-[11px] font-bold text-neutral-500 mb-1">搜尋關鍵字 (員工/案場/備註)</label>
+                <label className="block text-xs md:text-sm font-extrabold text-neutral-850 mb-1.5">搜尋關鍵字 (員工/案場/備註)</label>
                 <input
                   type="text"
                   placeholder="請輸入關鍵字搜尋..."
                   value={attendanceSearchQuery}
                   onChange={(e) => setAttendanceSearchQuery(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white font-medium text-neutral-800 placeholder-neutral-400"
+                  className="w-full px-2.5 py-1.5 border border-neutral-300 rounded-lg text-xs md:text-sm bg-white font-bold text-neutral-900 placeholder-neutral-450 focus:border-amber-500 focus:outline-hidden"
                 />
               </div>
 
               {/* Sorting conditions */}
               <div>
-                <label className="block text-[11px] font-bold text-neutral-500 mb-1">排序規則</label>
+                <label className="block text-xs md:text-sm font-extrabold text-neutral-850 mb-1.5">排序規則</label>
                 <select
                   value={attendanceSortBy}
                   onChange={(e) => setAttendanceSortBy(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-800 font-bold"
+                  className="w-full px-2.5 py-2 border border-neutral-300 rounded-lg text-xs md:text-sm bg-white text-neutral-900 font-black focus:border-amber-500 focus:outline-hidden"
                 >
                   <option value="dateDesc">📅 日期 (由新到舊)</option>
                   <option value="dateAsc">📅 日期 (由舊到新)</option>
@@ -2500,239 +2623,272 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                 </select>
               </div>
             </div>
+
+            {/* 快速切換月份工具列 (New Month Switching Toolbar) */}
+            <div className="flex flex-wrap items-center gap-1.5 mt-4 pt-3.5 border-t border-neutral-200 text-xs md:text-sm">
+              <span className="text-neutral-700 font-extrabold mr-1">📅 快速月份切換:</span>
+              <button
+                type="button"
+                onClick={handlePrevMonth}
+                className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 border border-neutral-250 rounded-lg font-black transition flex items-center gap-1 select-none cursor-pointer"
+              >
+                ◀ 上個月
+              </button>
+              <button
+                type="button"
+                onClick={handleCurrentMonth}
+                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-neutral-950 border border-amber-650 rounded-lg font-black transition flex items-center gap-1 select-none cursor-pointer shadow-3xs"
+              >
+                📅 回本月
+              </button>
+              <button
+                type="button"
+                onClick={handleNextMonth}
+                className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 border border-neutral-250 rounded-lg font-black transition flex items-center gap-1 select-none cursor-pointer"
+              >
+                下個月 ▶
+              </button>
+
+              {(() => {
+                const buttons = [];
+                const now = new Date();
+                for (let i = 0; i < 4; i++) {
+                  const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                  const year = d.getFullYear();
+                  const monthNum = d.getMonth() + 1;
+                  const monthStr = String(monthNum).padStart(2, '0');
+                  const label = `${monthNum}月`;
+                  // Check if selected range matches this month's limits or similar
+                  const active = attendanceStartDate === `${year}-${monthStr}-01`;
+                  buttons.push(
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => {
+                        const firstDay = `${year}-${monthStr}-01`;
+                        const lastDayObj = new Date(year, d.getMonth() + 1, 0);
+                        const lastDay = `${year}-${monthStr}-${String(lastDayObj.getDate()).padStart(2, '0')}`;
+                        if (i === 0) {
+                          const todayObj = new Date();
+                          const todayStr = `${year}-${monthStr}-${String(todayObj.getDate()).padStart(2, '0')}`;
+                          setAttendanceStartDate(firstDay);
+                          setAttendanceEndDate(todayStr);
+                        } else {
+                          setAttendanceStartDate(firstDay);
+                          setAttendanceEndDate(lastDay);
+                        }
+                      }}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition select-none cursor-pointer ${
+                        active
+                          ? 'bg-amber-100 text-amber-800 border border-amber-300 font-extrabold shadow-3xs'
+                          : 'bg-white hover:bg-neutral-50 text-neutral-600 border border-neutral-200'
+                      }`}
+                    >
+                      {year !== now.getFullYear() ? `${year}年${label}` : label}
+                    </button>
+                  );
+                }
+                return (
+                  <div className="flex items-center gap-1 ml-auto">
+                    <span className="text-[10px] text-neutral-400 font-bold hidden sm:inline mr-1">月份快捷:</span>
+                    {buttons.reverse()}
+                  </div>
+                );
+              })()}
+            </div>
           </div>
 
           {/* Aggregated Payroll KPIs for workers verification */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             
-            <div className="bg-white p-4.5 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3.5">
+            <div className="bg-white p-5 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3.5">
               <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg">
                 <Clock size={20} />
               </div>
               <div>
-                <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">累計核對總工時</span>
-                <span className="text-sm font-black font-mono text-neutral-900">
+                <span className="block text-xs font-black text-neutral-600 mb-1">累計核對總工時</span>
+                <span className="text-base md:text-lg font-black font-mono text-slate-950">
                   {attendanceKPIs.totalHours} 小時
                 </span>
               </div>
             </div>
 
-            <div className="bg-white p-4.5 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3.5">
+            <div className="bg-white p-5 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3.5">
               <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
                 <DollarSign size={20} />
               </div>
               <div>
-                <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">應領總薪資報酬</span>
-                <span className="text-sm font-black font-mono text-emerald-800">
+                <span className="block text-xs font-black text-neutral-600 mb-1">應領總薪資報酬</span>
+                <span className="text-base md:text-lg font-black font-mono text-emerald-950">
                   NT$ {attendanceKPIs.totalWages.toLocaleString()} 元
                 </span>
               </div>
             </div>
 
-            <div className="bg-white p-4.5 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3.5">
+            <div className="bg-white p-5 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3.5">
               <div className="p-3 bg-amber-50 text-amber-600 rounded-lg">
                 <Calendar size={20} />
               </div>
               <div>
-                <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">出勤工時天數計</span>
-                <span className="text-sm font-black font-mono text-neutral-900">
+                <span className="block text-xs font-black text-neutral-600 mb-1">出勤累計天數</span>
+                <span className="text-base md:text-lg font-black font-mono text-slate-950">
                   {attendanceKPIs.workDaysCount} 天
                 </span>
               </div>
             </div>
 
-            <div className="bg-white p-4.5 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3.5">
-              <div className="p-3 bg-neutral-100 text-neutral-600 rounded-lg">
-                <Info size={20} />
+            <div className="bg-white p-5 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3.5">
+              <div className="p-3 bg-red-50 text-red-650 rounded-lg">
+                <Clock size={20} />
               </div>
               <div>
-                <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">出勤日日均工時</span>
-                <span className="text-sm font-black font-mono text-neutral-900">
-                  {attendanceKPIs.avgHoursPerDay} 小時 / 日
+                <span className="block text-xs font-black text-neutral-600 mb-1">平均每日派遣時數</span>
+                <span className="text-base md:text-lg font-black font-mono text-slate-950">
+                  {attendanceKPIs.avgHoursPerDay} 小時
                 </span>
               </div>
-            </div>
-
-          </div>
-
-          {/* 期末同仁薪資與預支借扣彙總結算簿 (NEW!) */}
-          <div className="bg-white rounded-2xl border border-neutral-200 shadow-3xs overflow-hidden">
-            <div className="px-5 py-4 border-b border-neutral-100 flex items-center justify-between">
-              <h4 className="text-xs sm:text-sm font-black text-neutral-800 flex items-center gap-1.5">
-                <Coins size={16} className="text-amber-500" />
-                結算整合：員工本期應領工資、勞健保代扣、提撥與借支核銷彙整簿
-              </h4>
-              <span className="text-[10px] font-sans text-neutral-500 font-bold">
-                ⚠️ 自動扣減應領工資中之「個人代收付勞健保費/自提/代扣款」與隨扣預支
-              </span>
-            </div>
-
-            <div className="overflow-x-auto">
-              {consolidatedPayrollList.length === 0 ? (
-                <p className="text-xs text-neutral-400 italic text-center py-10">查無當期工資與出勤或借貸餘額彙整。</p>
-              ) : (
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-neutral-200 text-[10px] text-neutral-400 font-extrabold bg-neutral-50">
-                      <th className="py-2.5 px-4 font-black">員工姓名 / 代扣提撥明細</th>
-                      <th className="py-2.5 px-4 text-center font-black">累計派遣出勤工時</th>
-                      <th className="py-2.5 px-4 text-right font-black">期間應領工資 (A)</th>
-                      <th className="py-2.5 px-4 text-right font-black text-rose-700 bg-rose-50/50">個人保退代扣合算 (B)</th>
-                      <th className="py-2.5 px-4 text-right font-black text-amber-700 bg-amber-50/50">借支沖抵餘額 (C)</th>
-                      <th className="py-2.5 px-4 text-right font-black text-sky-800 bg-sky-50/35">本期核實實發 (A - B - C)</th>
-                      <th className="py-2.5 px-4 text-right font-black text-emerald-800 bg-emerald-50/35">雇主外提保費總額 (D)</th>
-                      <th className="py-2.5 px-4 text-center font-black">借開代扣狀態</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-150">
-                    {consolidatedPayrollList.map(summary => {
-                      // B = 個人自付勞保 + 健保 + 自提退 + 其它代扣
-                      const totalDeduction = summary.laborSelfPay + summary.healthSelfPay + summary.pensionSelfPay + summary.otherWithholding;
-                      // C = 借支
-                      const netPay = summary.totalWages - totalDeduction - summary.borrowBalance;
-                      // D = 雇主負擔成本 (勞退雇主 + 勞保雇主 + 健保雇主)
-                      const employerLiability = summary.pensionEmployer + summary.laborEmployer + summary.healthEmployer;
-
-                      return (
-                        <tr key={summary.workerId} className="hover:bg-neutral-50/45">
-                          <td className="py-3 px-4 text-neutral-800">
-                            <div className="font-extrabold text-neutral-900">👷 {summary.name}</div>
-                            {totalDeduction > 0 && (
-                              <div className="text-[9px] text-amber-600 font-bold mt-0.5">
-                                預扣：勞 {summary.laborSelfPay} / 健 {summary.healthSelfPay} / 退 {summary.pensionSelfPay} / 扣 {summary.otherWithholding}
-                              </div>
-                            )}
-                            {employerLiability > 0 && (
-                              <div className="text-[9px] text-emerald-600 font-medium mt-0.5">
-                                公司實提保退：${employerLiability.toLocaleString()} 元
-                              </div>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-center font-mono font-bold text-neutral-600">
-                            {summary.totalHours} 小時
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-extrabold text-neutral-900">
-                            ${summary.totalWages.toLocaleString()} 元
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-bold text-rose-600 bg-rose-50/15">
-                            {totalDeduction > 0 ? `-$${totalDeduction.toLocaleString()} 元` : '無預扣自負額'}
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-extrabold text-amber-600 bg-amber-50/15">
-                            {summary.borrowBalance > 0 ? `-$${summary.borrowBalance.toLocaleString()} 元` : '無款項 / $0'}
-                          </td>
-                          <td className={`py-3 px-4 text-right font-mono font-black bg-sky-50/30 text-xs ${
-                            netPay < 0 ? 'text-red-700 font-black' : 'text-sky-850'
-                          }`}>
-                            ${netPay.toLocaleString()} 元
-                            {netPay < 0 && <span className="block text-[8px] text-red-500 leading-none mt-0.5 font-bold">⚠️ 薪資不足以沖抵預預扣</span>}
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-bold text-emerald-800 bg-emerald-50/15">
-                            +${employerLiability.toLocaleString()} 元
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            {summary.borrowBalance > 0 ? (
-                              <button
-                                onClick={() => setActiveSubTab('worker_advances')}
-                                className="text-[10px] bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-lg transition font-bold cursor-pointer"
-                              >
-                                💸 前往預支帳目查看
-                              </button>
-                            ) : (
-                              <span className="text-[9px] bg-neutral-100 text-neutral-400 px-2 py-0.5 rounded font-bold">
-                                結清 / 無借款
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
             </div>
           </div>
 
           {/* List verification table */}
           <div className="bg-white rounded-2xl border border-neutral-200 shadow-3xs overflow-hidden">
-            <div className="px-5 py-4 border-b border-neutral-100 flex items-center justify-between">
-              <h4 className="text-xs sm:text-sm font-black text-neutral-800 flex items-center gap-1.5">
-                <UserCheck size={16} className="text-amber-500" />
-                排班明細核對對帳表 (出工明細考勤表)
+            <div className="px-5 py-4 border-b border-neutral-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <h4 className="text-sm md:text-base font-black text-slate-900 flex items-center gap-1.5">
+                <UserCheck size={18} className="text-amber-500 stroke-[2.5]" />
+                排班明細核對對帳表
               </h4>
-              <span className="text-[10px] font-mono bg-neutral-100 hover:bg-neutral-200 text-neutral-600 px-2 py-0.5 rounded">
-                共 {attendanceList.length} 筆施派考勤記錄
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black font-mono bg-amber-50 text-amber-850 px-3 py-1.5 rounded-lg border border-amber-200 flex items-center gap-1 shrink-0 shadow-3xs">
+                  ⚡ 已同步篩選：共 {tableAttendanceList.length} 筆
+                </span>
+              </div>
             </div>
 
-            {attendanceList.length === 0 ? (
-              <p className="text-xs text-neutral-400 italic text-center py-10">此篩選條件下，最近無任何出勤派遣考勤。</p>
+            {/* 即時對帳表專屬篩選排序工具列 (僅保留搜尋) */}
+            <div className="bg-neutral-50 px-5 py-3 border-b border-neutral-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              {/* 1. 即時文字關鍵字搜尋 */}
+              <div className="relative w-full max-w-md">
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-neutral-500">
+                  <Search size={14} className="stroke-[2.5]" />
+                </span>
+                <input
+                  type="text"
+                  placeholder="在目前對帳表中，搜尋姓名、工地案場或施作備註..."
+                  value={attendanceSearchQuery}
+                  onChange={(e) => setAttendanceSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-neutral-300 rounded-xl text-xs md:text-sm font-bold text-neutral-900 placeholder-neutral-400 focus:outline-hidden focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20 transition-all shadow-3xs"
+                  id="direct-attendance-search-input"
+                />
+              </div>
+              <div className="text-xs text-neutral-600 font-extrabold flex items-center gap-1.5 bg-neutral-105 px-3 py-1.5 rounded-lg border border-neutral-200">
+                <span className="text-amber-500">💡</span>
+                <span>考勤同仁、日期與排序，均已即時同步上方「工班時數校對與工資審查條件」控制台。</span>
+              </div>
+            </div>
+
+            {/* Chips indicators */}
+            {attendanceSearchQuery && (
+              <div className="bg-amber-500/5 px-5 py-2.5 border-b border-neutral-200/80 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-neutral-800 font-bold">
+                  <span className="bg-amber-500/10 text-amber-900 px-2.5 py-0.5 rounded-lg border border-amber-200/40 flex items-center gap-1">
+                    <Filter size={12} />
+                    <span>對帳表過濾已套用</span>
+                  </span>
+                  <span className="bg-white border border-neutral-200 text-neutral-900 px-2.5 py-0.5 rounded-md flex items-center gap-1.5 font-bold shadow-3xs">
+                    搜尋關鍵字: "{attendanceSearchQuery}"
+                    <button onClick={() => setAttendanceSearchQuery('')} className="hover:text-red-700 font-black cursor-pointer font-sans text-xs shrink-0 self-center">×</button>
+                  </span>
+                </div>
+                
+                <button
+                  onClick={() => {
+                    setAttendanceSearchQuery('');
+                  }}
+                  className="text-xs text-amber-900 hover:text-amber-950 font-black cursor-pointer underline underline-offset-2 flex items-center gap-0.5 select-none"
+                >
+                  清除搜尋條件
+                </button>
+              </div>
+            )}
+
+            {tableAttendanceList.length === 0 ? (
+              <p className="text-xs text-neutral-400 italic text-center py-10">此篩選條件下，無任何出勤派遣考勤對帳明細。</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
+              <div
+                className="overflow-x-auto overflow-y-auto max-h-[520px] relative scroll-smooth scrollbar-thin scrollbar-thumb-neutral-200"
+                onScroll={(e) => setTableScrollTop(e.currentTarget.scrollTop)}
+                id="virtualized-attendance-table-container"
+              >
+                <table className="w-full text-left text-xs md:text-sm border-collapse relative">
                   <thead>
-                    <tr className="border-b border-neutral-200 text-[10px] text-neutral-400 font-extrabold bg-neutral-50">
-                      <th className="py-2.5 px-4 font-black">日期</th>
-                      <th className="py-2.5 px-4 font-black">配合員工姓名</th>
-                      <th className="py-2.5 px-4 font-black">施作工地/案場序號</th>
-                      <th className="py-2.5 px-4 text-center font-black">當日派工時數</th>
-                      <th className="py-2.5 px-4 text-center font-black">預設結算時薪</th>
-                      <th className="py-2.5 px-4 text-right font-black">應核付工資金額</th>
-                      <th className="py-2.5 px-4 font-black">當日交代要職與施作記述</th>
+                    <tr className="border-b-2 border-neutral-300 text-xs text-neutral-900 font-black bg-neutral-100 sticky top-0 z-10 shadow-sm">
+                      <th className="py-3 px-4 font-black bg-neutral-100 text-neutral-900">日期</th>
+                      <th className="py-3 px-4 font-black bg-neutral-100 text-neutral-900">配合員工姓名</th>
+                      <th className="py-3 px-4 font-black bg-neutral-100 text-neutral-900">施作工地/案場序號</th>
+                      <th className="py-3 px-4 text-center font-black bg-neutral-100 text-neutral-900">當日派工時數</th>
+                      <th className="py-3 px-4 text-center font-black bg-neutral-100 text-neutral-900">預設結算時薪</th>
+                      <th className="py-3 px-4 text-right font-black bg-neutral-100 text-neutral-900">應核付工資金額</th>
+                      <th className="py-3 px-4 font-black bg-neutral-100 text-neutral-900">當日交代要職與施作記述</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {attendanceList.map(item => (
-                      <tr key={item.id} className="border-b border-neutral-100 hover:bg-neutral-50">
-                        <td className="py-3 px-4 font-mono text-neutral-500 font-bold">{item.date}</td>
-                        <td className="py-3 px-4">
+                    {paddingTopHeight > 0 && (
+                      <tr style={{ height: paddingTopHeight }} key="virtual-padding-top" className="border-0">
+                        <td colSpan={7} className="p-0 border-0 pointer-events-none" />
+                      </tr>
+                    )}
+                    {visibleTableItems.map(item => (
+                      <tr key={item.id} className="border-b border-neutral-200 hover:bg-amber-500/5 transition-colors h-[76px] bg-white">
+                        <td className="py-3.5 px-4 font-mono text-neutral-900 font-extrabold text-xs md:text-sm">{item.date}</td>
+                        <td className="py-3.5 px-4">
                           <div className="flex items-center gap-1.5">
-                            <span className="font-extrabold text-neutral-850 select-all">{item.name}</span>
+                            <span className="font-black text-neutral-950 text-xs md:text-sm select-all">{item.name}</span>
                             {item.isSupport && (
-                              <span className="text-[9px] bg-red-55/10 text-rose-600 border border-rose-200 px-1 rounded">
+                              <span className="text-[10px] bg-red-100 text-rose-700 border border-rose-300 px-2 py-0.5 rounded-lg font-black shrink-0 shadow-3xs">
                                 臨時外調{item.supportRole ? ` • ${item.supportRole}` : ''}
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="py-3 px-4 select-all max-w-[320px] break-all" title={item.projectName}>
-                          <span className="text-xs text-neutral-800 font-bold block font-mono bg-neutral-50 p-1 border border-neutral-100/60 rounded leading-normal">
+                        <td className="py-3.5 px-4 select-all max-w-[320px] break-all" title={item.projectName}>
+                          <span className="text-xs md:text-sm text-neutral-950 font-extrabold block font-mono bg-neutral-100 p-1.5 border border-neutral-300 rounded-lg leading-normal">
                             {item.projectName}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-center font-mono font-black text-neutral-800">
+                        <td className="py-3.5 px-4 text-center font-mono font-black text-neutral-950">
                           <div className="flex flex-col items-center">
-                            <span className="font-extrabold text-neutral-900">{item.hoursWork} 小時</span>
+                            <span className="font-black text-neutral-950 text-xs md:text-sm">{item.hoursWork} 小時</span>
                             {(item.otFirstTwo + item.otAfterTwo) > 0 ? (
-                              <span className="text-[9px] text-amber-700 font-bold bg-amber-50 border border-amber-100 px-1 py-0.5 rounded mt-0.5 whitespace-nowrap">
+                              <span className="text-[10px] text-amber-800 font-extrabold bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded-md mt-1 whitespace-nowrap shadow-3xs">
                                 正常 {item.regularHours}h + 加班 {(item.otFirstTwo + item.otAfterTwo).toFixed(1)}h
                               </span>
                             ) : (
-                              <span className="text-[9px] text-neutral-400 font-medium">全正常工時 ({item.hoursWork}h)</span>
+                              <span className="text-[10px] text-neutral-500 font-bold bg-neutral-50 border border-neutral-200 px-1.5 py-0.5 rounded-md mt-1">全正常時數 ({item.hoursWork}h)</span>
                             )}
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-center font-mono text-neutral-500 bg-neutral-50/20">
+                        <td className="py-3.5 px-4 text-center font-mono text-neutral-900 font-black text-xs md:text-sm bg-neutral-50/50">
                           ${item.hourlyRate} / h
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold text-sky-700 bg-sky-550/5">
+                        <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-900 bg-emerald-500/5">
                           <div className="flex flex-col items-end">
-                            <span className="font-black text-xs text-sky-800">${item.totalWage.toLocaleString()} 元</span>
-                            <span className="text-[9px] font-bold text-neutral-500 bg-neutral-100 rounded px-1 mt-0.5 whitespace-nowrap scale-95 origin-right">
+                            <span className="font-black text-xs md:text-sm text-emerald-700">${item.totalWage.toLocaleString()} 元</span>
+                            <span className="text-[10px] font-black text-neutral-700 bg-neutral-150 border border-neutral-250 rounded px-1.5 py-0.5 mt-1 whitespace-nowrap scale-95 origin-right shadow-3xs">
                               正常(${Math.round(item.regularHours * item.hourlyRate).toLocaleString()})
                               { (item.otFirstTwo + item.otAfterTwo) > 0 ? ` + 加班(${Math.round((item.otFirstTwo + item.otAfterTwo) * item.hourlyRate * 1.34).toLocaleString()})` : '' }
                             </span>
-                            {(item.otFirstTwo + item.otAfterTwo) > 0 && (
-                              <span className="text-[8px] text-amber-600 block scale-90 origin-right font-bold mt-0.5 leading-none">
-                                ⚠️ 含跨案場同日累計超過 8h 加班
-                              </span>
-                            )}
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-neutral-400 max-w-[280px] truncate select-all" title={item.dailyNotes}>
-                          {item.dailyNotes || <span className="text-neutral-300 italic">無特殊備份備註</span>}
+                        <td className="py-3.5 px-4 text-neutral-800 text-xs md:text-sm max-w-[280px] break-words whitespace-normal select-all font-semibold" title={item.dailyNotes}>
+                          {item.dailyNotes || <span className="text-neutral-400 italic">無特殊派遣施作記事</span>}
                         </td>
                       </tr>
                     ))}
+                    {paddingBottomHeight > 0 && (
+                      <tr style={{ height: paddingBottomHeight }} key="virtual-padding-bottom" className="border-0">
+                        <td colSpan={7} className="p-0 border-0 pointer-events-none" />
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

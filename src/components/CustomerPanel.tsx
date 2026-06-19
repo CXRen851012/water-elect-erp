@@ -175,46 +175,46 @@ export default function CustomerPanel({
     <div id="customer-panel-container" className="space-y-6">
       <div className="space-y-6 animate-fadeIn pb-2">
         {/* Search Header Bar */}
-        <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5">
-          <div className="space-y-1">
-            <h2 className="text-base font-bold text-neutral-850 flex items-center gap-2">
-              <Users size={18} className="text-amber-600" />
-              客戶紀錄及常用工地地址維護
+        <div className="bg-white p-5 rounded-2xl border-2 border-neutral-300 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div className="space-y-11">
+            <h2 className="text-lg font-black text-neutral-950 flex items-center gap-2">
+              <Users size={22} className="text-amber-700 stroke-[2.5]" />
+              客戶與業主登記
             </h2>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
             {/* Real-time search */}
-            <div className="relative w-full sm:w-[260px]">
+            <div className="relative w-full sm:w-[280px]">
               <input
                 id="search-customer-input"
                 type="text"
                 placeholder="搜尋客戶名、聯絡人、地址..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 border border-neutral-200 rounded-xl text-xs text-neutral-808 bg-white placeholder-neutral-400"
+                className="w-full pl-9 pr-3 py-2.5 border-2 border-neutral-350 rounded-xl text-sm text-neutral-950 bg-white placeholder-neutral-500 font-bold focus:border-amber-600 focus:ring-0"
               />
-              <Search className="absolute left-2.5 top-2.5 text-neutral-400" size={13} />
+              <Search className="absolute left-3 top-3 text-neutral-500" size={16} />
             </div>
 
             <button
               id="btn-add-customer-panel"
               onClick={handleOpenAdd}
-              className="w-full sm:w-auto px-4.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md shadow-amber-600/10 whitespace-nowrap cursor-pointer"
+              className="w-full sm:w-auto px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white font-black text-sm rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md shadow-amber-600/15 whitespace-nowrap cursor-pointer"
             >
-              <Plus size={14} className="stroke-[2.5]" />
-              登記新客戶/業主
+              <Plus size={16} className="stroke-[2.5]" />
+              登記新客戶
             </button>
           </div>
         </div>
 
         {/* Grid listing */}
         {filteredCustomers.length === 0 ? (
-          <div id="no-customers-placeholder" className="text-center py-16 bg-white rounded-2xl border border-neutral-200 border-dashed">
-            <Users size={40} className="mx-auto text-neutral-300 stroke-[1.2] mb-3" />
-            <h4 className="text-sm font-bold text-neutral-600">目前尚無任何合作客戶或業主紀錄！</h4>
-            <p className="text-xs text-neutral-400 mt-1 max-w-md mx-auto">
-              您可以點擊右上方「登記新客戶/業主」按鈕，快速建立主檔案。
+          <div id="no-customers-placeholder" className="text-center py-16 bg-white rounded-2xl border-2 border-neutral-300 border-dashed">
+            <Users size={48} className="mx-auto text-neutral-400 stroke-[1.5] mb-3" />
+            <h4 className="text-base font-black text-neutral-800">目前尚無任何合作客戶或業主紀錄！</h4>
+            <p className="text-sm text-neutral-600 mt-1 max-w-md mx-auto font-semibold">
+              您可以點擊右上方「登記新客戶」按鈕，快速建立主檔案。
             </p>
           </div>
         ) : (
@@ -223,63 +223,63 @@ export default function CustomerPanel({
               return (
                 <div 
                   key={customer.id} 
-                  className="bg-white p-5 rounded-2xl border border-neutral-200 hover:border-amber-300/60 transition-all hover:shadow-md flex flex-col justify-between group"
+                  className="bg-white p-5 rounded-2xl border-2 border-neutral-200 hover:border-amber-500 transition-all hover:shadow-md flex flex-col justify-between group"
                 >
-                  <div className="space-y-3.5">
+                  <div className="space-y-4">
                     <div className="flex justify-between items-start gap-2">
                       <div className="space-y-1">
-                        <span className="text-[10px] tracking-widest uppercase font-mono text-amber-600 font-extrabold block">COOPERATIVE CLIENT</span>
-                        <h4 className="text-sm font-extrabold text-neutral-850 group-hover:text-amber-800 transition-colors">
+                        <span className="text-xs tracking-widest uppercase font-mono text-amber-750 font-black block">合作客戶成員</span>
+                        <h4 className="text-base font-black text-neutral-950 group-hover:text-amber-800 transition-colors">
                           {customer.name}
                         </h4>
                       </div>
                       <div className="flex items-center gap-1">
-                        <span className="text-[9px] bg-neutral-100/80 font-bold text-neutral-500 font-mono px-1.5 py-0.5 rounded-md">
-                          {customer.addresses.length} 地
+                        <span className="text-xs bg-neutral-150 font-black text-neutral-800 font-mono px-2 py-0.5 rounded-md border border-neutral-300">
+                          {customer.addresses.length} 個常用地址
                         </span>
                       </div>
                     </div>
 
                     {/* Contacts info details block */}
-                    <div className="bg-neutral-50 p-2.5 rounded-xl border border-neutral-100 text-xs text-neutral-600 space-y-1">
+                    <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-250 text-sm text-neutral-800 space-y-1.5">
                       {customer.contactPerson ? (
                         <p className="flex items-center gap-1.5 font-bold">
-                          👤 聯絡：<span className="text-neutral-800">{customer.contactPerson}</span>
+                          👤 聯絡人：<span className="text-neutral-950 font-black">{customer.contactPerson}</span>
                         </p>
                       ) : (
-                        <p className="text-neutral-350 italic">無特定負責聯絡窗口</p>
+                        <p className="text-neutral-500 italic font-semibold">無特定負責聯絡窗口</p>
                       )}
                       {customer.phone && (
                         <p className="flex items-center gap-1.5 font-mono">
-                          📞 電話：<span className="text-neutral-800 font-bold">{customer.phone}</span>
+                          📞 連絡電話：<span className="text-neutral-950 font-black">{customer.phone}</span>
                         </p>
                       )}
                       {customer.notes && (
-                        <p className="text-[11px] text-neutral-400 line-clamp-2 mt-1">
-                          📝 備忘：{customer.notes}
+                        <p className="text-xs text-neutral-600 font-semibold leading-relaxed border-t border-neutral-200 pt-1 mt-1">
+                          📝 系統備忘：{customer.notes}
                         </p>
                       )}
                     </div>
 
                     {/* Collapsible list of associated addresses */}
-                    <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
-                      <span className="text-[10px] uppercase font-bold text-neutral-400 block tracking-wider mb-2">📍 常用工地派工地址名冊 ({customer.addresses.length})</span>
+                    <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                      <span className="text-xs uppercase font-black text-neutral-600 block tracking-wider mb-2">📍 常用工地派工地址名冊 ({customer.addresses.length})</span>
                       {customer.addresses.map((addr) => (
-                        <div key={addr.id} className="p-2 bg-white/40 border border-neutral-150 rounded-lg hover:bg-amber-50/10 transition-colors">
-                          <p className="text-xs font-semibold text-neutral-850 flex items-start gap-1">
-                            <span className="text-[10px] bg-amber-50 text-amber-700 font-bold px-1 rounded scale-90 whitespace-nowrap mt-0.5">
+                        <div key={addr.id} className="p-2.5 bg-neutral-50 border-2 border-neutral-205 rounded-xl hover:bg-amber-50/10 transition-colors">
+                          <p className="text-xs sm:text-sm font-bold text-neutral-950 flex items-start gap-1 leading-normal">
+                            <span className="text-xs bg-amber-600 text-white font-black px-1.5 rounded scale-90 whitespace-nowrap mt-0.5">
                               {addr.addressAbbreviated || '派'}
                             </span>
                             {addr.fullAddress}
                           </p>
                           {(addr.contactPerson || addr.contactPhone) && (
-                            <p className="text-[10px] text-neutral-500 font-medium font-mono mt-0.5 pl-4">
+                            <p className="text-xs text-neutral-700 font-bold font-mono mt-0.5 pl-4">
                               窗口: {addr.contactPerson || '同客戶'} | {addr.contactPhone || '-'}
                             </p>
                           )}
                           {addr.addressNotes && (
-                            <p className="text-[10px] text-amber-600 font-medium pl-4">
-                              📌 備註: {addr.addressNotes}
+                            <p className="text-xs text-amber-700 font-bold pl-4">
+                              📌 案場備註: {addr.addressNotes}
                             </p>
                           )}
                         </div>

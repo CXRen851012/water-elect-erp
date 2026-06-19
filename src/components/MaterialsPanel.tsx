@@ -635,22 +635,22 @@ export default function MaterialsPanel({
   };
 
   return (
-    <div id="materials-panel" className="bg-white p-6 rounded-2xl border border-neutral-200/80 shadow-xs space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-neutral-100">
+    <div id="materials-panel" className="bg-white p-6 rounded-2xl border-2 border-neutral-300 shadow-sm space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b-2 border-neutral-200">
         <div className="space-y-1">
-          <span className="text-[9px] uppercase tracking-wider font-extrabold text-amber-600 block font-mono">Materials Preset Stock</span>
-          <h2 className="text-base font-black text-neutral-800 flex items-center gap-2">
-            <ShoppingBag className="text-amber-600 animate-pulse" size={20} />
+          <span className="text-xs uppercase tracking-wider font-extrabold text-amber-700 block font-mono">Materials Preset Stock</span>
+          <h2 className="text-lg font-black text-neutral-950 flex items-center gap-2">
+            <ShoppingBag className="text-amber-700 animate-pulse stroke-[2.5]" size={24} />
             施工耗料規格大庫
           </h2>
         </div>
       </div>
 
       {/* Add new material preset main item form */}
-      <div className="bg-neutral-50 p-4 border border-neutral-150 rounded-xl">
-        <div className="mb-2">
-          <h3 className="text-xs font-bold text-neutral-700 block text-amber-900">➕ 建立新材料品項至大庫 (初次建檔：僅填品項與分類)</h3>
-          <p className="text-[10px] text-neutral-500">
+      <div className="bg-neutral-50 p-5 border-2 border-neutral-250 rounded-xl">
+        <div className="mb-3">
+          <h3 className="text-sm font-black text-neutral-950 block text-amber-950">➕ 建立新材料品項至大庫</h3>
+          <p className="text-xs text-neutral-600 mt-1 font-bold">
             建立後，可於下方材料卡內直接點擊「新增其他規格單位」，為同一個材料增設不同的計量單位裝箱。
           </p>
         </div>
