@@ -142,6 +142,27 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
+// 遞迴清除物件中所有 undefined 值，避免 Firestore 寫入報錯
+export function sanitizeForFirestore(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return null;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeForFirestore(item));
+  }
+  if (typeof obj === 'object') {
+    const clean: any = {};
+    for (const key of Object.keys(obj)) {
+      const val = obj[key];
+      if (val !== undefined) {
+        clean[key] = sanitizeForFirestore(val);
+      }
+    }
+    return clean;
+  }
+  return obj;
+}
+
 // 彙總上傳至 Firebase Firestore
 export async function uploadAllToFirebase(
   uid: string,
@@ -223,8 +244,9 @@ export async function uploadAllToFirebase(
             if (op.type === 'delete') {
               batch.delete(docRef);
             } else {
+              const cleanedData = sanitizeForFirestore(op.data);
               batch.set(docRef, {
-                ...op.data,
+                ...cleanedData,
                 ownerUid: ownerUid
               });
             }
@@ -382,6 +404,16 @@ export async function createRollingBackup(
       (data.workerAdvances || []).length +
       (data.pettyCashTransactions || []).length;
 
+    const sanitizedWorkers = (data.workers || []).map(sanitizeForFirestore);
+    const sanitizedSuppliers = (data.suppliers || []).map(sanitizeForFirestore);
+    const sanitizedMaterials = (data.materials || []).map(sanitizeForFirestore);
+    const sanitizedCustomers = (data.customers || []).map(sanitizeForFirestore);
+    const sanitizedProjects = (data.projects || []).map(sanitizeForFirestore);
+    const sanitizedRecords = (data.records || []).map(sanitizeForFirestore);
+    const sanitizedTransactions = (data.transactions || []).map(sanitizeForFirestore);
+    const sanitizedWorkerAdvances = (data.workerAdvances || []).map(sanitizeForFirestore);
+    const sanitizedPettyCashTransactions = (data.pettyCashTransactions || []).map(sanitizeForFirestore);
+
     // 1. 新增當前備份
     await addDoc(collection(db, 'backups'), {
       ownerUid: uid,
@@ -389,15 +421,15 @@ export async function createRollingBackup(
       timestamp: Date.now(),
       totalCount,
       data: {
-        workers: data.workers || [],
-        suppliers: data.suppliers || [],
-        materials: data.materials || [],
-        customers: data.customers || [],
-        projects: data.projects || [],
-        records: data.records || [],
-        transactions: data.transactions || [],
-        workerAdvances: data.workerAdvances || [],
-        pettyCashTransactions: data.pettyCashTransactions || []
+        workers: sanitizedWorkers,
+        suppliers: sanitizedSuppliers,
+        materials: sanitizedMaterials,
+        customers: sanitizedCustomers,
+        projects: sanitizedProjects,
+        records: sanitizedRecords,
+        transactions: sanitizedTransactions,
+        workerAdvances: sanitizedWorkerAdvances,
+        pettyCashTransactions: sanitizedPettyCashTransactions
       }
     });
 
