@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Customer, Project, DailyRecord, PaymentTransaction, Worker, MaterialPreset, WorkerAdvance, PettyCashTransaction } from '../types';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell 
@@ -42,6 +42,7 @@ interface BillingPanelProps {
   onEditRecord?: (record: DailyRecord) => void;
   onDeleteRecord?: (recordId: string) => void;
   onSaveToast: (msg: string) => void;
+  triggerAddPayment?: number;
 }
 
 export default function BillingPanel({
@@ -58,7 +59,8 @@ export default function BillingPanel({
   setPettyCashTransactions,
   onEditRecord,
   onDeleteRecord,
-  onSaveToast
+  onSaveToast,
+  triggerAddPayment = 0
 }: BillingPanelProps) {
   // Navigation internal Unified tabs
   const [activeSubTab, setActiveSubTab] = useState<'billing_records' | 'operating_analytics' | 'worker_attendance' | 'worker_advances' | 'petty_cash'>('billing_records');
@@ -240,6 +242,21 @@ export default function BillingPanel({
     const baseName = `${dateFormatted}-${clientPart}-${addressPart}-${serial}`;
     return (p.isEstimation || p.generatedName?.startsWith('[估]')) ? `[估]${baseName}` : baseName;
   };
+
+  useEffect(() => {
+    if (triggerAddPayment > 0) {
+      if (selectedCustomerId !== 'all') {
+        setPayCustId(selectedCustomerId);
+      } else if (customers.length > 0) {
+        setPayCustId(customers[0].id);
+      }
+      setPayDate(new Date().toISOString().substring(0, 10));
+      setPayAmount(0);
+      setSimplifiedAllocType('single');
+      setSingleAllocSubMode('normal');
+      setShowAddPaymentModal(true);
+    }
+  }, [triggerAddPayment]);
 
   // Get active and completed projects for a selected customer in form
   const targetCustomerProjects = useMemo(() => {
@@ -1381,104 +1398,66 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
     <div className="space-y-6">
       
       {/* 🚀 SUB-TAB VIEW HEADER NAVIGATION */}
-      <div className="bg-neutral-950 text-white p-6 rounded-3xl border-2 border-neutral-800 shadow-xl relative overflow-hidden">
-        {/* Subtle decorative grid lines */}
-        <div className="absolute inset-x-0 top-0 h-24 bg-linear-to-b from-amber-500/10 to-transparent pointer-events-none" />
-        
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] bg-amber-600 font-extrabold text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-amber-500">Corporate FinTech</span>
-              <span className="text-xs text-neutral-300 font-bold">統一財務與出納調撥中心</span>
-            </div>
-            <h2 className="text-base sm:text-xl font-black text-white flex items-center gap-1.5">
-              <Coins size={22} className="text-amber-500 stroke-[2.5]" />
-              水電工程帳務與工班考勤中心
-            </h2>
-          </div>
+      <div className="flex border border-[#2C2C2C] bg-[#1E1E1E] p-1.5 rounded-xl max-w-4xl select-none gap-2 shadow-3xs overflow-x-auto scrollbar-none">
+        <button
+          onClick={() => setActiveSubTab('billing_records')}
+          className={`flex-1 py-2 px-3.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+            activeSubTab === 'billing_records' 
+              ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-3xs font-extrabold' 
+              : 'bg-[#252525] text-neutral-300 border-[#3A3A3A] hover:text-[#D4AF37] hover:bg-[#2C2C2C] font-semibold'
+          }`}
+        >
+          <Landmark size={14} className="stroke-[2]" />
+          款項對帳
+        </button>
 
-          <button
-            onClick={() => {
-              if (selectedCustomerId !== 'all') {
-                setPayCustId(selectedCustomerId);
-              } else if (customers.length > 0) {
-                setPayCustId(customers[0].id);
-              }
-              setPayDate(new Date().toISOString().substring(0, 10));
-              setPayAmount(0);
-              setSimplifiedAllocType('single');
-              setSingleAllocSubMode('normal');
-              setShowAddPaymentModal(true);
-            }}
-            className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-black text-sm rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md shrink-0 cursor-pointer border border-amber-500"
-          >
-            <Plus size={16} className="stroke-[2.5]" />
-            登錄客戶水電款項
-          </button>
-        </div>
+        <button
+          onClick={() => setActiveSubTab('operating_analytics')}
+          className={`flex-1 py-2 px-3.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+            activeSubTab === 'operating_analytics' 
+              ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-3xs font-extrabold' 
+              : 'bg-[#252525] text-neutral-300 border-[#3A3A3A] hover:text-[#D4AF37] hover:bg-[#2C2C2C] font-semibold'
+          }`}
+        >
+          <TrendingUp size={14} className="stroke-[2]" />
+          利潤分析
+        </button>
 
-        {/* 5 Multi-sub-tabs controllers with micro-animations */}
-        <div className="flex items-center mt-5 border-t-2 border-neutral-800 pt-4 overflow-x-auto gap-2.5 no-scrollbar scrollbar-none">
-          <button
-            onClick={() => setActiveSubTab('billing_records')}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-black whitespace-nowrap transition-all border ${
-              activeSubTab === 'billing_records' 
-                ? 'bg-amber-600 text-white border-amber-700 shadow-sm' 
-                : 'bg-neutral-900 text-neutral-300 border-neutral-800 hover:text-white hover:bg-neutral-800'
-            }`}
-          >
-            <Landmark size={14} className="stroke-[2.5]" />
-            款項對帳
-          </button>
+        <button
+          onClick={() => setActiveSubTab('worker_attendance')}
+          className={`flex-1 py-2 px-3.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+            activeSubTab === 'worker_attendance' 
+              ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-3xs font-extrabold' 
+              : 'bg-[#252525] text-neutral-300 border-[#3A3A3A] hover:text-[#D4AF37] hover:bg-[#2C2C2C] font-semibold'
+          }`}
+        >
+          <HardHat size={14} className="stroke-[2]" />
+          工班考勤
+        </button>
 
-          <button
-            onClick={() => setActiveSubTab('operating_analytics')}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-black whitespace-nowrap transition-all border ${
-              activeSubTab === 'operating_analytics' 
-                ? 'bg-amber-600 text-white border-amber-700 shadow-sm' 
-                : 'bg-neutral-900 text-neutral-300 border-neutral-800 hover:text-white hover:bg-neutral-800'
-            }`}
-          >
-            <TrendingUp size={14} className="stroke-[2.5]" />
-            利潤分析
-          </button>
+        <button
+          onClick={() => setActiveSubTab('worker_advances')}
+          className={`flex-1 py-2 px-3.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+            activeSubTab === 'worker_advances' 
+              ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-3xs font-extrabold' 
+              : 'bg-[#252525] text-neutral-300 border-[#3A3A3A] hover:text-[#D4AF37] hover:bg-[#2C2C2C] font-semibold'
+          }`}
+        >
+          <DollarSign size={14} className="stroke-[2]" />
+          預支借支
+        </button>
 
-          <button
-            onClick={() => setActiveSubTab('worker_attendance')}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-black whitespace-nowrap transition-all border ${
-              activeSubTab === 'worker_attendance' 
-                ? 'bg-amber-600 text-white border-amber-700 shadow-sm' 
-                : 'bg-neutral-900 text-neutral-300 border-neutral-800 hover:text-white hover:bg-neutral-800'
-            }`}
-          >
-            <HardHat size={14} className="stroke-[2.5]" />
-            工班考勤
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('worker_advances')}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-black whitespace-nowrap transition-all border ${
-              activeSubTab === 'worker_advances' 
-                ? 'bg-amber-600 text-white border-amber-700 shadow-sm' 
-                : 'bg-neutral-900 text-neutral-300 border-neutral-800 hover:text-white hover:bg-neutral-800'
-            }`}
-          >
-            <DollarSign size={14} className="stroke-[2.5]" />
-            預支借支
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('petty_cash')}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-black whitespace-nowrap transition-all border ${
-              activeSubTab === 'petty_cash' 
-                ? 'bg-amber-600 text-white border-amber-700 shadow-sm' 
-                : 'bg-neutral-900 text-neutral-300 border-neutral-800 hover:text-white hover:bg-neutral-800'
-            }`}
-          >
-            <Wallet size={14} className="stroke-[2.5]" />
-            零用金簿
-          </button>
-        </div>
+        <button
+          onClick={() => setActiveSubTab('petty_cash')}
+          className={`flex-1 py-2 px-3.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+            activeSubTab === 'petty_cash' 
+              ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-3xs font-extrabold' 
+              : 'bg-[#252525] text-neutral-300 border-[#3A3A3A] hover:text-[#D4AF37] hover:bg-[#2C2C2C] font-semibold'
+          }`}
+        >
+          <Wallet size={14} className="stroke-[2]" />
+          零用金簿
+        </button>
       </div>
 
 
@@ -1488,19 +1467,19 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
       {activeSubTab === 'billing_records' && (
         <div className="space-y-6">
 
-          <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center justify-between gap-4">
-            <span className="text-xs font-bold text-neutral-500">
+          <div className="bg-[#1E1E1E] p-4 rounded-xl border border-[#2C2C2C] shadow-3xs flex items-center justify-between gap-4">
+            <span className="text-xs font-bold text-neutral-400">
               篩選及速覽客戶應收未收：
             </span>
             <div className="flex items-center gap-2">
               <select
                 value={selectedCustomerId}
                 onChange={(e) => setSelectedCustomerId(e.target.value)}
-                className="px-3 py-1.5 border border-neutral-300 rounded-lg text-xs font-bold bg-white"
+                className="px-3 py-1.5 border border-[#3A3A3A] rounded-lg text-xs font-bold bg-[#252525] text-white focus:outline-none focus:border-[#D4AF37]"
               >
-                <option value="all">🔍 顯示所有配合中客戶 ({customers.length} 家)</option>
+                <option value="all" className="bg-[#1E1E1E]">🔍 顯示所有配合中客戶 ({customers.length} 家)</option>
                 {customers.map(c => (
-                  <option key={c.id} value={c.id}>👤 {c.name}</option>
+                  <option key={c.id} value={c.id} className="bg-[#1E1E1E]">👤 {c.name}</option>
                 ))}
               </select>
             </div>
@@ -1511,16 +1490,16 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
               const clientProjs = projectSummariesList.filter(p => p.clientId === ledger.customerId);
               
               return (
-                <div key={ledger.customerId} className="bg-white rounded-2xl border border-neutral-200 shadow-3xs overflow-hidden">
+                <div key={ledger.customerId} className="bg-[#1E1E1E] rounded-2xl border border-[#2C2C2C] shadow-3xs overflow-hidden text-neutral-300">
                   
                   {/* Ledger client bar header */}
-                  <div className="bg-neutral-50 px-5 py-4 border-b border-neutral-100 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                  <div className="bg-[#212121] px-5 py-4 border-b border-[#2C2C2C] flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-neutral-900 text-neutral-100 rounded-xl flex items-center justify-center text-slate-50 font-black shrink-0">
+                      <div className="w-9 h-9 bg-[#252525] text-[#D4AF37] border border-[#3A3A3A] rounded-xl flex items-center justify-center font-black shrink-0">
                         {ledger.customerName.charAt(0)}
                       </div>
                       <div>
-                        <h4 className="text-sm font-black text-neutral-800">{ledger.customerName}</h4>
+                        <h4 className="text-sm font-black text-white">{ledger.customerName}</h4>
                         <div className="flex items-center gap-2.5 text-[11px] text-neutral-400 mt-0.5">
                           <span>配合工地數：{ledger.totalProjectsCount} 家</span>
                           <span>•</span>
@@ -1534,24 +1513,24 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     <div className="flex flex-wrap items-center gap-3">
                       {/* Customer prepayment balance */}
                       <div className="bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-lg text-right">
-                        <span className="block text-[9px] font-black text-emerald-800 uppercase leading-none">預收溢領沖抵池餘額</span>
-                        <span className="text-xs sm:text-sm font-bold text-emerald-800 font-mono">
+                        <span className="block text-[9px] font-black text-emerald-400 uppercase leading-none">預收溢領沖抵池餘額</span>
+                        <span className="text-xs sm:text-sm font-bold text-emerald-400 font-mono">
                           NT$ {ledger.prepaidBalance.toLocaleString()} 元
                         </span>
                       </div>
 
                       {/* Cumulative finalized completed projects outstanding */}
                       <div className="bg-rose-500/10 border border-rose-500/20 px-3 py-1.5 rounded-lg text-right">
-                        <span className="block text-[9px] font-black text-rose-800 uppercase leading-none">已完工案應收款餘額(最終帳)</span>
-                        <span className="text-xs sm:text-sm font-bold text-rose-800 font-mono">
+                        <span className="block text-[9px] font-black text-rose-400 uppercase leading-none">已完工案應收款餘額(最終帳)</span>
+                        <span className="text-xs sm:text-sm font-bold text-rose-400 font-mono">
                           NT$ {ledger.totalOutstanding.toLocaleString()} 元
                         </span>
                       </div>
 
                       {/* Ongoing projects accumulated amount to date */}
                       <div className="bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-lg text-right">
-                        <span className="block text-[9px] font-black text-blue-800 uppercase leading-none">施工進行中(目前累積估計金流)</span>
-                        <span className="text-xs sm:text-sm font-bold text-blue-800 font-mono">
+                        <span className="block text-[9px] font-black text-blue-400 uppercase leading-none">施工進行中(目前累積估計金流)</span>
+                        <span className="text-xs sm:text-sm font-bold text-blue-400 font-mono">
                           NT$ {ledger.activeProjectsBilled.toLocaleString()} 元
                         </span>
                       </div>
@@ -1559,20 +1538,20 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   </div>
 
                   {/* Client project list detail lists */}
-                  <div className="p-4 border-b border-neutral-100 bg-white">
+                  <div className="p-4 border-b border-[#2C2C2C] bg-[#1E1E1E]">
                     {clientProjs.length === 0 ? (
-                      <p className="text-xs text-neutral-400 italic text-center py-4">該配合客戶名下目前尚未登記任何開工專案。</p>
+                      <p className="text-xs text-neutral-500 italic text-center py-4">該配合客戶名下目前尚未登記任何開工專案。</p>
                     ) : (
                       <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
                           <thead>
-                            <tr className="border-b border-neutral-100 text-[10px] text-neutral-400 font-black uppercase text-center bg-neutral-50/50">
+                            <tr className="border-b border-[#2C2C2C] text-[10px] text-neutral-400 font-black uppercase text-center bg-[#212121]">
                               <th className="py-2 px-3 text-left">施工案場/合約編號</th>
                               <th className="py-2 px-3">計價模式</th>
                               <th className="py-2 px-3">工程款基數</th>
-                              <th className="py-2 px-3 text-emerald-600">已實收工程款</th>
-                              <th className="py-2 px-3 text-amber-600">去尾/折扣折抵</th>
-                              <th className="py-2 px-3 text-rose-600">應收未收餘額</th>
+                              <th className="py-2 px-3 text-emerald-400">已實收工程款</th>
+                              <th className="py-2 px-3 text-amber-500">去尾/折扣折抵</th>
+                              <th className="py-2 px-3 text-rose-400">應收未收餘額</th>
                               <th className="py-2 px-3">狀態</th>
                               <th className="py-2 px-3">預收沖帳</th>
                             </tr>
@@ -1589,9 +1568,9 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                 records.some(r => r.projectId === proj.id && r.markAsCompleted && (!r.collectedAmount || r.collectedAmount <= 0));
 
                               return (
-                                <tr key={proj.id} className="border-b border-neutral-100 hover:bg-neutral-50 text-xs text-center">
-                                  <td className="py-3 px-3 text-left font-mono text-[11px] font-bold text-neutral-850 select-all max-w-[325px] break-all leading-normal" title={proj.name}>
-                                    <div className="bg-neutral-50 border border-neutral-100 p-1.5 rounded hover:bg-neutral-100 transition-colors">
+                                <tr key={proj.id} className="border-b border-[#2C2C2C] hover:bg-[#252525] text-xs text-center text-neutral-300">
+                                  <td className="py-3 px-3 text-left font-mono text-[11px] font-bold text-white select-all max-w-[325px] break-all leading-normal" title={proj.name}>
+                                    <div className="bg-[#252525] border border-[#2C2C2C] p-1.5 rounded hover:bg-[#2C2C2C] transition-colors text-[#D4AF37]">
                                       {proj.name}
                                     </div>
 
@@ -1600,19 +1579,19 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                       const projTxs = transactions.filter(t => t.projectNameOrId === proj.id);
                                       if (projTxs.length > 0) {
                                         return (
-                                          <div className="mt-2 p-1.5 bg-neutral-100/55 border border-neutral-200/80 rounded-lg space-y-1">
-                                            <div className="text-[9px] font-black tracking-tight text-neutral-500 uppercase border-b border-neutral-200 pb-0.5 flex justify-between items-center">
+                                          <div className="mt-2 p-1.5 bg-[#212121] border border-[#2C2C2C] rounded-lg space-y-1">
+                                            <div className="text-[9px] font-black tracking-tight text-neutral-400 uppercase border-b border-[#2C2C2C] pb-0.5 flex justify-between items-center">
                                               <span>📈 收款分期歷史軌跡:</span>
-                                              <span className="text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded-full text-[8px]">{projTxs.length} 次</span>
+                                              <span className="text-indigo-400 bg-indigo-950/40 px-1.5 py-0.2 rounded-full text-[8px]">{projTxs.length} 次</span>
                                             </div>
                                             <div className="space-y-0.5 max-h-[1100px] overflow-y-auto">
                                               {projTxs.map(t => (
-                                                <div key={t.id} className="text-[8.5px] text-neutral-600 flex items-center justify-between font-bold gap-1 bg-white p-1 px-1.5 border border-neutral-150 rounded shadow-4xs">
-                                                  <span className="text-neutral-400 shrink-0 font-mono font-normal">{t.date}</span>
-                                                  <span className="text-indigo-800 bg-indigo-50 border border-indigo-150 px-1.5 py-0.2 rounded-full text-[8px] font-black truncate max-w-[130px]" title={t.paymentStage || '一般收款'}>
+                                                <div key={t.id} className="text-[8.5px] text-neutral-300 flex items-center justify-between font-bold gap-1 bg-[#252525] p-1 px-1.5 border border-[#2C2C2C] rounded shadow-4xs">
+                                                  <span className="text-neutral-500 shrink-0 font-mono font-normal">{t.date}</span>
+                                                  <span className="text-indigo-400 bg-indigo-950/40 border border-[#3A3A3A] px-1.5 py-0.2 rounded-full text-[8px] font-black truncate max-w-[130px]" title={t.paymentStage || '一般收款'}>
                                                     {t.paymentStage || '一般收款'}
                                                   </span>
-                                                  <span className="font-mono text-emerald-600 ml-auto shrink-0 font-extrabold">${t.amount.toLocaleString()}</span>
+                                                  <span className="font-mono text-emerald-400 ml-auto shrink-0 font-extrabold">${t.amount.toLocaleString()}</span>
                                                 </div>
                                               ))}
                                             </div>
@@ -1626,38 +1605,38 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                   <td className="py-3 px-3">
                                     <div className="flex items-center justify-center gap-1">
                                       {proj.isEstimation ? (
-                                        <span className="px-2.5 py-1 rounded-lg text-[9px] font-extrabold bg-indigo-50 text-indigo-800 border border-indigo-200 shadow-3xs" title="估價計價案場">
+                                        <span className="px-2.5 py-1 rounded-lg text-[9px] font-extrabold bg-indigo-950 text-indigo-300 border border-indigo-900 shadow-3xs" title="估價計價案場">
                                           📊 工料估價
                                         </span>
                                       ) : (
-                                        <span className="px-2.5 py-1 rounded-lg text-[9px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200 shadow-3xs" title="實報實銷案場">
+                                        <span className="px-2.5 py-1 rounded-lg text-[9px] font-extrabold bg-amber-950 text-[#D4AF37] border border-[#D4AF37]/30 shadow-3xs" title="實報實銷案場">
                                           💧 工料實報實銷
                                         </span>
                                       )}
                                     </div>
                                   </td>
 
-                                  <td className="py-3 px-3 font-mono font-bold text-neutral-700">
+                                  <td className="py-3 px-3 font-mono font-bold text-neutral-200">
                                     ${proj.selectedBilledBasis.toLocaleString()}
                                     <span className="text-[9px] text-neutral-400 font-normal block mt-0.5">
                                       {isCompleted 
                                         ? (curMode === 'quote' ? `已完工結案：$${proj.contractQuote.toLocaleString()}` : `已完工結案: $${proj.actualCalculated.toLocaleString()}`) 
                                         : `施工進行中累積: $${proj.actualCalculated.toLocaleString()}`}
                                     </span>
-                                    <span className="text-[10px] text-emerald-800 font-black block mt-1 hover:underline decoration-emerald-300" title="依據工務日誌（標準工時成本底價＋材料進貨進價＋現場雜支）計算之公司實際施工成本">
+                                    <span className="text-[10px] text-emerald-400 font-bold block mt-1 hover:underline decoration-emerald-600 cursor-help" title="依據工務日誌（標準工時成本底價＋材料進貨進價＋現場雜支）計算之公司實際施工成本">
                                       🪵 實際施工成本: ${proj.actualConstructionCost.toLocaleString()}
                                     </span>
                                   </td>
 
-                                  <td className="py-3 px-3 font-mono text-emerald-600 font-extrabold bg-emerald-500/5">
+                                  <td className="py-3 px-3 font-mono text-emerald-400 font-extrabold bg-[#252525]">
                                     ${proj.receivedPayment.toLocaleString()}
                                   </td>
 
-                                  <td className="py-3 px-3 font-mono text-amber-600 font-extrabold">
+                                  <td className="py-3 px-3 font-mono text-amber-500 font-extrabold">
                                     ${proj.roundingPaid.toLocaleString()}
                                   </td>
 
-                                  <td className={`py-3 px-3 font-mono font-black ${isDebted ? 'text-rose-600 bg-rose-500/5' : 'text-neutral-400'}`}>
+                                  <td className={`py-3 px-3 font-mono font-black ${isDebted ? 'text-rose-400 bg-rose-950/20' : 'text-neutral-500'}`}>
                                     ${proj.outstandingBalance.toLocaleString()}
                                   </td>
 
@@ -1666,7 +1645,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                       const isFailed = proj.isEstimation && proj.estimationStatus === '報價未成';
                                       if (isFailed) {
                                         return (
-                                          <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-neutral-100 text-neutral-500 border border-neutral-300">
+                                          <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-[#252525] text-neutral-500 border border-[#3A3A3A]">
                                             ❌ 報價未成 (無帳)
                                           </span>
                                         );
@@ -1674,13 +1653,13 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                       if (isCompleted) {
                                         if (isFullyPaid) {
                                           return (
-                                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center justify-center gap-0.5">
+                                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-950 text-emerald-400 border border-emerald-900 flex items-center justify-center gap-0.5">
                                               ✅ 已完工 (已結收款)
                                             </span>
                                           );
                                         } else {
                                           return (
-                                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-350 flex flex-col items-center justify-center gap-0.5 animate-pulse" title={`完工待解餘額: $${proj.outstandingBalance}`}>
+                                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-950 text-rose-450 border border-rose-900 flex flex-col items-center justify-center gap-0.5 animate-pulse" title={`完工待解餘額: $${proj.outstandingBalance}`}>
                                               <span>⚠️ 已完工 (未收款)</span>
                                               <span className="text-[8px] font-mono font-bold opacity-80">欠款: ${proj.outstandingBalance.toLocaleString()}</span>
                                             </span>
@@ -1689,13 +1668,13 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                       } else {
                                         if (isFullyPaid) {
                                           return (
-                                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-sky-50 text-sky-800 border border-sky-300 flex items-center justify-center gap-0.5">
+                                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-sky-950 text-sky-400 border border-sky-900 flex items-center justify-center gap-0.5">
                                               👷 施工中 (已付訖)
                                             </span>
                                           );
                                         } else {
                                           return (
-                                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-200 flex flex-col items-center justify-center gap-0.5">
+                                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-blue-950 text-blue-400 border border-blue-900 flex flex-col items-center justify-center gap-0.5">
                                               <span>👷 施工中 (未收款)</span>
                                               <span className="text-[8px] font-mono font-bold opacity-80">尚欠: ${proj.outstandingBalance.toLocaleString()}</span>
                                             </span>
@@ -1710,12 +1689,12 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                       <button
                                         type="button"
                                         onClick={() => handleApplyPoolCredits(ledger.customerId, proj.id, proj.outstandingBalance)}
-                                        className="px-2 py-1 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-[10px] rounded-lg transition-all"
+                                        className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-black font-black text-[10px] rounded-lg transition-all cursor-pointer"
                                       >
                                         扣抵餘額 ${Math.min(ledger.prepaidBalance, proj.outstandingBalance).toLocaleString()}
                                       </button>
                                     ) : (
-                                      <span className="text-[10px] text-neutral-400 italic font-medium">不須抵扣</span>
+                                      <span className="text-[10px] text-neutral-500 italic font-medium">不須抵扣</span>
                                     )}
                                   </td>
                                 </tr>
@@ -2106,10 +2085,10 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                       labelStyle={{ color: '#ffffff', fontWeight: 'bold', fontSize: '12px' }}
                     />
                     <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
-                    <Bar dataKey="預估收入 (牌價)" fill="#818cf8" stroke="#6366f1" radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="工程實際成本" fill="#fdba74" stroke="#f97316" radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="現場直收代收款" fill="#38bdf8" stroke="#0ea5e9" radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="實收工程款" fill="#34d399" stroke="#10b981" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="預估收入 (牌價)" fill="#D4AF37" stroke="#AA7C11" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="工程實際成本" fill="#8C7040" stroke="#684F25" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="現場直收代收款" fill="#E6CA65" stroke="#BF9A30" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="實收工程款" fill="#EAD2AC" stroke="#B89765" radius={[3, 3, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -2184,9 +2163,9 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                       <YAxis tick={{ fontSize: 9 }} />
                       <Tooltip formatter={(value) => [`NT$ ${value.toLocaleString()}元`, '']} />
                       <Legend wrapperStyle={{ fontSize: '10px' }} />
-                      <Bar dataKey="materials" name="材料成本支出" fill="#f59e0b" stackId="a" />
-                      <Bar dataKey="labor" name="工資支出" fill="#0ea5e9" stackId="a" />
-                      <Bar dataKey="expenses" name="現場報支支出" fill="#ef4444" stackId="a" />
+                      <Bar dataKey="materials" name="材料成本支出" fill="#D4AF37" stackId="a" />
+                      <Bar dataKey="labor" name="工資支出" fill="#9C804B" stackId="a" />
+                      <Bar dataKey="expenses" name="現場報支支出" fill="#7F6C4C" stackId="a" />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>

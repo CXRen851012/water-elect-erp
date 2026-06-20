@@ -383,47 +383,47 @@ export default function ProjectForm({
   };
 
   return (
-    <div id="project-form-modal" className="fixed inset-0 bg-neutral-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl border border-neutral-100 shadow-2xl max-w-xl w-full overflow-hidden flex flex-col max-h-[95vh]">
+    <div id="project-form-modal" className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+      <div className="!bg-[#1A1A1A] rounded-2xl border border-[#D4AF37]/35 shadow-[0_0_50px_rgba(0,0,0,0.8)] max-w-xl w-full overflow-hidden flex flex-col max-h-[95vh]">
         {/* Header */}
-        <div className="p-5 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
+        <div className="p-5 border-b border-[#D4AF37]/25 flex items-center justify-between !bg-[#1A1A1A]">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-amber-50 rounded-xl text-amber-600">
-              <Building2 size={20} />
+            <div className="p-2 !bg-[#D4AF37]/10 rounded-xl text-amber-500 font-bold border border-[#D4AF37]/20">
+              <Building2 size={20} className="text-[#D4AF37]" />
             </div>
             <div>
-              <h2 className="text-base font-extrabold text-neutral-800">新開施工案場 / 專案登記</h2>
-              <p className="text-xs text-neutral-500">輸入常用客戶或手動填打，系統自動拼裝現場流水認證名</p>
+              <h2 className="text-base font-extrabold !text-[#F3E5AB]">新開施工案場 / 專案登記</h2>
+              <p className="text-xs !text-[#E0E0E0]">輸入常用客戶或手動填打，系統自動拼裝現場流水認證名</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-neutral-200 text-neutral-500 hover:text-neutral-800 transition"
+            className="p-1.5 rounded-full hover:!bg-[#D4AF37]/15 !text-[#8C8C8C] hover:!text-[#F3E5AB] transition"
           >
             <X size={18} />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 flex-1 overflow-y-auto space-y-4 text-xs sm:text-sm">
+        <form onSubmit={handleSubmit} className="p-6 flex-1 overflow-y-auto space-y-4 text-xs sm:text-sm !bg-[#161616]">
 
           {/* Core Configuration Date */}
           <div>
-            <label className="block text-xs font-bold text-neutral-600 mb-1">案場立案/開工日期 <span className="text-red-500">*</span></label>
+            <label className="block text-xs font-bold !text-[#E0E0E0] mb-1">案場立案/開工日期 <span className="text-red-500">*</span></label>
             <input
               type="date"
               value={projectDate}
               onChange={(e) => setProjectDate(e.target.value)}
-              className="w-full px-3 py-1.5 border border-neutral-200 rounded-lg text-neutral-850 font-mono"
+              className="w-full px-3 py-1.5 border border-[#D4AF37]/20 rounded-lg !bg-[#121212] !text-[#E0E0E0] font-mono focus:border-[#D4AF37] outline-none"
               required
             />
           </div>
 
           {/* Estimation Mode Switch */}
-          <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 flex items-center justify-between">
+          <div className="p-3 !bg-[#121212] rounded-xl border border-[#D4AF37]/20 flex items-center justify-between">
             <div className="space-y-0.5">
-              <span className="block text-xs font-bold text-neutral-800">📋 啟用「預算估價案場」模式</span>
-              <span className="block text-[10px] text-neutral-500 leading-normal">此模式為估價或方案模擬使用。名稱前方將自動冠上 <strong className="text-amber-700"> [估] </strong> 識別，並依照每日施工回報標準格式提供填報。</span>
+              <span className="block text-xs font-bold !text-[#F3E5AB]">📋 啟用「預算估價案場」模式</span>
+              <span className="block text-[10px] !text-[#E0E0E0] leading-normal font-sans">此模式為估價或方案模擬使用。名稱前方將自動冠上 <strong className="!text-[#D4AF37]/90 text-[11px]"> [估] </strong> 識別，並依照每日施工回報標準格式提供填報。</span>
             </div>
             <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4 select-none">
               <input
@@ -432,25 +432,25 @@ export default function ProjectForm({
                 onChange={(e) => setIsEstimation(e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="w-9 h-5 bg-neutral-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-600"></div>
+              <div className="w-9 h-5 bg-neutral-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-600 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#D4AF37]" />
             </label>
           </div>
 
           {/* Customer Sourcing Tab selector */}
           <div className="space-y-2">
-            <label className="block text-xs font-bold text-neutral-600">業主/客戶來源設定</label>
-            <div className="grid grid-cols-2 p-1 bg-neutral-100 rounded-xl">
+            <label className="block text-xs font-bold !text-[#E0E0E0]">業主/客戶來源設定</label>
+            <div className="grid grid-cols-2 p-1 !bg-[#121212] border border-[#D4AF37]/15 rounded-xl">
               <button
                 type="button"
                 onClick={() => handleModeSwitch('existing')}
-                className={`py-1.5 text-xs font-bold rounded-lg transition-all ${customerMode === 'existing' ? 'bg-white text-amber-800 shadow-xs' : 'text-neutral-500 hover:text-neutral-800'}`}
+                className={`py-1.5 text-xs font-bold rounded-lg transition-all ${customerMode === 'existing' ? '!bg-[#D4AF37]/25 !text-[#F3E5AB] border border-[#D4AF37]/35 shadow-sm' : '!text-[#8C8C8C] hover:!text-[#F3E5AB]'}`}
               >
                 🔍 選擇已有客戶 (從名冊載入)
               </button>
               <button
                 type="button"
                 onClick={() => handleModeSwitch('new')}
-                className={`py-1.5 text-xs font-bold rounded-lg transition-all ${customerMode === 'new' ? 'bg-white text-amber-800 shadow-xs' : 'text-neutral-500 hover:text-neutral-800'}`}
+                className={`py-1.5 text-xs font-bold rounded-lg transition-all ${customerMode === 'new' ? '!bg-[#D4AF37]/25 !text-[#F3E5AB] border border-[#D4AF37]/35 shadow-sm' : '!text-[#8C8C8C] hover:!text-[#F3E5AB]'}`}
               >
                 ➕ 手補全新客戶 (同步儲存)
               </button>
@@ -459,45 +459,45 @@ export default function ProjectForm({
 
           {/* Sourcing Area */}
           {customerMode === 'existing' ? (
-            <div className="p-3 bg-neutral-50 border border-neutral-150 rounded-xl space-y-3">
+            <div className="p-3 !bg-[#121212] border border-[#D4AF37]/20 rounded-xl space-y-3">
               <div>
-                <label className="block text-xs font-bold text-neutral-500 mb-1">搜尋業主 / 長期配合設計公司</label>
+                <label className="block text-xs font-bold !text-[#E0E0E0] mb-1">搜尋業主 / 長期配合設計公司</label>
                 <div className="relative">
                   <input
                     type="text"
                     placeholder="輸入關鍵字搜尋，或留空直接點選/查看所有合約客戶與設計公司..."
                     value={clientSearchQuery}
                     onChange={(e) => setClientSearchQuery(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 border border-neutral-200 rounded-lg text-xs"
+                    className="w-full pl-8 pr-3 py-1.5 border border-[#D4AF37]/20 rounded-lg text-xs !bg-[#1A1A1A] !text-[#E0E0E0] placeholder-[#8C8C8C] outline-none focus:border-[#D4AF37]"
                   />
                   <Search className="absolute left-2.5 top-2.5 text-neutral-400" size={12} />
                 </div>
                 
                 {/* Search suggestion popover list */}
                 {clientSuggestions.length > 0 && (
-                  <div className="mt-1 border border-neutral-200 rounded-lg bg-white shadow-lg max-h-[180px] overflow-y-auto divide-y divide-neutral-100 z-50 relative">
+                  <div className="mt-1 border border-[#D4AF37]/30 rounded-lg !bg-[#0D0D0D] shadow-2xl max-h-[180px] overflow-y-auto divide-y divide-[#D4AF37]/15 z-50 relative">
                     {clientSuggestions.map((s, idx) => (
                       <div
                         key={`${s.customer.id}-${idx}`}
                         onClick={() => handleSelectClientSuggestion(s)}
-                        className="p-3 py-2.5 text-neutral-700 hover:bg-amber-50/50 cursor-pointer text-xs transition space-y-1"
+                        className="p-3 py-2.5 !text-[#E0E0E0] hover:!bg-[#D4AF37]/10 cursor-pointer text-xs transition space-y-1"
                       >
                         {/* 搜尋結果顯示：公司名/業主名 - 現場負責人/聯絡人(電話)(聯絡方式) - 地址簡稱(可能無) - 完整地址 */}
-                        <div className="flex flex-col text-neutral-750 font-sans">
-                          <div className="flex flex-wrap items-center gap-1 font-bold text-neutral-900">
-                            <span className="text-neutral-900">🏢 {s.customer.name}</span>
-                            <span className="text-neutral-400">-</span>
-                            <span className="text-neutral-700">👤 {s.customer.contactPerson || '無負責人'}</span>
+                        <div className="flex flex-col !text-[#E0E0E0] font-sans">
+                          <div className="flex flex-wrap items-center gap-1 font-bold !text-[#F3E5AB]">
+                            <span className="!text-[#F3E5AB]">🏢 {s.customer.name}</span>
+                            <span className="text-neutral-600">-</span>
+                            <span className="!text-[#E0E0E0]">👤 {s.customer.contactPerson || '無負責人'}</span>
                             {s.customer.phone && (
-                              <span className="text-amber-800 font-mono text-[10px] bg-amber-50 px-1 py-0.2 rounded font-semibold ml-1">
+                              <span className="!text-[#F3E5AB] font-mono text-[10px] !bg-[#D4AF37]/10 px-1 py-0.2 rounded font-semibold ml-1">
                                 ({s.customer.phone})(聯絡方式)
                               </span>
                             )}
                           </div>
                           
-                          <div className="text-[11px] text-neutral-500 font-mono flex flex-wrap items-center gap-1.5 mt-0.5">
+                          <div className="text-[11px] !text-[#8C8C8C] font-mono flex flex-wrap items-center gap-1.5 mt-0.5">
                             <span>🏷️ 地址簡稱: {s.address?.addressAbbreviated || '無'}</span>
-                            <span className="text-neutral-300">|</span>
+                            <span className="text-neutral-700">|</span>
                             <span className="truncate max-w-[320px]">📍 完整地址: {s.address?.fullAddress || '全新工地地址待配'}</span>
                           </div>
                         </div>
@@ -509,13 +509,13 @@ export default function ProjectForm({
 
               {/* Selected Client Profile Display */}
               {selectedClient ? (
-                <div className="p-2.5 bg-amber-50/20 rounded-lg border border-amber-200/40 text-xs">
-                  <div className="flex justify-between items-center pb-1.5 mb-1.5 border-b border-amber-200/20">
-                    <span className="font-bold text-amber-900">👤 當前綁定客戶: {selectedClient.name}</span>
+                <div className="p-2.5 !bg-[#D4AF37]/5 rounded-lg border border-[#D4AF37]/20 text-xs">
+                  <div className="flex justify-between items-center pb-1.5 mb-1.5 border-b border-[#D4AF37]/15">
+                    <span className="font-bold !text-[#F3E5AB]">👤 當前綁定客戶: {selectedClient.name}</span>
                     <button
                       type="button"
                       onClick={() => { setSelectedClient(null); setCompanyOrOwner(''); }}
-                      className="text-[10px] text-red-500 font-bold hover:underline"
+                      className="text-[10px] text-red-400 font-bold hover:underline"
                     >
                       取消重選
                     </button>
@@ -523,34 +523,34 @@ export default function ProjectForm({
                   
                   {/* Address drop select */}
                   <div className="space-y-1">
-                    <label className="block text-[10px] font-bold text-neutral-400 uppercase">施作工地地址快速引用</label>
+                    <label className="block text-[10px] font-bold !text-[#8C8C8C] uppercase">施作工地地址快速引用</label>
                     <select
                       value={addressChoice}
                       onChange={(e) => handleAddressChoiceChange(e.target.value)}
-                      className="w-full p-1.5 border border-neutral-200 rounded text-xs bg-white text-neutral-800"
+                      className="w-full p-1.5 border border-[#D4AF37]/20 rounded text-xs !bg-[#1A1A1A] !text-[#E0E0E0] outline-none"
                     >
                       {selectedClient.addresses.map((addr, idx) => (
-                        <option key={addr.id || idx} value={addr.fullAddress}>
+                        <option className="!bg-[#1A1A1A] !text-[#E0E0E0]" key={addr.id || idx} value={addr.fullAddress}>
                           📍 {addr.addressAbbreviated ? `[${addr.addressAbbreviated}] ` : ''}{addr.fullAddress}
                         </option>
                       ))}
-                      <option value="custom">-- ➕ 為此既有客戶手填新施作地址 --</option>
+                      <option className="!bg-[#1A1A1A] !text-[#E0E0E0]" value="custom">-- ➕ 為此既有客戶手填新施作地址 --</option>
                     </select>
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-2 text-neutral-400 border border-dashed border-neutral-300 rounded-lg bg-white">
+                <div className="text-center py-2.5 !text-[#8C8C8C] border border-dashed border-[#D4AF37]/20 rounded-lg !bg-[#121212]">
                   <span className="text-[11px]">請使用上方輸入框搜尋並點選您先前建立的客戶/業主</span>
                 </div>
               )}
             </div>
           ) : (
-            <div className="p-3 bg-amber-50/20 border border-amber-200/30 rounded-xl text-neutral-700">
-              <span className="block font-bold text-[11px] text-amber-900 pb-1 flex items-center gap-1">
-                <Plus size={13} />
+            <div className="p-3 !bg-[#D4AF37]/5 border border-[#D4AF37]/20 rounded-xl !text-[#E0E0E0]">
+              <span className="block font-bold text-[11px] !text-[#F3E5AB] pb-1 flex items-center gap-1">
+                <Plus size={13} className="text-[#D4AF37]" />
                 正在手添全新業主 Profile
               </span>
-              <p className="text-[10px] text-neutral-400">
+              <p className="text-[10px] !text-[#8C8C8C]">
                 本案場建立後，系統會在客戶資料名簿中，完美新同步存儲此人的手機和名字，省得以後重複打字！
               </p>
             </div>
@@ -560,7 +560,7 @@ export default function ProjectForm({
           <div className="space-y-3 pt-1">
             {/* Owner Company */}
             <div>
-              <label className="block text-xs font-bold text-neutral-600 mb-1">
+              <label className="block text-xs font-bold !text-[#E0E0E0] mb-1">
                 公司名 / 業主名稱 <span className="text-red-500">*</span>
               </label>
               <input
@@ -569,7 +569,7 @@ export default function ProjectForm({
                 value={companyOrOwner}
                 onChange={(e) => setCompanyOrOwner(e.target.value)}
                 disabled={customerMode === 'existing' && selectedClient !== null}
-                className="w-full px-3 py-1.5 border border-neutral-200 rounded-lg text-neutral-850 font-medium disabled:bg-neutral-100 disabled:text-neutral-500"
+                className="w-full px-3 py-1.5 border border-[#D4AF37]/25 rounded-lg !text-[#E0E0E0] !bg-[#121212] font-medium placeholder-[#8C8C8C]/80 disabled:opacity-60 disabled:!bg-[#1D1D1D] disabled:!text-[#8C8C8C] disabled:border-[#D4AF37]/10 outline-none focus:border-[#D4AF37]"
                 required
               />
             </div>
@@ -577,24 +577,24 @@ export default function ProjectForm({
             {/* In Charge & Mobile (Parallel Row) */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-neutral-600 mb-1">現場負責人/聯絡人 <span className="text-neutral-400 font-normal">(選填)</span></label>
+                <label className="block text-xs font-bold !text-[#E0E0E0] mb-1">現場負責人/聯絡人 <span className="!text-[#8C8C8C] font-normal">(選填)</span></label>
                 <input
                   type="text"
                   placeholder="例如：林主任、林先生"
                   value={contactPerson}
                   onChange={(e) => setContactPerson(e.target.value)}
-                  className="w-full px-3 py-1.5 border border-neutral-200 rounded-lg text-neutral-850 font-medium"
+                  className="w-full px-3 py-1.5 border border-[#D4AF37]/25 rounded-lg !text-[#E0E0E0] !bg-[#121212] font-medium placeholder-[#8C8C8C]/80 outline-none focus:border-[#D4AF37]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-neutral-600 mb-1">聯絡人號碼 / 電話 <span className="text-neutral-400 font-normal">(選填)</span></label>
+                <label className="block text-xs font-bold !text-[#E0E0E0] mb-1">聯絡人號碼 / 電話 <span className="!text-[#8C8C8C] font-normal">(選填)</span></label>
                 <input
                   type="text"
                   placeholder="例如：0912-345678"
                   value={contactPhone}
                   onChange={(e) => setContactPhone(e.target.value)}
-                  className="w-full px-3 py-1.5 border border-neutral-200 rounded-lg text-neutral-850 font-mono"
+                  className="w-full px-3 py-1.5 border border-[#D4AF37]/25 rounded-lg !text-[#E0E0E0] !bg-[#121212] font-mono placeholder-[#8C8C8C]/80 outline-none focus:border-[#D4AF37]"
                 />
               </div>
             </div>
@@ -602,18 +602,18 @@ export default function ProjectForm({
             {/* Address Nickname & Full address */}
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
               <div className="sm:col-span-4">
-                <label className="block text-xs font-bold text-neutral-600 mb-1">區域/地址簡稱 <span className="text-neutral-400 font-normal">(選填)</span></label>
+                <label className="block text-xs font-bold !text-[#E0E0E0] mb-1">區域/地址簡稱 <span className="!text-[#8C8C8C] font-normal">(選填)</span></label>
                 <input
                   type="text"
                   placeholder="例如：新店案, 信義店"
                   value={addressAbbreviated}
                   onChange={(e) => setAddressAbbreviated(e.target.value)}
-                  className="w-full px-3 py-1.5 border border-neutral-200 rounded-lg text-neutral-850"
+                  className="w-full px-3 py-1.5 border border-[#D4AF37]/25 rounded-lg !text-[#E0E0E0] !bg-[#121212] placeholder-[#8C8C8C]/80 outline-none focus:border-[#D4AF37]"
                 />
               </div>
 
               <div className="sm:col-span-8">
-                <label className="block text-xs font-bold text-neutral-600 mb-1">
+                <label className="block text-xs font-bold !text-[#E0E0E0] mb-1">
                   施作完整地址 <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -622,7 +622,7 @@ export default function ProjectForm({
                   value={fullAddress}
                   onChange={(e) => setFullAddress(e.target.value)}
                   disabled={customerMode === 'existing' && addressChoice !== 'custom'}
-                  className="w-full px-3 py-1.5 border border-neutral-200 rounded-lg text-neutral-850 disabled:bg-neutral-100 disabled:text-neutral-500"
+                  className="w-full px-3 py-1.5 border border-[#D4AF37]/25 rounded-lg !text-[#E0E0E0] !bg-[#121212] placeholder-[#8C8C8C]/80 disabled:opacity-60 disabled:!bg-[#1D1D1D] disabled:!text-[#8C8C8C] disabled:border-[#D4AF37]/10 outline-none focus:border-[#D4AF37]"
                   required
                 />
               </div>
@@ -630,32 +630,32 @@ export default function ProjectForm({
 
             {/* Special notices / warnings */}
             <div>
-              <label className="block text-xs font-bold text-neutral-600 mb-1">案場常規注意及警告事項 <span className="text-neutral-400 font-normal">(選填)</span></label>
+              <label className="block text-xs font-bold !text-[#E0E0E0] mb-1">案場常規注意及警告事項 <span className="!text-[#8C8C8C] font-normal">(選填)</span></label>
               <textarea
                 rows={2}
                 placeholder="例如：高粉塵、限中午十一點前無噪音施工、需要特定防火梯等安全事項..."
                 value={projectNotes}
                 onChange={(e) => setProjectNotes(e.target.value)}
-                className="w-full p-2 border border-neutral-200 rounded-lg text-neutral-850 text-xs focus:ring-1 focus:ring-amber-500"
+                className="w-full p-2 border border-[#D4AF37]/25 rounded-lg !text-[#E0E0E0] !bg-[#121212] text-xs placeholder-[#8C8C8C]/80 outline-none focus:border-[#D4AF37]"
               />
             </div>
 
             {/* Interactive Preview Container */}
-            <div className="p-3.5 bg-neutral-900 border border-neutral-950 rounded-xl space-y-1.5 text-white">
-              <span className="block text-[10px] font-bold text-amber-400 tracking-wider">自動轉換標準案場識別名 (預覽):</span>
-              <p id="generated-name-preview" className="text-xs sm:text-sm font-black tracking-tight break-all font-mono">
+            <div className="p-3.5 !bg-[#0D0D0D] border border-[#D4AF37]/25 rounded-xl space-y-1.5 !text-[#E0E0E0]">
+              <span className="block text-[10px] font-bold !text-[#D4AF37] tracking-wider">自動轉換標準案場識別名 (預覽):</span>
+              <p id="generated-name-preview" className="text-xs sm:text-sm font-black tracking-tight break-all font-mono !text-[#F3E5AB]">
                 {generatePreview()}
               </p>
             </div>
           </div>
 
           {/* Action Row */}
-          <div className="pt-4 border-t border-neutral-100 flex items-center justify-end gap-3.5">
+          <div className="pt-4 border-t border-[#D4AF37]/20 flex items-center justify-end gap-3.5">
             <button
               id="btn-cancel-project"
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border border-neutral-200 text-neutral-600 hover:bg-neutral-150 rounded-lg transition text-xs font-bold"
+              className="px-4 py-2 border border-[#D4AF37]/25 bg-[#121212] !text-[#D4AF37] hover:!bg-[#D4AF37]/15 rounded-lg transition text-xs font-bold"
             >
               取消
             </button>
@@ -663,7 +663,7 @@ export default function ProjectForm({
               id="btn-confirm-project"
               type="submit"
               disabled={!companyOrOwner.trim() || !fullAddress.trim()}
-              className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed rounded-lg shadow-sm transition flex items-center gap-1"
+              className="px-5 py-2 text-xs font-black !text-[#0D0D0D] bg-gradient-to-r from-[#D4AF37] to-[#AA7C11] hover:brightness-110 active:scale-95 disabled:!from-[#333333] disabled:!to-[#222222] disabled:!text-[#8C8C8C] disabled:opacity-30 disabled:cursor-not-allowed rounded-lg shadow-md transition flex items-center gap-1"
             >
               <CheckCircle2 size={13} />
               建立新案場

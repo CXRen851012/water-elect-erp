@@ -172,16 +172,10 @@ export default function CustomerPanel({
   }, [customers, searchQuery]);
 
   return (
-    <div id="customer-panel-container" className="space-y-6">
+    <div id="customer-panel-container" className="space-y-6 text-neutral-300">
       <div className="space-y-6 animate-fadeIn pb-2">
         {/* Search Header Bar */}
-        <div className="bg-white p-5 rounded-2xl border-2 border-neutral-300 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-5">
-          <div className="space-y-11">
-            <h2 className="text-lg font-black text-neutral-950 flex items-center gap-2">
-              <Users size={22} className="text-amber-700 stroke-[2.5]" />
-              客戶與業主登記
-            </h2>
-          </div>
+        <div className="bg-[#1E1E1E] p-6 rounded-2xl border border-[#2C2C2C] shadow-3xs flex flex-col md:flex-row md:items-center justify-between gap-5 text-white">
 
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
             {/* Real-time search */}
@@ -192,17 +186,17 @@ export default function CustomerPanel({
                 placeholder="搜尋客戶名、聯絡人、地址..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 border-2 border-neutral-350 rounded-xl text-sm text-neutral-950 bg-white placeholder-neutral-500 font-bold focus:border-amber-600 focus:ring-0"
+                className="w-full pl-9 pr-3 py-2 border border-[#3A3A3A] rounded-lg text-xs text-white bg-[#252525] placeholder-neutral-500 font-bold focus:outline-none focus:border-[#D4AF37]"
               />
-              <Search className="absolute left-3 top-3 text-neutral-500" size={16} />
+              <Search className="absolute left-3 top-2.5 text-neutral-500" size={14} />
             </div>
 
             <button
               id="btn-add-customer-panel"
               onClick={handleOpenAdd}
-              className="w-full sm:w-auto px-5 py-2.5 bg-amber-700 hover:bg-amber-800 text-white font-black text-sm rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md shadow-amber-600/15 whitespace-nowrap cursor-pointer"
+              className="w-full sm:w-auto px-4 py-2 bg-[#D4AF37] text-black hover:bg-[#bfa032] font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-3xs whitespace-nowrap cursor-pointer"
             >
-              <Plus size={16} className="stroke-[2.5]" />
+              <Plus size={14} className="stroke-[2.5]" />
               登記新客戶
             </button>
           </div>
@@ -210,10 +204,10 @@ export default function CustomerPanel({
 
         {/* Grid listing */}
         {filteredCustomers.length === 0 ? (
-          <div id="no-customers-placeholder" className="text-center py-16 bg-white rounded-2xl border-2 border-neutral-300 border-dashed">
-            <Users size={48} className="mx-auto text-neutral-400 stroke-[1.5] mb-3" />
-            <h4 className="text-base font-black text-neutral-800">目前尚無任何合作客戶或業主紀錄！</h4>
-            <p className="text-sm text-neutral-600 mt-1 max-w-md mx-auto font-semibold">
+          <div id="no-customers-placeholder" className="text-center py-16 bg-[#1E1E1E] rounded-2xl border border-[#2C2C2C] border-dashed">
+            <Users size={48} className="mx-auto text-neutral-600 stroke-[1.5] mb-3" />
+            <h4 className="text-base font-black text-white">目前尚無任何合作客戶或業主紀錄！</h4>
+            <p className="text-sm text-neutral-500 mt-1 max-w-md mx-auto font-semibold">
               您可以點擊右上方「登記新客戶」按鈕，快速建立主檔案。
             </p>
           </div>
@@ -223,39 +217,39 @@ export default function CustomerPanel({
               return (
                 <div 
                   key={customer.id} 
-                  className="bg-white p-5 rounded-2xl border-2 border-neutral-200 hover:border-amber-500 transition-all hover:shadow-md flex flex-col justify-between group"
+                  className="bg-[#1E1E1E] p-5 rounded-2xl border border-[#2C2C2C] shadow-3xs hover:border-[#D4AF37] transition-all flex flex-col justify-between group text-neutral-300"
                 >
                   <div className="space-y-4">
                     <div className="flex justify-between items-start gap-2">
                       <div className="space-y-1">
-                        <span className="text-xs tracking-widest uppercase font-mono text-amber-750 font-black block">合作客戶成員</span>
-                        <h4 className="text-base font-black text-neutral-950 group-hover:text-amber-800 transition-colors">
+                        <span className="text-[10px] tracking-widest uppercase font-mono text-[#D4AF37] font-bold block">合作客戶成員</span>
+                        <h4 className="text-sm font-bold text-white group-hover:text-[#D4AF37] transition-colors">
                           {customer.name}
                         </h4>
                       </div>
                       <div className="flex items-center gap-1">
-                        <span className="text-xs bg-neutral-150 font-black text-neutral-800 font-mono px-2 py-0.5 rounded-md border border-neutral-300">
+                        <span className="text-[10px] bg-[#252525] font-bold text-neutral-400 font-mono px-2 py-0.5 rounded-md border border-[#2C2C2C]">
                           {customer.addresses.length} 個常用地址
                         </span>
                       </div>
                     </div>
 
                     {/* Contacts info details block */}
-                    <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-250 text-sm text-neutral-800 space-y-1.5">
+                    <div className="bg-[#252525] p-3 rounded-xl border border-[#2C2C2C] text-xs text-neutral-400 space-y-1.5">
                       {customer.contactPerson ? (
-                        <p className="flex items-center gap-1.5 font-bold">
-                          👤 聯絡人：<span className="text-neutral-950 font-black">{customer.contactPerson}</span>
+                        <p className="flex items-center gap-1.5 font-bold text-neutral-300">
+                          👤 聯絡人：<span className="text-white font-black">{customer.contactPerson}</span>
                         </p>
                       ) : (
-                        <p className="text-neutral-500 italic font-semibold">無特定負責聯絡窗口</p>
+                        <p className="text-neutral-500 italic">無特定負責聯絡窗口</p>
                       )}
                       {customer.phone && (
-                        <p className="flex items-center gap-1.5 font-mono">
-                          📞 連絡電話：<span className="text-neutral-950 font-black">{customer.phone}</span>
+                        <p className="flex items-center gap-1.5 font-mono text-neutral-300 font-bold">
+                          📞 連絡電話：<span className="text-white font-black">{customer.phone}</span>
                         </p>
                       )}
                       {customer.notes && (
-                        <p className="text-xs text-neutral-600 font-semibold leading-relaxed border-t border-neutral-200 pt-1 mt-1">
+                        <p className="text-[10px] text-neutral-500 font-medium leading-relaxed border-t border-[#2C2C2C] pt-1 mt-1">
                           📝 系統備忘：{customer.notes}
                         </p>
                       )}
@@ -263,22 +257,22 @@ export default function CustomerPanel({
 
                     {/* Collapsible list of associated addresses */}
                     <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
-                      <span className="text-xs uppercase font-black text-neutral-600 block tracking-wider mb-2">📍 常用工地派工地址名冊 ({customer.addresses.length})</span>
+                      <span className="text-[11px] uppercase font-bold text-neutral-400 block tracking-wider mb-2 font-mono">📍 常用工地派工地址名冊 ({customer.addresses.length})</span>
                       {customer.addresses.map((addr) => (
-                        <div key={addr.id} className="p-2.5 bg-neutral-50 border-2 border-neutral-205 rounded-xl hover:bg-amber-50/10 transition-colors">
-                          <p className="text-xs sm:text-sm font-bold text-neutral-950 flex items-start gap-1 leading-normal">
-                            <span className="text-xs bg-amber-600 text-white font-black px-1.5 rounded scale-90 whitespace-nowrap mt-0.5">
+                        <div key={addr.id} className="p-2.5 bg-[#252525] border border-[#2C2C2C] rounded-xl hover:bg-[#2C2C2C] transition-colors">
+                          <p className="text-xs font-bold text-white flex items-start gap-1 leading-normal">
+                            <span className="text-[9px] bg-[#D4AF37] text-black font-black px-1.5 rounded scale-90 whitespace-nowrap mt-0.5">
                               {addr.addressAbbreviated || '派'}
                             </span>
                             {addr.fullAddress}
                           </p>
                           {(addr.contactPerson || addr.contactPhone) && (
-                            <p className="text-xs text-neutral-700 font-bold font-mono mt-0.5 pl-4">
+                            <p className="text-[10px] text-neutral-400 font-bold font-mono mt-0.5 pl-4">
                               窗口: {addr.contactPerson || '同客戶'} | {addr.contactPhone || '-'}
                             </p>
                           )}
                           {addr.addressNotes && (
-                            <p className="text-xs text-amber-700 font-bold pl-4">
+                            <p className="text-[10px] text-[#D4AF37] font-bold pl-4">
                               📌 案場備註: {addr.addressNotes}
                             </p>
                           )}
@@ -288,10 +282,10 @@ export default function CustomerPanel({
                   </div>
 
                   {/* Actions footer options */}
-                  <div className="pt-3.5 mt-4 border-t border-neutral-100 flex items-center justify-between gap-1 select-none">
+                  <div className="pt-3.5 mt-4 border-t border-[#2C2C2C] flex items-center justify-between gap-1 select-none">
                     {deleteConfirmId === customer.id ? (
-                      <div className="flex items-center gap-1.5 bg-red-50 p-1.5 rounded-lg border border-red-100 w-full animate-fadeIn flex-wrap">
-                        <span className="text-[10px] text-red-700 font-black">確定刪除此業主與常用地址？</span>
+                      <div className="flex items-center gap-1.5 bg-red-950/20 p-1.5 rounded-lg border border-red-900 w-full animate-fadeIn flex-wrap">
+                        <span className="text-[10px] text-red-200 font-black">確定刪除此業主與常用地址？</span>
                         <div className="flex gap-1.5">
                           <button
                             onClick={() => {
@@ -305,7 +299,7 @@ export default function CustomerPanel({
                           </button>
                           <button
                             onClick={() => setDeleteConfirmId(null)}
-                            className="bg-neutral-200 text-neutral-600 font-extrabold text-[10px] px-2 py-0.5 rounded cursor-pointer"
+                            className="bg-[#252525] text-neutral-400 font-extrabold text-[10px] px-2 py-0.5 rounded cursor-pointer border border-[#3A3A3A]"
                           >
                             取消
                           </button>
@@ -315,7 +309,7 @@ export default function CustomerPanel({
                       <div className="flex items-center justify-between w-full">
                         <button
                           onClick={() => handleOpenEdit(customer)}
-                          className="p-1 px-2.5 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-lg border border-amber-200 cursor-pointer flex items-center gap-1 transition"
+                          className="p-1 px-2.5 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 text-[#D4AF37] text-xs font-bold rounded-lg border border-[#D4AF37]/20 cursor-pointer flex items-center gap-1 transition"
                         >
                           <Edit size={12} />
                           編輯
@@ -323,7 +317,7 @@ export default function CustomerPanel({
                         
                         <button
                           onClick={() => setDeleteConfirmId(customer.id)}
-                          className="p-1 px-2 hover:bg-neutral-50 text-neutral-400 hover:text-red-600 rounded transition-colors text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                          className="p-1 px-2 hover:bg-red-950/20 text-neutral-500 hover:text-red-450 rounded transition-colors text-xs font-semibold flex items-center gap-1 cursor-pointer"
                         >
                           <Trash2 size={12} />
                           刪除業主
@@ -341,34 +335,34 @@ export default function CustomerPanel({
       {/* 4. MODAL ADD / EDIT */}
       {showAddModal && (
         <div className="fixed inset-0 bg-neutral-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-neutral-100 shadow-2xl max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-[#1E1E1E] rounded-2xl border border-[#2C2C2C] shadow-2xl max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh] text-white">
             {/* Header */}
-            <div className="p-5 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
+            <div className="p-5 border-b border-[#2C2C2C] flex items-center justify-between bg-[#212121]">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-amber-50 rounded-xl text-amber-600">
+                <div className="p-2 bg-[#252525] rounded-xl text-[#D4AF37] border border-[#3A3A3A]">
                   <Building2 size={20} />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-neutral-800">
-                    {editingCustomer ? '修改客戶 / 業主資料' : '登記長期合作夥伴名冊'}
+                  <h2 className="text-sm font-bold text-white">
+                    {editingCustomer ? '修改客戶 / 業主資料' : '登記長期合作夥伴主檔案'}
                   </h2>
                 </div>
               </div>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="p-1.5 rounded-full hover:bg-neutral-200 text-neutral-500 hover:text-neutral-850 transition-colors cursor-pointer"
+                className="p-1.5 rounded-full hover:bg-[#2C2C2C] text-neutral-400 hover:text-white transition-colors cursor-pointer"
               >
                 <X size={18} />
               </button>
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSubmit} className="p-6 flex-1 overflow-y-auto space-y-4 text-xs sm:text-sm">
+            <form onSubmit={handleSubmit} className="p-6 flex-1 overflow-y-auto space-y-4 text-xs">
               <div className="space-y-4">
                 {/* Name */}
                 <div>
-                  <label className="block text-xs font-bold text-neutral-600 mb-1.5">
-                    公司名稱 / 業主姓名 <span className="text-red-500">*</span>
+                  <label className="block text-xs font-bold text-neutral-300 mb-1.5">
+                    公司名稱 / 業主姓名 <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -376,61 +370,61 @@ export default function CustomerPanel({
                     placeholder="如：豪雅室內設計、林業主"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-neutral-800 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                    className="w-full px-3 py-2 border border-[#3A3A3A] rounded-lg text-white bg-[#252525] placeholder-neutral-500 focus:outline-none focus:border-[#D4AF37]"
                   />
                 </div>
 
                 {/* Double fields */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-neutral-600 mb-1.5">
-                      現場聯絡人 <span className="text-neutral-400 text-[10px] font-normal">(選填)</span>
+                    <label className="block text-xs font-bold text-neutral-300 mb-1.5">
+                      現場聯絡人 <span className="text-neutral-500 text-[10px] font-normal">(選填)</span>
                     </label>
                     <input
                       type="text"
                       placeholder="如：陳主任、張先生"
                       value={contactPerson}
                       onChange={(e) => setContactPerson(e.target.value)}
-                      className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-neutral-800"
+                      className="w-full px-3 py-2 border border-[#3A3A3A] rounded-lg text-white bg-[#252525] placeholder-neutral-500 focus:outline-none focus:border-[#D4AF37]"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-neutral-600 mb-1.5">
-                      聯絡方式 / 電話 <span className="text-neutral-400 text-[10px] font-normal">(選填)</span>
+                    <label className="block text-xs font-bold text-neutral-300 mb-1.5">
+                      聯絡方式 / 電話 <span className="text-neutral-500 text-[10px] font-normal">(選填)</span>
                     </label>
                     <input
                       type="text"
                       placeholder="如：0912-345678"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-neutral-800 font-mono"
+                      className="w-full px-3 py-2 border border-[#3A3A3A] rounded-lg text-white bg-[#252525] placeholder-neutral-500 font-mono focus:outline-none focus:border-[#D4AF37]"
                     />
                   </div>
                 </div>
 
                 {/* Notes */}
                 <div>
-                  <label className="block text-xs font-bold text-neutral-600 mb-1.5">
-                    客戶特別備註與安全事項 <span className="text-neutral-400 text-[10px] font-normal">(選填)</span>
+                  <label className="block text-xs font-bold text-neutral-300 mb-1.5">
+                    客戶特別備註與安全事項 <span className="text-neutral-500 text-[10px] font-normal">(選填)</span>
                   </label>
                   <textarea
                     placeholder="例如：付款週期為雙月結、常態備料習慣等..."
                     rows={2}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-neutral-800 focus:outline-none"
+                    className="w-full px-3 py-2 border border-[#3A3A3A] rounded-lg text-white bg-[#252525] placeholder-neutral-500 focus:outline-none focus:border-[#D4AF37]"
                   />
                 </div>
 
                 {/* Addresses lists sections */}
-                <div className="space-y-3.5 pt-2 border-t border-neutral-100">
+                <div className="space-y-3.5 pt-4 border-t border-[#2C2C2C]">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-neutral-700">📍 施作工地與常備派工地址名簿</span>
+                    <span className="text-xs font-bold text-neutral-300">📍 施作工地與常備派工地址名簿</span>
                     <button
                       type="button"
                       onClick={handleAddAddressRow}
-                      className="text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer"
+                      className="text-[10px] font-bold text-[#D4AF37] bg-[#252525] hover:bg-[#2C2C2C] border border-[#3A3A3A] px-2.5 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer"
                     >
                       ➕ 增加一條新工地地址
                     </button>
@@ -438,12 +432,12 @@ export default function CustomerPanel({
 
                   <div className="space-y-4 max-h-[220px] overflow-y-auto pr-1">
                     {addresses.map((addr, idx) => (
-                      <div key={addr.id} className="p-4 bg-neutral-50 rounded-xl border border-neutral-200/80 space-y-3 relative group/addr">
+                      <div key={addr.id} className="p-4 bg-[#252525] rounded-xl border border-[#3A3A3A] space-y-3 relative group/addr">
                         <div className="absolute right-3.5 top-3.5">
                           <button
                             type="button"
                             onClick={() => handleRemoveAddressRow(idx)}
-                            className="text-neutral-400 hover:text-red-700 p-1 rounded-full hover:bg-neutral-200/50 transition cursor-pointer"
+                            className="text-neutral-500 hover:text-red-400 p-1 rounded-full hover:bg-[#2C2C2C] transition cursor-pointer"
                             title="刪除此常用工址"
                           >
                             <Trash2 size={13} />
@@ -451,67 +445,67 @@ export default function CustomerPanel({
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-neutral-600 font-mono">#{idx+1} 地址</span>
+                          <span className="text-xs font-bold text-neutral-400 font-mono">#{idx+1} 地址</span>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div className="sm:col-span-1">
-                            <label className="block text-[9px] font-bold text-neutral-550 mb-0.5">工址完整地址 <span className="text-red-500">*</span></label>
+                            <label className="block text-[9px] font-bold text-neutral-400 mb-0.5">工址完整地址 <span className="text-rose-500">*</span></label>
                             <input
                               type="text"
                               required
                               placeholder="完整路名與門牌，例如：台北市信義路五段7號"
                               value={addr.fullAddress}
                               onChange={(e) => handleUpdateAddressField(idx, 'fullAddress', e.target.value)}
-                              className="w-full px-2 py-1 border border-neutral-200 rounded-lg text-neutral-800 text-xs bg-white focus:ring-1 focus:ring-amber-500"
+                              className="w-full px-2 py-1 border border-[#3A3A3A] rounded-lg text-white bg-[#1e1e1e] text-xs focus:border-[#D4AF37] focus:outline-none"
                             />
                           </div>
 
                           <div className="sm:col-span-1">
-                            <label className="block text-[9px] font-bold text-neutral-500 mb-0.5">常用名稱簡稱 (例如: 信義店)</label>
+                            <label className="block text-[9px] font-bold text-neutral-400 mb-0.5">常用名稱簡稱 (例如: 信義店)</label>
                             <input
                               type="text"
                               placeholder="例如：信義A館、二樓辦公室"
                               value={addr.addressAbbreviated || ''}
                               onChange={(e) => handleUpdateAddressField(idx, 'addressAbbreviated', e.target.value)}
-                              className="w-full px-2 py-1 border border-neutral-200 rounded-lg text-neutral-800 text-xs bg-white focus:ring-1 focus:ring-amber-500"
+                              className="w-full px-2 py-1 border border-[#3A3A3A] rounded-lg text-white bg-[#1e1e1e] text-xs focus:border-[#D4AF37] focus:outline-none"
                             />
                           </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-[9px] font-bold text-neutral-500 mb-0.5">現場調度聯絡人 (工地視窗)</label>
+                            <label className="block text-[9px] font-bold text-neutral-400 mb-0.5">現場調度聯絡人 (工地視窗)</label>
                             <input
                               type="text"
                               placeholder="專屬此工地窗口，如：李工頭"
                               value={addr.contactPerson || ''}
                               onChange={(e) => handleUpdateAddressField(idx, 'contactPerson', e.target.value)}
-                              className="w-full px-2 py-1 border border-neutral-200 rounded-lg text-neutral-800 text-xs bg-white focus:ring-1 focus:ring-amber-500"
+                              className="w-full px-2 py-1 border border-[#3A3A3A] rounded-lg text-white bg-[#1e1e1e] text-xs focus:border-[#D4AF37] focus:outline-none"
                             />
                           </div>
 
                           <div>
-                            <label className="block text-[9px] font-bold text-neutral-500 mb-0.5">現場聯絡電話</label>
+                            <label className="block text-[9px] font-bold text-neutral-400 mb-0.5">現場聯絡電話</label>
                             <input
                               type="text"
                               placeholder="專屬負責人電話"
                               value={addr.contactPhone || ''}
                               onChange={(e) => handleUpdateAddressField(idx, 'contactPhone', e.target.value)}
-                              className="w-full px-2 py-1 border border-neutral-200 rounded-lg text-neutral-800 text-xs bg-white font-mono focus:ring-1 focus:ring-amber-500"
+                              className="w-full px-2 py-1 border border-[#3A3A3A] rounded-lg text-white bg-[#1e1e1e] text-xs font-mono focus:border-[#D4AF37] focus:outline-none"
                             />
                           </div>
                         </div>
 
                         {/* Local notes */}
                         <div>
-                          <label className="block text-[9px] font-bold text-neutral-500 mb-0.5">個別地址特別備註 / 注意事項</label>
+                          <label className="block text-[9px] font-bold text-neutral-400 mb-0.5">個別地址特別備註 / 注意事項</label>
                           <input
                             type="text"
                             placeholder="例如：需在非工作時間施工,高空管路等..."
                             value={addr.addressNotes || ''}
                             onChange={(e) => handleUpdateAddressField(idx, 'addressNotes', e.target.value)}
-                            className="w-full px-2 py-1 border border-neutral-200 rounded-lg text-neutral-800 text-xs bg-white focus:ring-1 focus:ring-amber-500"
+                            className="w-full px-2 py-1 border border-[#3A3A3A] rounded-lg text-white bg-[#1e1e1e] text-xs focus:border-[#D4AF37] focus:outline-none"
                           />
                         </div>
                       </div>
@@ -521,17 +515,17 @@ export default function CustomerPanel({
               </div>
 
               {/* Modal Footer */}
-              <div className="pt-4 mt-6 border-t border-neutral-100 flex items-center justify-end gap-3">
+              <div className="pt-4 mt-6 border-t border-[#2C2C2C] flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 text-xs font-bold text-neutral-600 hover:bg-neutral-100 rounded-lg transition"
+                  className="px-4 py-2 text-xs font-bold text-neutral-400 hover:text-white hover:bg-[#252525] rounded-lg transition"
                 >
                   取消
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-sm transition"
+                  className="px-5 py-2 text-xs font-bold bg-[#D4AF37] hover:bg-[#bfa032] text-black rounded-lg shadow-sm transition"
                 >
                   確認儲存
                 </button>

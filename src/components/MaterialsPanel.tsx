@@ -635,56 +635,50 @@ export default function MaterialsPanel({
   };
 
   return (
-    <div id="materials-panel" className="bg-white p-6 rounded-2xl border-2 border-neutral-300 shadow-sm space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b-2 border-neutral-200">
-        <div className="space-y-1">
-          <span className="text-xs uppercase tracking-wider font-extrabold text-amber-700 block font-mono">Materials Preset Stock</span>
-          <h2 className="text-lg font-black text-neutral-950 flex items-center gap-2">
-            <ShoppingBag className="text-amber-700 animate-pulse stroke-[2.5]" size={24} />
-            施工耗料規格大庫
-          </h2>
-        </div>
-      </div>
+    <div id="materials-panel" className="!bg-[var(--bg-card)] p-6 rounded-2xl border border-[#D4AF37]/20 shadow-3xs space-y-6">
 
       {/* Add new material preset main item form */}
-      <div className="bg-neutral-50 p-5 border-2 border-neutral-250 rounded-xl">
-        <div className="mb-3">
-          <h3 className="text-sm font-black text-neutral-950 block text-amber-950">➕ 建立新材料品項至大庫</h3>
-          <p className="text-xs text-neutral-600 mt-1 font-bold">
+      <div className="!bg-[var(--bg-main)] !text-[var(--text-secondary)] p-5 border border-[#D4AF37]/20 rounded-xl space-y-4">
+        <div>
+          <h3 className="text-sm font-bold !text-[var(--text-primary)] flex items-center gap-2">
+            <Plus size={16} className="text-[#D4AF37]" />
+            建立新材料品項至大庫
+          </h3>
+          <p className="text-[11px] text-neutral-400 mt-0.5">
             建立後，可於下方材料卡內直接點擊「新增其他規格單位」，為同一個材料增設不同的計量單位裝箱。
           </p>
         </div>
-        <form onSubmit={handleAddMaterial} className="grid grid-cols-12 gap-3 mt-1.5">
+        <form onSubmit={handleAddMaterial} className="grid grid-cols-12 gap-3 mt-1 text-xs">
           <div className="col-span-12 sm:col-span-7">
-            <label className="block text-[10px] text-neutral-500 font-bold mb-1">材料品項名稱</label>
+            <label className="block text-[10px] text-neutral-300 font-bold mb-1">材料品項名稱</label>
             <input
               id="material-add-name"
               type="text"
               value={newMatName}
               onChange={(e) => setNewMatName(e.target.value)}
               placeholder="例如: PVC 水管、插座開關、冷熱水龍頭"
-              className="w-full px-2.5 py-2 border border-neutral-200 bg-white rounded-lg text-xs text-neutral-800 font-medium"
+              className="w-full px-3 py-2 border border-[#D4AF37]/20 !text-[var(--text-secondary)] !bg-[var(--bg-input)] rounded-lg placeholder-neutral-500 focus:outline-none focus:border-[#D4AF37]"
               required
             />
           </div>
           <div className="col-span-12 sm:col-span-5">
-            <label className="block text-[10px] text-neutral-500 font-bold mb-1">品項分類</label>
+            <label className="block text-[10px] text-neutral-300 font-bold mb-1">品項分類</label>
             <select
               value={newMatCategory}
               onChange={(e) => setNewMatCategory(e.target.value)}
-              className="w-full px-2.5 py-2 border border-neutral-200 bg-white rounded-lg text-xs text-neutral-800 font-bold"
+              className="w-full px-3 py-2 border border-[#D4AF37]/20 !text-[var(--text-secondary)] !bg-[var(--bg-input)] rounded-lg font-bold focus:outline-none focus:border-[#D4AF37]"
             >
               {categories.map(cat => (
-                <option key={cat} value={cat}>📦 {cat}</option>
+                <option key={cat} value={cat} className="!bg-[var(--bg-card)] !text-[var(--text-secondary)]">📦 {cat}</option>
               ))}
             </select>
           </div>
           <div className="col-span-12 flex justify-end">
             <button
               type="submit"
-              className="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-all shadow-xs cursor-pointer"
+              className="px-5 py-2 !bg-[#D4AF37] hover:brightness-110 !text-[var(--bg-main)] rounded-lg text-xs font-black flex items-center gap-1 transition-all shadow-sm cursor-pointer border border-[#D4AF37]"
             >
-              <Plus size={14} />
+              <Plus size={14} className="stroke-[2.5]" />
               建立材料品項
             </button>
           </div>
@@ -692,9 +686,9 @@ export default function MaterialsPanel({
       </div>
 
       {/* Search & Filters Container */}
-      <div className="bg-neutral-50 border border-neutral-200 p-4 rounded-xl space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center border-b border-neutral-200 pb-3">
-          <div className="md:col-span-4 text-xs font-bold text-neutral-700 flex items-center gap-1.5">
+      <div className="!bg-[var(--bg-card)] border border-[var(--color-accent)]/20 p-4 rounded-xl space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center border-b border-[#D4AF37]/15 pb-3">
+          <div className="md:col-span-4 text-xs font-bold !text-[var(--text-primary)] flex items-center gap-1.5">
             <span>🔍 快速搜尋大庫材料</span>
           </div>
           <div className="md:col-span-8">
@@ -705,14 +699,14 @@ export default function MaterialsPanel({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="輸入材料名稱、分類或規格單位進行快速檢索... (例如: PVC、水龍頭、線)"
-                className="w-full pl-8 pr-12 py-1.5 border border-amber-200/80 bg-white rounded-xl text-xs text-neutral-800 placeholder-neutral-400 focus:ring-1 focus:ring-amber-500 font-bold"
+                className="w-full pl-8 pr-12 py-1.5 border border-[#D4AF37]/25 !bg-[var(--bg-input)] rounded-xl text-xs !text-[var(--text-secondary)] placeholder-neutral-500 font-bold focus:border-[#D4AF37] outline-none"
               />
               <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400 text-xs select-none pointer-events-none">🔍</span>
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-neutral-450 hover:text-neutral-700 bg-neutral-100 hover:bg-neutral-200 px-1.5 py-0.5 rounded font-black cursor-pointer"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-neutral-400 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-1.5 py-0.5 rounded font-black cursor-pointer"
                 >
                   清除
                 </button>
@@ -725,26 +719,26 @@ export default function MaterialsPanel({
           {/* Category Filter */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="block text-[10px] text-neutral-500 font-extrabold font-sans">📂 依材料大類篩選</label>
+              <label className="block text-[10px] !text-[var(--text-secondary)] font-extrabold font-sans">📂 依材料大類篩選</label>
               <button
                 type="button"
                 onClick={() => setShowConfigCategories(!showConfigCategories)}
-                className="text-[10px] text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/50 px-2 py-0.5 rounded font-black flex items-center gap-1 transition cursor-pointer"
+                className="text-[10px] !text-[var(--text-primary)] hover:brightness-110 !bg-[#D4AF37]/10 hover:!bg-[#D4AF37]/15 border border-[#D4AF37]/20 px-2 py-0.5 rounded font-black flex items-center gap-1 transition cursor-pointer"
               >
-                <Settings size={11} className="text-amber-600 shrink-0 animate-spin-slow" />
+                <Settings size={11} className="text-[#D4AF37] shrink-0 animate-spin-slow" />
                 <span>⚙️ 自主配置/改名與排序大類</span>
               </button>
             </div>
 
             {/* Config categories inline form */}
             {showConfigCategories && (
-              <div className="bg-white border text-[11px] border-neutral-200 p-3 rounded-lg space-y-2.5 animate-slideDown shadow-xs">
-                <div className="font-extrabold text-neutral-700 pb-1 border-b border-neutral-100 flex items-center justify-between">
+              <div className="!bg-[var(--bg-main)] border text-[11px] border-[#D4AF37]/20 p-3 rounded-lg space-y-2.5 animate-slideDown shadow-lg">
+                <div className="font-extrabold !text-[var(--text-primary)] pb-1 border-b border-[#D4AF37]/15 flex items-center justify-between">
                   <span>🛠️ 材料大類設定庫 (可使用箭頭微調前後排序)</span>
                   <button 
                     type="button"
                     onClick={() => setShowConfigCategories(false)}
-                    className="p-0.5 hover:bg-neutral-100 rounded"
+                    className="p-0.5 hover:bg-neutral-800 rounded"
                   >
                     <X size={11} />
                   </button>
@@ -758,18 +752,18 @@ export default function MaterialsPanel({
                     placeholder="例如: 燈具照明類"
                     value={newCategoryInput}
                     onChange={(e) => setNewCategoryInput(e.target.value)}
-                    className="w-full px-2 py-1 text-xs border rounded bg-neutral-50"
+                    className="w-full px-2 py-1 text-xs border border-[#D4AF37]/20 rounded !bg-[#1A1A1A] !text-[var(--text-secondary)] placeholder-neutral-500 outline-none focus:border-[#D4AF37]"
                   />
                   <button
                     type="submit"
-                    className="px-3 py-1 bg-neutral-800 text-white rounded font-bold hover:bg-neutral-900 text-xs shrink-0"
+                    className="px-3 py-1 bg-[#252525] border border-[#D4AF37]/20 !text-[#F3E5AB] rounded font-bold hover:bg-[#333333] text-xs shrink-0"
                   >
                     ➕ 新增
                   </button>
                 </form>
 
                 {/* Categories items config lists */}
-                <div className="max-h-[260px] overflow-y-auto space-y-1.5 pr-1 divide-y divide-neutral-50">
+                <div className="max-h-[260px] overflow-y-auto space-y-1.5 pr-1 divide-y divide-[#D4AF37]/10">
                   {categories.map((cat, idx) => {
                     const isRenaming = renamingCategoryOld === cat;
                     return (
@@ -780,20 +774,20 @@ export default function MaterialsPanel({
                               type="text"
                               value={renamingCategoryInput}
                               onChange={(e) => setRenamingCategoryInput(e.target.value)}
-                              className="px-1 py-0.5 border text-xs text-neutral-800 rounded bg-white w-full font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
+                              className="px-1 py-0.5 border text-xs !text-[#E0E0E0] rounded bg-[#121212] w-full font-bold focus:outline-none focus:border-[#D4AF37]"
                               autoFocus
                             />
                             <button
                               type="button"
                               onClick={() => handleSaveRenameCategory(cat)}
-                              className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
+                              className="p-1 text-emerald-400 hover:bg-emerald-950/20 rounded"
                             >
                               <Check size={12} />
                             </button>
                             <button
                               type="button"
                               onClick={() => setRenamingCategoryOld(null)}
-                              className="p-1 text-neutral-400 hover:bg-neutral-50 rounded"
+                              className="p-1 text-neutral-500 hover:bg-neutral-800 rounded"
                             >
                               <X size={12} />
                             </button>
@@ -801,11 +795,11 @@ export default function MaterialsPanel({
                         ) : (
                           <>
                             <div className="flex flex-col flex-1 text-left min-w-0 pr-1.5">
-                              <span className="font-extrabold text-neutral-805 text-[11px] truncate flex-1 leading-none">
+                              <span className="font-extrabold !text-[var(--text-secondary)] text-[11px] truncate flex-1 leading-none">
                                 {idx + 1}. 📦 {cat}
                               </span>
                               <div className="flex items-center gap-1.5 mt-1">
-                                <span className="text-[10px] text-neutral-400 font-bold">加成倍率:</span>
+                                <span className="text-[10px] text-neutral-500 font-bold">加成倍率:</span>
                                 <input
                                   type="number"
                                   step="0.05"
@@ -825,14 +819,14 @@ export default function MaterialsPanel({
                                     setCategoryConfigs(updated);
                                     saveCategoryMaterialConfigs(updated);
                                   }}
-                                  className="w-11 px-1 py-0.2 border border-neutral-200 rounded text-[10px] font-mono text-center bg-amber-50/40 text-amber-950 font-extrabold focus:outline-none focus:border-amber-500"
+                                  className="w-11 px-1 py-0.2 border border-[#D4AF37]/20 rounded text-[10px] font-mono text-center bg-[#121212] !text-[#F3E5AB] font-extrabold focus:outline-none focus:border-[#D4AF37]"
                                 />
-                                <span className="text-[9.5px] text-neutral-400">(如: 1.10)</span>
+                                <span className="text-[9.5px] text-neutral-500">(如: 1.10)</span>
                               </div>
                             </div>
                             {deleteConfirmCategory === cat ? (
-                              <div className="flex items-center gap-1 bg-red-50 px-1.5 py-0.5 border border-red-250 rounded animate-fadeIn shrink-0">
-                                <span className="text-[10px] font-bold text-red-900">確定刪除？</span>
+                              <div className="flex items-center gap-1 bg-red-950/30 px-1.5 py-0.5 border border-red-900 rounded animate-fadeIn shrink-0">
+                                <span className="text-[10px] font-bold text-red-400">確定刪除？</span>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -846,7 +840,7 @@ export default function MaterialsPanel({
                                 <button
                                   type="button"
                                   onClick={() => setDeleteConfirmCategory(null)}
-                                  className="px-1.5 py-0.5 bg-neutral-200 text-neutral-600 rounded font-bold hover:bg-neutral-300"
+                                  className="px-1.5 py-0.5 bg-[#252525] text-neutral-400 rounded font-bold hover:bg-[#333333]"
                                 >
                                   否
                                 </button>
@@ -858,7 +852,7 @@ export default function MaterialsPanel({
                                   type="button"
                                   disabled={idx === 0}
                                   onClick={() => handleMoveCategory(idx, 'up')}
-                                  className={`p-0.5 text-neutral-500 hover:text-amber-600 hover:bg-neutral-50 rounded transition ${idx === 0 ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer'}`}
+                                  className={`p-0.5 text-neutral-500 hover:text-[#D4AF37] hover:bg-neutral-800 rounded transition ${idx === 0 ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer'}`}
                                   title="將此大類向上移"
                                 >
                                   <ChevronUp size={13} />
@@ -868,7 +862,7 @@ export default function MaterialsPanel({
                                   type="button"
                                   disabled={idx === categories.length - 1}
                                   onClick={() => handleMoveCategory(idx, 'down')}
-                                  className={`p-0.5 text-neutral-500 hover:text-amber-600 hover:bg-neutral-50 rounded transition ${idx === categories.length - 1 ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer'}`}
+                                  className={`p-0.5 text-neutral-500 hover:text-[#D4AF37] hover:bg-neutral-800 rounded transition ${idx === categories.length - 1 ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer'}`}
                                   title="將此大類向下移"
                                 >
                                   <ChevronDown size={13} />
@@ -879,7 +873,7 @@ export default function MaterialsPanel({
                                     setRenamingCategoryOld(cat);
                                     setRenamingCategoryInput(cat);
                                   }}
-                                  className="p-1 hover:text-amber-600 hover:bg-neutral-50 rounded transition shrink-0 cursor-pointer"
+                                  className="p-1 hover:text-[#D4AF37] hover:bg-neutral-850 rounded transition shrink-0 cursor-pointer"
                                   title="更名"
                                 >
                                   <Edit size={11} />
@@ -887,7 +881,7 @@ export default function MaterialsPanel({
                                 <button
                                   type="button"
                                   onClick={() => setDeleteConfirmCategory(cat)}
-                                  className="p-1 hover:text-red-600 hover:bg-rose-55 rounded transition shrink-0 cursor-pointer"
+                                  className="p-1 hover:text-red-400 hover:bg-neutral-850 rounded transition shrink-0 cursor-pointer"
                                   title="刪除"
                                 >
                                   <Trash2 size={11} />
@@ -923,8 +917,8 @@ export default function MaterialsPanel({
                     onClick={() => setSettingsMatCategoryFilter(cat)}
                     className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
                       isSelected
-                        ? 'bg-amber-600 text-white shadow-3xs'
-                        : 'bg-white hover:bg-neutral-200 border border-neutral-200 text-neutral-600'
+                        ? '!bg-[var(--color-accent)] !text-[#0D0D0D] font-extrabold shadow-md'
+                        : '!bg-[var(--bg-main)] hover:!bg-[#1D1D1D] border border-[#D4AF37]/15 !text-[var(--text-secondary)] hover:!text-[var(--text-primary)]'
                     }`}
                   >
                     {emoji}
@@ -937,15 +931,15 @@ export default function MaterialsPanel({
 
           {/* Supplier Filter */}
           <div className="space-y-1.5">
-            <label className="block text-[10px] text-neutral-500 font-extrabold">🏬 依特約材料行報價篩選 (精確比對有登錄該行對照報價的耗材)</label>
+            <label className="block text-[10px] !text-[var(--text-secondary)] font-extrabold">🏬 依特約材料行報價篩選 (精確比對有登錄該行對照報價的耗材)</label>
             <div className="flex flex-wrap gap-1 max-h-[120px] overflow-y-auto pr-1">
               <button
                 type="button"
                 onClick={() => setSettingsMatSupplierFilter('全部')}
                 className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
                   settingsMatSupplierFilter === '全部'
-                    ? 'bg-amber-600 text-white shadow-3xs'
-                    : 'bg-white hover:bg-neutral-200 border border-neutral-200 text-neutral-600'
+                    ? '!bg-[var(--color-accent)] !text-[#0D0D0D] font-extrabold shadow-md'
+                    : '!bg-[var(--bg-main)] hover:!bg-[#1D1D1D] border border-[#D4AF37]/15 !text-[var(--text-secondary)] hover:!text-[var(--text-primary)]'
                 }`}
               >
                 🏬 全部特約行
@@ -957,8 +951,8 @@ export default function MaterialsPanel({
                   onClick={() => setSettingsMatSupplierFilter(sup.name)}
                   className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
                     settingsMatSupplierFilter === sup.name
-                      ? 'bg-amber-600 text-white shadow-3xs'
-                      : 'bg-white hover:bg-neutral-200 border border-neutral-200 text-neutral-600'
+                      ? '!bg-[var(--color-accent)] !text-[#0D0D0D] font-extrabold shadow-md'
+                      : '!bg-[var(--bg-main)] hover:!bg-[#1D1D1D] border border-[#D4AF37]/15 !text-[var(--text-secondary)] hover:!text-[var(--text-primary)]'
                   }`}
                 >
                   🏬 {sup.name}
@@ -1045,16 +1039,16 @@ export default function MaterialsPanel({
                 const options = ensureUnitOptions(m);
 
                 return (
-                  <div key={m.id} className="p-5 bg-neutral-50/40 hover:bg-neutral-50/70 border border-neutral-200 rounded-2xl space-y-4 transition">
+                  <div key={m.id} className="p-5 !bg-[var(--bg-card)] hover:brightness-[1.03] border border-[var(--color-accent)]/20 rounded-2xl space-y-4 transition">
                     {isEditing ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 w-full bg-white p-4 border border-neutral-200 rounded-xl">
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 w-full !bg-[var(--bg-card)] p-4 border border-[var(--color-accent)]/20 rounded-xl">
                         <div className="sm:col-span-7">
                           <label className="block text-[9px] text-neutral-400 mb-0.5">品項名稱 (不含單位)</label>
                           <input
                             type="text"
                             value={editMatName}
                             onChange={(e) => setEditMatName(e.target.value)}
-                            className="w-full px-2.5 py-1.5 border border-neutral-200 rounded text-xs bg-white text-neutral-800 font-bold"
+                            className="w-full px-2.5 py-1.5 border border-[#D4AF37]/20 rounded text-xs !bg-[var(--bg-input)] !text-[var(--text-secondary)] font-bold outline-none focus:border-[#D4AF37]"
                             required
                           />
                         </div>
@@ -1063,14 +1057,14 @@ export default function MaterialsPanel({
                           <select
                             value={editMatCategory}
                             onChange={(e) => setEditMatCategory(e.target.value)}
-                            className="w-full px-2 py-1.5 border border-neutral-200 rounded text-xs bg-white text-neutral-800 font-bold"
+                            className="w-full px-2 py-1.5 border border-[#D4AF37]/20 rounded text-xs !bg-[var(--bg-input)] !text-[var(--text-secondary)] font-bold outline-none focus:border-[#D4AF37]"
                           >
                             {categories.map(cat => (
-                              <option key={cat} value={cat}>📦 {cat}</option>
+                              <option key={cat} value={cat} className="!bg-[var(--bg-card)]">📦 {cat}</option>
                             ))}
                           </select>
                         </div>
-                        <div className="flex gap-1 justify-end items-end sm:col-span-12 border-t pt-2 border-neutral-150 mt-1">
+                        <div className="flex gap-1 justify-end items-end sm:col-span-12 border-t pt-2 border-[var(--color-accent)]/20 mt-1">
                           <button
                             type="button"
                             onClick={handleSaveEditMat}
@@ -1090,11 +1084,11 @@ export default function MaterialsPanel({
                     ) : (
                       <>
                         {/* Material Main Title Row */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-200 pb-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--color-accent)]/20 pb-3">
                           <div className="space-y-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <h4 className="font-extrabold text-neutral-800 text-sm sm:text-base">{m.name}</h4>
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded bg-neutral-100 border border-neutral-200 text-neutral-600 font-mono">
+                              <h4 className="font-extrabold !text-[var(--text-primary)] text-sm sm:text-base">{m.name}</h4>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded !bg-[var(--bg-input)] border border-[#D4AF37]/20 !text-[var(--text-secondary)] font-mono">
                                 {m.category === '電路電材類' && '⚡ '}
                                 {m.category === '水路管材類' && '💧 '}
                                 {m.category === '廚衛設備類' && '🛁 '}
@@ -1160,34 +1154,34 @@ export default function MaterialsPanel({
                             const targetUnitName = targetUo?.unit || '個';
 
                             return (
-                              <div key={uo.id} className="bg-white border border-neutral-200 rounded-xl p-4 shadow-3xs space-y-3">
+                              <div key={uo.id} className="!bg-[var(--bg-card)] border border-[var(--color-accent)]/20 rounded-xl p-4 shadow-3xs space-y-3">
                                 {/* Option Header */}
-                                <div className="flex items-center justify-between border-b border-neutral-100 pb-2 flex-wrap gap-2">
+                                <div className="flex items-center justify-between border-b border-[var(--color-accent)]/10 pb-2 flex-wrap gap-2">
                                   <div className="flex items-center gap-2">
                                     <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
-                                    <span className="font-sans font-black text-xs text-neutral-700 flex items-center gap-1">
+                                    <span className="font-sans font-black text-xs text-neutral-750 flex items-center gap-1">
                                       規格單位：
                                       <input
                                         type="text"
                                         value={uo.unit}
                                         onChange={(e) => handleUpdateUnitString(m.id, uo.id, e.target.value)}
-                                        className="font-black text-amber-700 border-b border-dashed border-amber-300 bg-transparent px-1 w-12 text-center text-xs focus:ring-0 focus:border-amber-500"
+                                        className="font-black !text-[var(--text-primary)] border-b border-dashed border-[#D4AF37]/40 bg-transparent px-1 w-12 text-center text-xs focus:ring-0 focus:border-amber-500"
                                         title="可直接點擊進行單位名稱重改"
                                       />
                                     </span>
                                     {idx === 0 && (
-                                      <span className="text-[9px] bg-neutral-100 text-neutral-500 font-bold px-1.5 py-0.5 rounded">
+                                      <span className="text-[9px] !bg-[#D4AF37]/10 !text-[var(--text-primary)] border border-[#D4AF37]/20 font-bold px-1.5 py-0.5 rounded">
                                         預設規格
                                       </span>
                                     )}
 
                                     {/* 單位順序調整 */}
-                                    <div className="flex items-center gap-1 bg-neutral-50 px-1 py-0.5 rounded border border-neutral-200">
+                                    <div className="flex items-center gap-1 !bg-[var(--bg-input)] px-1 py-0.5 rounded border border-[#D4AF37]/20">
                                       <button
                                         type="button"
                                         disabled={idx === 0}
                                         onClick={() => handleMoveUnitOption(m.id, idx, 'up')}
-                                        className={`p-1 rounded hover:bg-neutral-200 transition-colors ${idx === 0 ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer text-neutral-500 hover:text-neutral-800'}`}
+                                        className={`p-1 rounded hover:!bg-[#D4AF37]/10 hover:!text-[var(--text-primary)] transition-colors ${idx === 0 ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer text-neutral-500 hover:text-neutral-800'}`}
                                         title="單位向上移動"
                                       >
                                         <ChevronUp size={11} />
@@ -1196,20 +1190,20 @@ export default function MaterialsPanel({
                                         type="button"
                                         disabled={idx === options.length - 1}
                                         onClick={() => handleMoveUnitOption(m.id, idx, 'down')}
-                                        className={`p-1 rounded hover:bg-neutral-200 transition-colors ${idx === options.length - 1 ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer text-neutral-500 hover:text-neutral-800'}`}
+                                        className={`p-1 rounded hover:!bg-[#D4AF37]/10 hover:!text-[var(--text-primary)] transition-colors ${idx === options.length - 1 ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer text-neutral-500 hover:text-neutral-800'}`}
                                         title="單位向下移動"
                                       >
                                         <ChevronDown size={11} />
                                       </button>
                                     </div>
                                     {idx > 0 && (
-                                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 bg-amber-50/70 p-2 rounded-xl border border-amber-200/85 shadow-3xs flex-wrap">
+                                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 !bg-[var(--bg-input)] p-2 rounded-xl border border-[#D4AF37]/20 shadow-3xs flex-wrap">
                                         <div className="flex items-center gap-1.5 flex-wrap">
                                           <Scale size={11} className="text-amber-600" />
-                                          <span className="text-[11px] text-amber-800 font-black">
+                                          <span className="text-[11px] !text-[var(--text-primary)] font-black">
                                             單位換算：
                                           </span>
-                                          <label className="flex items-center gap-1 bg-amber-100/70 hover:bg-amber-100 transition px-2 py-0.5 rounded border border-amber-300 text-[10px] font-black cursor-pointer text-amber-950 select-none shadow-3xs" title="勾選開啟後，此規格單位的牌價與進價將依以下比例自動自動自基準單位折合換算。若不勾選，則為獨立計價規格，可直接手動輸入不同報價。">
+                                          <label className="flex items-center gap-1 !bg-[#D4AF37]/10 hover:!bg-[#D4AF37]/15 transition px-2 py-0.5 rounded border border-[#D4AF37]/35 text-[10px] font-black cursor-pointer !text-[var(--text-primary)] select-none shadow-3xs" title="勾選開啟後，此規格單位的牌價與進價將依以下比例自動自動自基準單位折合換算。若不勾選，則為獨立計價規格，可直接手動輸入不同報價。">
                                             <input
                                               type="checkbox"
                                               checked={uo.useConversionPricing || false}
@@ -1222,15 +1216,15 @@ export default function MaterialsPanel({
                                         <div className="flex items-center gap-1.5 flex-wrap">
                                           {/* 對應換算目標選擇 */}
                                           {uo.useConversionPricing && (
-                                            <div className="flex items-center gap-1 text-[10px] bg-white border border-neutral-205 rounded px-1.5 py-0.5 shadow-3xs">
+                                            <div className="flex items-center gap-1 text-[10px] !bg-[var(--bg-main)] border border-[#D4AF37]/20 rounded px-1.5 py-0.5 shadow-3xs">
                                               <span className="text-neutral-500 font-bold">對照：</span>
                                               <select
                                                 value={uo.targetUnitOptionId || options[0]?.id || ''}
                                                 onChange={(e) => handleUpdateUnitTargetOptionId(m.id, uo.id, e.target.value)}
-                                                className="border-none bg-transparent py-0 pl-1 pr-4 text-[10px] font-black text-amber-950 focus:ring-0 focus:outline-none cursor-pointer"
+                                                className="border-none bg-transparent py-0 pl-1 pr-4 text-[10px] font-black !text-[var(--text-primary)] focus:ring-0 focus:outline-none cursor-pointer"
                                               >
                                                 {options.map(o => (
-                                                  <option key={o.id} value={o.id} disabled={o.id === uo.id}>
+                                                  <option key={o.id} value={o.id} disabled={o.id === uo.id} className="!bg-[var(--bg-card)] !text-[var(--text-secondary)]">
                                                     {o.unit || '未具名'} {o.id === uo.id ? '(本單位)' : ''}
                                                   </option>
                                                 ))}
@@ -1241,7 +1235,7 @@ export default function MaterialsPanel({
                                           <button
                                             type="button"
                                             onClick={() => handleUpdateUnitConversionInverse(m.id, uo.id, !uo.conversionInverse)}
-                                            className="flex items-center gap-1 bg-white hover:bg-neutral-100 transition px-1.5 py-0.5 rounded border border-neutral-200 text-[9px] sm:text-[10px] text-neutral-600 font-bold cursor-pointer select-none"
+                                            className="flex items-center gap-1 !bg-[var(--bg-main)] hover:!bg-[#D4AF37]/10 transition px-1.5 py-0.5 rounded border border-[#D4AF37]/20 text-[9px] sm:text-[10px] !text-[var(--text-secondary)] font-bold cursor-pointer select-none"
                                             title="點擊切換換算關係方向"
                                           >
                                             🔄 {uo.conversionInverse ? '逆向' : '正向'}
@@ -1258,14 +1252,14 @@ export default function MaterialsPanel({
                                                     const val = parseFloat(e.target.value);
                                                     handleUpdateUnitConversionFactor(m.id, uo.id, isNaN(val) ? 1 : val);
                                                   }}
-                                                  className="w-12 text-center text-[10px] py-0.5 font-bold text-amber-900 border border-neutral-250 bg-white rounded focus:ring-1 focus:ring-amber-500"
+                                                  className="w-12 text-center text-[10px] py-0.5 font-bold !text-[var(--text-primary)] border border-[#D4AF37]/20 !bg-[var(--bg-main)] rounded focus:outline-none focus:border-[#D4AF37]"
                                                   title="設定多少個此副單位能折合為 1 個對照單位。例如 100米 = 1捆，則此處填 100"
                                                 />
-                                                <span className="text-neutral-700 font-black">{uo.unit} = 1 {targetUnitName}</span>
+                                                <span className="!text-[var(--text-secondary)] font-black">{uo.unit} = 1 {targetUnitName}</span>
                                               </>
                                             ) : (
                                               <>
-                                                <span className="text-neutral-700 font-black">1 {uo.unit} =</span>
+                                                <span className="!text-[var(--text-secondary)] font-black">1 {uo.unit} =</span>
                                                 <input
                                                   type="number"
                                                   min="0.001"
@@ -1275,10 +1269,10 @@ export default function MaterialsPanel({
                                                     const val = parseFloat(e.target.value);
                                                     handleUpdateUnitConversionFactor(m.id, uo.id, isNaN(val) ? 1 : val);
                                                   }}
-                                                  className="w-12 text-center text-[10px] py-0.5 font-bold text-amber-900 border border-neutral-250 bg-white rounded focus:ring-1 focus:ring-amber-500"
+                                                  className="w-12 text-center text-[10px] py-0.5 font-bold !text-[var(--text-primary)] border border-[#D4AF37]/20 !bg-[var(--bg-main)] rounded focus:outline-none focus:border-[#D4AF37]"
                                                   title="設定 1 個此副單位能折合多少個對照單位。例如 1捆 = 100米，則此處填 100"
                                                 />
-                                                <span className="text-neutral-600 font-black">
+                                                <span className="!text-[var(--text-secondary)] font-black">
                                                   {targetUnitName}
                                                 </span>
                                               </>
@@ -1288,7 +1282,7 @@ export default function MaterialsPanel({
                                       </div>
                                     )}
                                   </div>
-                                  
+
                                   <div className="flex items-center gap-2">
                                     {/* Unit Base Price Custom inputs (If no supplier special prices are entered yet or locked by auto conversion) */}
                                     <div className="flex items-center gap-3 text-[10px] sm:text-xs">
@@ -1301,10 +1295,10 @@ export default function MaterialsPanel({
                                             value={uo.defaultUnitPrice}
                                             onChange={(e) => handleUpdateUnitBasePrices(m.id, uo.id, 'defaultUnitPrice', parseInt(e.target.value, 10) || 0)}
                                             disabled={hasActiveSuppliers || uo.useConversionPricing}
-                                            className={`w-14 text-center border font-bold rounded text-[11px] py-0.5 px-1 font-mono ${
+                                            className={`w-14 text-center border font-bold rounded text-[11px] py-0.5 px-1 font-mono outline-none ${
                                               (hasActiveSuppliers || uo.useConversionPricing)
-                                                ? 'bg-amber-50/50 text-amber-900 border-amber-250/30 cursor-not-allowed' 
-                                                : 'bg-white text-neutral-900 border-neutral-300 hover:border-neutral-400'
+                                                ? '!bg-[rgba(255,255,255,0.05)] !text-neutral-500 border-neutral-800 cursor-not-allowed' 
+                                                : '!bg-[var(--bg-input)] !text-[var(--text-primary)] border-[#D4AF37]/25 hover:border-[#D4AF37]/60 focus:border-[#D4AF37]'
                                             }`}
                                             title={uo.useConversionPricing ? '此價格由單位換算比與基準牌價自動乘算鎖定。取消勾選「自動換算計價」解鎖手動輸入。' : ''}
                                           />
@@ -1320,10 +1314,10 @@ export default function MaterialsPanel({
                                             value={uo.defaultCostPrice}
                                             onChange={(e) => handleUpdateUnitBasePrices(m.id, uo.id, 'defaultCostPrice', parseInt(e.target.value, 10) || 0)}
                                             disabled={hasActiveSuppliers || uo.useConversionPricing}
-                                            className={`w-14 text-center border font-bold rounded text-[11px] py-0.5 px-1 font-mono ${
+                                            className={`w-14 text-center border font-bold rounded text-[11px] py-0.5 px-1 font-mono outline-none ${
                                               (hasActiveSuppliers || uo.useConversionPricing)
-                                                ? 'bg-amber-50/50 text-amber-900 border-amber-250/30 cursor-not-allowed' 
-                                                : 'bg-white text-amber-900 border-neutral-300 hover:border-neutral-400 bg-amber-50/10'
+                                                ? '!bg-[rgba(255,255,255,0.05)] !text-neutral-500 border-neutral-800 cursor-not-allowed' 
+                                                : '!bg-[var(--bg-input)] !text-[var(--text-primary)] border-[#D4AF37]/25 hover:border-[#D4AF37]/60 focus:border-[#D4AF37]'
                                             }`}
                                             title={uo.useConversionPricing ? '此進法由單位換算比與基準進價自動乘算鎖定。取消勾選「自動換算計價」解鎖手動輸入。' : ''}
                                           />
@@ -1332,23 +1326,23 @@ export default function MaterialsPanel({
                                     </div>
 
                                     {uo.useConversionPricing ? (
-                                      <span className="text-[9px] bg-amber-100 text-amber-950 font-black px-1.5 py-0.5 rounded border border-amber-300 hidden md:inline-block">
+                                      <span className="text-[9px] !bg-[#D4AF37]/10 !text-[var(--text-primary)] font-black px-1.5 py-0.5 rounded border border-[#D4AF37]/25 hidden md:inline-block">
                                         ⚡ 換算鎖定
                                       </span>
                                     ) : hasActiveSuppliers ? (
-                                      <span className="text-[9px] bg-amber-50 text-amber-900 font-bold px-2 py-0.5 rounded border border-amber-200 hidden md:inline-block">
+                                      <span className="text-[9px] !bg-[#D4AF37]/10 !text-[var(--text-primary)] font-bold px-2 py-0.5 rounded border border-[#D4AF37]/25 hidden md:inline-block">
                                         📈 已採特約最高值
                                       </span>
                                     ) : null}
 
                                     {options.length > 1 && (
-                                      <div className="flex items-center gap-1 border-r border-neutral-200 pr-2 mr-1">
+                                      <div className="flex items-center gap-1 border-r border-[#D4AF37]/20 pr-2 mr-1">
                                         {/* 規格單位向上排列按鈕 */}
                                         <button
                                           type="button"
                                           disabled={idx === 0}
                                           onClick={() => handleMoveUnitOption(m.id, idx, 'up')}
-                                          className={`p-1 text-neutral-500 hover:text-amber-600 hover:bg-neutral-50 rounded transition ${idx === 0 ? 'opacity-25 cursor-not-allowed' : 'cursor-pointer'}`}
+                                          className={`p-1 text-neutral-500 hover:!text-[var(--text-primary)] hover:!bg-[#D4AF37]/15 rounded transition ${idx === 0 ? 'opacity-25 cursor-not-allowed' : 'cursor-pointer'}`}
                                           title="向上調整此單位的排列順序"
                                         >
                                           <ChevronUp size={13} />
@@ -1358,7 +1352,7 @@ export default function MaterialsPanel({
                                           type="button"
                                           disabled={idx === options.length - 1}
                                           onClick={() => handleMoveUnitOption(m.id, idx, 'down')}
-                                          className={`p-1 text-neutral-500 hover:text-amber-600 hover:bg-neutral-50 rounded transition ${idx === options.length - 1 ? 'opacity-25 cursor-not-allowed' : 'cursor-pointer'}`}
+                                          className={`p-1 text-neutral-500 hover:!text-[var(--text-primary)] hover:!bg-[#D4AF37]/15 rounded transition ${idx === options.length - 1 ? 'opacity-25 cursor-not-allowed' : 'cursor-pointer'}`}
                                           title="向下調整此單位的排列順序"
                                         >
                                           <ChevronDown size={13} />
@@ -1368,8 +1362,8 @@ export default function MaterialsPanel({
 
                                     {options.length > 1 && (
                                       deleteConfirmUnitId === uo.id ? (
-                                        <div className="flex items-center gap-1.5 bg-rose-50 px-2 py-1 border border-rose-200 rounded-lg animate-fadeIn shrink-0">
-                                          <span className="text-[10px] font-extrabold text-rose-900">確認刪除規格與報價？</span>
+                                        <div className="flex items-center gap-1.5 !bg-rose-950/30 px-2 py-1 border border-rose-500/30 rounded-lg animate-fadeIn shrink-0">
+                                          <span className="text-[10px] font-extrabold text-rose-200">確認刪除規格與報價？</span>
                                           <button
                                             type="button"
                                             onClick={() => {
@@ -1383,7 +1377,7 @@ export default function MaterialsPanel({
                                           <button
                                             type="button"
                                             onClick={() => setDeleteConfirmUnitId(null)}
-                                            className="px-2 py-0.5 bg-neutral-200 hover:bg-neutral-300 text-neutral-600 text-[10px] font-bold rounded cursor-pointer transition-all"
+                                            className="px-2 py-0.5 !bg-[var(--bg-main)] hover:brightness-125 !text-neutral-300 text-[10px] font-bold rounded cursor-pointer transition-all border border-neutral-700"
                                           >
                                             取消
                                           </button>
@@ -1392,7 +1386,7 @@ export default function MaterialsPanel({
                                         <button
                                           type="button"
                                           onClick={() => setDeleteConfirmUnitId(uo.id)}
-                                          className="p-1 px-2.5 py-1 text-neutral-400 hover:text-red-600 hover:bg-red-50 border border-neutral-200 hover:border-red-200 rounded-lg transition-all flex items-center gap-1 cursor-pointer text-[10px]"
+                                          className="p-1 px-2.5 py-1 text-neutral-400 hover:text-red-400 hover:!bg-red-950/20 border border-[#D4AF37]/20 hover:border-red-400 rounded-lg transition-all flex items-center gap-1 cursor-pointer text-[10px]"
                                           title="刪除此計算單位"
                                         >
                                           <Trash2 size={11} />
@@ -1404,7 +1398,7 @@ export default function MaterialsPanel({
                                 </div>
 
                                 {/* Supplier prices grid for this unit option */}
-                                <div className="space-y-1.5 border-t border-neutral-150 pt-3 mt-2">
+                                <div className="space-y-1.5 border-t border-[var(--color-accent)]/15 pt-3 mt-2">
                                   {(() => {
                                     const isSupExpanded = expandedSuppliers[uo.id] || false;
                                     return (
@@ -1413,11 +1407,11 @@ export default function MaterialsPanel({
                                           <button
                                             type="button"
                                             onClick={() => setExpandedSuppliers(prev => ({ ...prev, [uo.id]: !isSupExpanded }))}
-                                            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-extrabold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg cursor-pointer transition-all shadow-3xs"
+                                            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-extrabold !text-[var(--text-primary)] !bg-[#D4AF37]/10 hover:!bg-[#D4AF37]/20 border border-[#D4AF37]/25 rounded-lg cursor-pointer transition-all shadow-3xs"
                                             title="點擊展開或摺疊特約材料行的報價輸入格"
                                           >
                                             <span>🏬 特約材料行合約對照價</span>
-                                            <span className="text-[9px] px-1.5 py-0.2 bg-white text-amber-900 border border-amber-350/30 rounded-full font-mono">
+                                            <span className="text-[9px] px-1.5 py-0.2 !bg-[var(--bg-main)] !text-[var(--text-secondary)] border border-[#D4AF37]/30 rounded-full font-mono">
                                               {activeSuppliers.length} 家特約
                                             </span>
                                             {isSupExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
@@ -1431,20 +1425,20 @@ export default function MaterialsPanel({
                                           <div className="animate-fadeIn space-y-1.5 pt-1.5">
                                             <span className="text-[9px] text-neutral-400 font-bold block">💡 直接輸入後方特約牌進價，系統自動於上方「系統牌價與系統進價」取特約最高實值：</span>
                                             {activeSuppliers.length === 0 ? (
-                                              <p className="text-[10px] text-neutral-400 py-1.5 italic leading-relaxed pl-2 bg-neutral-50 rounded">
+                                              <p className="text-[10px] text-neutral-400 py-1.5 italic leading-relaxed pl-2 !bg-[var(--bg-main)] rounded border border-neutral-800">
                                                 💡 提示：您尚未在系統建置任何「特約材料行」。如需對照不同店家的合約報價，請先利用右上角名冊功能建立材料行。
                                               </p>
                                             ) : (
-                                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-neutral-50/40 p-2.5 rounded-xl border border-neutral-150-dot border-dashed">
+                                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 !bg-[var(--bg-main)] p-2.5 rounded-xl border border-[#D4AF37]/15 border-dashed">
                                                 {activeSuppliers.map(s => {
                                                   const record = uo.suppliers?.find(sup => sup.storeName === s.name);
                                                   const listPrice = record ? record.listPrice : '';
                                                   const costPrice = record ? record.costPrice : '';
 
                                                   return (
-                                                    <div key={s.id} className="flex items-center justify-between p-2 bg-white rounded-lg border border-neutral-200 shadow-3xs hover:border-amber-250 transition-all">
+                                                    <div key={s.id} className="flex items-center justify-between p-2 !bg-[var(--bg-input)] rounded-lg border border-[#D4AF37]/20 shadow-3xs hover:border-[#D4AF37]/60 transition-all">
                                                       <div className="min-w-0 flex-1 pr-2">
-                                                        <span className="text-[11px] font-bold text-neutral-700 block truncate" title={s.name}>
+                                                        <span className="text-[11px] font-bold !text-[var(--text-secondary)] block truncate" title={s.name}>
                                                           🏬 {s.name}
                                                         </span>
                                                       </div>
@@ -1452,8 +1446,8 @@ export default function MaterialsPanel({
                                                       <div className="flex items-center gap-2 flex-shrink-0 text-xs font-mono">
                                                         <div className="flex items-center gap-0.5">
                                                           <span className="text-[9px] text-neutral-400 font-sans">牌價</span>
-                                                          <div className="flex items-center gap-0.5 bg-neutral-50 px-1 border border-neutral-200 rounded">
-                                                            <span className="text-[10px] text-neutral-500 font-bold">$</span>
+                                                          <div className="flex items-center gap-0.5 !bg-[var(--bg-main)] px-1 border border-[#D4AF37]/25 rounded">
+                                                            <span className="text-[10px] !text-[var(--text-primary)] font-bold">$</span>
                                                             <input
                                                               type="number"
                                                               disabled={uo.useConversionPricing}
@@ -1463,7 +1457,7 @@ export default function MaterialsPanel({
                                                                 const val = parseInt(e.target.value, 10);
                                                                 handleUpdateSupplierPriceForUnit(m.id, uo.id, s.name, 'listPrice', isNaN(val) ? 0 : val);
                                                               }}
-                                                              className={`w-12 text-center text-[11px] py-0.5 border-none font-bold text-neutral-800 bg-transparent focus:outline-none ${uo.useConversionPricing ? 'text-amber-900/60 cursor-not-allowed font-medium' : ''}`}
+                                                              className={`w-12 text-center text-[11px] py-0.5 border-none font-bold !text-[var(--text-primary)] bg-transparent focus:outline-none ${uo.useConversionPricing ? '!text-[#D4AF37]/50 cursor-not-allowed font-medium' : ''}`}
                                                               title={uo.useConversionPricing ? '此特約行報價已依單位比例由基準特約價自動算出。若需手動覆寫獨立計費，請取消勾選「自動換算計價」解鎖。' : ''}
                                                             />
                                                           </div>
@@ -1471,8 +1465,8 @@ export default function MaterialsPanel({
 
                                                         <div className="flex items-center gap-0.5">
                                                           <span className="text-[9px] text-neutral-400 font-sans">成本</span>
-                                                          <div className="flex items-center gap-0.5 bg-amber-50/40 px-1 border border-amber-200 rounded">
-                                                            <span className="text-[10px] text-amber-700 font-bold">$</span>
+                                                          <div className="flex items-center gap-0.5 !bg-[var(--bg-main)] px-1 border border-[#D4AF37]/25 rounded">
+                                                            <span className="text-[10px] !text-[var(--text-primary)] font-bold">$</span>
                                                             <input
                                                               type="number"
                                                               disabled={uo.useConversionPricing}
@@ -1482,7 +1476,7 @@ export default function MaterialsPanel({
                                                                 const val = parseInt(e.target.value, 10);
                                                                 handleUpdateSupplierPriceForUnit(m.id, uo.id, s.name, 'costPrice', isNaN(val) ? 0 : val);
                                                               }}
-                                                              className={`w-12 text-center text-[11px] py-0.5 border-none font-black text-amber-950 bg-transparent focus:outline-none ${uo.useConversionPricing ? 'text-amber-900/60 cursor-not-allowed font-medium' : ''}`}
+                                                              className={`w-12 text-center text-[11px] py-0.5 border-none font-black !text-[var(--text-primary)] bg-transparent focus:outline-none ${uo.useConversionPricing ? '!text-[#D4AF37]/50 cursor-not-allowed font-medium' : ''}`}
                                                               title={uo.useConversionPricing ? '此進料報價已依單位比例由基準特約價自動算出。若需手動覆寫獨立計費，請取消勾選「自動換算計價」解鎖。' : ''}
                                                             />
                                                           </div>
@@ -1505,8 +1499,8 @@ export default function MaterialsPanel({
                         </div>
 
                         {/* Quick Add alternative Unit Option Form inside card */}
-                        <div className="bg-neutral-100/60 p-3 rounded-xl border border-neutral-200/80 flex items-center justify-between gap-3 flex-wrap">
-                          <span className="text-[10px] font-bold text-neutral-500">
+                        <div className="!bg-[var(--bg-main)] p-3 rounded-xl border border-[#D4AF37]/15 flex items-center justify-between gap-3 flex-wrap">
+                          <span className="text-[10px] font-bold !text-[var(--text-secondary)]">
                             📏 需要此品項支援其他包裝/規格單位嗎？ (例如一綑或一箱，可在此直接開立新單位獨立計售)
                           </span>
                           <div className="flex items-center gap-2 shrink-0">
@@ -1516,12 +1510,12 @@ export default function MaterialsPanel({
                               value={newUnitStr[m.id] || ''}
                               onChange={(e) => setNewUnitStr(prev => ({ ...prev, [m.id]: e.target.value }))}
                               maxLength={6}
-                              className="px-2.5 py-1.5 border border-neutral-250 bg-white rounded-lg text-xs w-28 text-center font-bold"
+                              className="px-2.5 py-1.5 border border-[#D4AF37]/20 !bg-[var(--bg-input)] !text-[var(--text-primary)] rounded-lg text-xs w-28 text-center font-bold focus:outline-none focus:border-[#D4AF37]"
                             />
                             <button
                               type="button"
                               onClick={() => handleAddUnitOption(m.id)}
-                              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                              className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-amber-50 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer !text-[var(--bg-main)] !bg-[#D4AF37] hover:brightness-110"
                             >
                               <Plus size={12} />
                               新增單位

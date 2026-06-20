@@ -567,7 +567,7 @@ return (
             <Clock size={15} />
           </div>
           <div>
-            <span className="text-xs text-amber-600 font-bold block">⏳ 報價中</span>
+            <span className="text-xs text-amber-600 font-bold block">評估報價中</span>
             <span className="text-sm font-black text-amber-900 font-mono">{countQuote} 個</span>
           </div>
         </div>
@@ -577,7 +577,7 @@ return (
             <HardHat size={15} />
           </div>
           <div>
-            <span className="text-xs text-sky-600 font-bold block">🏗️ 施工中</span>
+            <span className="text-xs text-sky-600 font-bold block">常規施作中</span>
             <span className="text-sm font-black text-sky-900 font-mono">{countOngoing} 個</span>
           </div>
         </div>
@@ -587,7 +587,7 @@ return (
             <CheckCircle size={15} />
           </div>
           <div>
-            <span className="text-xs text-emerald-600 font-bold block">✅ 已完工</span>
+            <span className="text-xs text-emerald-600 font-bold block">合同已竣工</span>
             <span className="text-sm font-black text-emerald-950 font-mono">{countCompleted} 個</span>
           </div>
         </div>
@@ -597,61 +597,13 @@ return (
             <AlertTriangle size={15} />
           </div>
           <div>
-            <span className="text-xs text-red-650 font-bold block">❌ 報價未成</span>
+            <span className="text-xs text-red-650 font-bold block">議價未成交</span>
             <span className="text-sm font-black text-red-900 font-mono">{countFailed} 個</span>
           </div>
         </div>
       </div>
 
-      {/* 💡 企業管理極速升級建議外部卡片 (ERP高階設計) */}
-      {showOptimizationPanel && (
-        <div className="relative bg-amber-50/40 border border-amber-200 p-4 rounded-2xl space-y-3 shadow-3xs animate-fadeIn text-xs">
-          {/* Close button */}
-          <button
-            type="button"
-            onClick={() => setShowOptimizationPanel(false)}
-            className="absolute top-3.5 right-3.5 w-6 h-6 rounded-full hover:bg-amber-100 flex items-center justify-center text-amber-800 transition-colors cursor-pointer text-[10px] font-bold"
-          >
-            ✕
-          </button>
 
-          <div className="flex items-center gap-2 text-amber-900 font-extrabold text-sm border-b border-amber-200 pb-2">
-            <span>💡 營造與水電班組・企業管理極速升級建議 (ERP 顧問提示)</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* 建議一：施工工務授權與多角色控管 */}
-            <div className="bg-white p-3.5 rounded-xl border border-neutral-150 space-y-1.5 shadow-3xs">
-              <div className="flex items-center gap-1.5 text-neutral-800 font-black">
-                <span className="text-amber-600 font-bold">【建議一】</span>
-                <span>👤 多層級工務角色權限安全控管</span>
-              </div>
-              <p className="text-[11px] text-neutral-600 font-sans leading-relaxed font-semibold">
-                預防現場水電班長、領班、點工、與業主、估價經理在系統中篡改合約單價與實際進料金額。
-              </p>
-              <div className="space-y-1 pl-2 border-l-2 border-amber-250 text-[10px] text-neutral-500 font-semibold font-sans">
-                <div>• <strong>對接方案 (100% 免費軟體)：</strong>採用 <strong>Firebase Auth Custom Claims</strong> 與 <strong>React 角色路由 (RBAC)</strong> 進行無縫聯動。</div>
-              </div>
-            </div>
-
-            {/* 建議二：自動化利潤毛利預警機制 */}
-            <div className="bg-white p-3.5 rounded-xl border border-neutral-150 space-y-1.5 shadow-3xs">
-              <div className="flex items-center gap-1.5 text-neutral-800 font-black">
-                <span className="text-amber-600 font-bold">【建議二】</span>
-                <span>📈 自動化利潤毛利預警 (估價案場專用)</span>
-              </div>
-              <p className="text-[11px] text-neutral-600 font-sans leading-relaxed font-semibold">
-                水電案場預算在「估價案場」階段容易因為原料波動、工資異動，導致利潤不如原先預判。
-                <strong>系統現已在估價案場中內建多重估算毛利率控管警報：</strong>
-              </p>
-              <div className="space-y-1 pl-2 border-l-2 border-amber-250 text-[10px] text-neutral-500 font-semibold font-sans">
-                <div>• <strong>20% 警戒底線：</strong>當估價案場的預估毛利率低於 <strong>20%</strong> 時，該案場卡片即刻亮起高溫警報，安全預防接單虧損。</div>
-                <div>• <strong>即時自動警報：</strong>材料成本未填寫、或牌價售價低於進成本時，主動提示修正，安全控管利潤。</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
 
       {/* Filter and Search Bar */}
@@ -668,10 +620,6 @@ return (
                   : 'bg-white hover:bg-neutral-50 border-neutral-300 text-neutral-800'
               }`}
             >
-              {f === '報價中' && '⏳ '}
-              {f === '施工進行中' && '🏗️ '}
-              {f === '已完工' && '✅ '}
-              {f === '未成' && '❌ '}
               {f}
             </button>
           ))}
@@ -847,18 +795,18 @@ return (
                             📊 估價案場
                           </span>
                           {p.estimationStatus === '報價未成' && (
-                            <span className="text-[9px] font-extrabold text-white bg-slate-600 border border-slate-700 rounded px-1.5 py-0.5">
-                              ❌ 報價未成
+                            <span className="text-[9px] font-extrabold text-white bg-slate-605 border border-slate-700 rounded px-1.5 py-0.5">
+                              評估未成交
                             </span>
                           )}
                           {p.estimationStatus === '估價中' && (
                             <span className="text-[9px] font-extrabold text-neutral-800 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5 animate-pulse">
-                              ⏳ 報價中
+                              估值報價中
                             </span>
                           )}
                           {p.estimationStatus === '進行中施工' && (
                             <span className="text-[9px] font-extrabold text-indigo-800 bg-indigo-100 border border-indigo-350 rounded px-1.5 py-0.5">
-                              🏗️ 進行中施工
+                              核備施工中
                             </span>
                           )}
                         </div>
@@ -866,24 +814,24 @@ return (
                         p.isCompleted ? (
                           isCompletedButNoDirectReceipt ? (
                             <span className="text-[9px] font-extrabold text-rose-700 bg-rose-50 border border-rose-200 rounded px-1.5 py-0.5 flex items-center gap-0.5 animate-pulse" title="已選擇完工，但完工日誌中沒有登錄現場直接收款金額">
-                              ⚠️ 要完工但還未收款
+                              竣工待結算
                             </span>
                           ) : (
                             <span className="text-[9px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-100 rounded px-1.5 py-0.5 flex items-center gap-0.5">
                               <CheckCircle size={9} />
-                              已完工結案
+                              施工已竣工
                             </span>
                           )
                         ) : (
                           <span className="text-[9px] font-bold text-amber-800 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5 flex items-center gap-0.5">
                             <Clock size={9} />
-                            進行中施工
+                            核備施工中
                           </span>
                         )
                       )}
                       {hasBudgetWarning && (
-                        <span className="text-[9px] font-extrabold text-white bg-rose-600 border border-rose-700 rounded px-1.5 py-0.5 animate-bounce">
-                          🚨 工料牌價預警
+                        <span className="text-[9px] font-extrabold text-white bg-rose-650 border border-rose-700 rounded px-1.5 py-0.5 animate-bounce">
+                          利潤警戒
                         </span>
                       )}
                     </div>

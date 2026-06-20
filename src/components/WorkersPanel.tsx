@@ -480,47 +480,38 @@ export default function WorkersPanel({
   });
 
   return (
-    <div id="workers-panel" className="bg-white p-6 rounded-2xl border-2 border-neutral-300 shadow-sm space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b-2 border-neutral-200">
-        <div className="space-y-1">
-          <span className="text-xs uppercase tracking-wider font-extrabold text-amber-700 block">Dispatch Labor Management System</span>
-          <h2 className="text-lg font-black text-neutral-950 flex items-center gap-2">
-            <HardHat className="text-amber-700 animate-pulse stroke-[2.5]" size={24} />
-            水電工班人事資料與薪資晉升
-          </h2>
-        </div>
-      </div>
+    <div id="workers-panel" className="bg-white p-6 rounded-2xl border border-neutral-200/80 shadow-3xs space-y-6">
 
-      {/* Advanced Register Form */}
-      <div className="bg-neutral-50 p-6 border-2 border-neutral-250 rounded-xl">
-        <div className="flex items-center gap-1.5 mb-4 pb-3 border-b-2 border-neutral-200">
-          <Sparkles size={16} className="text-amber-600 stroke-[2.5]" />
-          <h3 className="text-sm font-black text-neutral-950 uppercase tracking-tight">➕ 新增派工同仁</h3>
+      {/* Advanced Register Form with unified focus-mode dark selection background #1E1E1E */}
+      <div className="bg-[#1E1E1E] p-6 border border-[#2C2C2C] rounded-xl text-white">
+        <div className="flex items-center gap-1.5 mb-4 pb-3 border-b border-[#2C2C2C]">
+          <Sparkles size={14} className="text-[#D4AF37] stroke-[3]" />
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider">新增派遣人事與職等認證</h3>
         </div>
         
-        <form onSubmit={handleAddWorker} className="space-y-4">
+        <form onSubmit={handleAddWorker} className="space-y-4 text-neutral-250">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             <div>
-              <label className="block text-[10px] text-neutral-500 font-bold mb-1">同仁姓名 <span className="text-red-500">*</span></label>
+              <label className="block text-[10px] text-neutral-400 font-bold mb-1">同仁姓名 <span className="text-red-400">*</span></label>
               <input
                 type="text"
                 value={newWorkerName}
                 onChange={(e) => setNewWorkerName(e.target.value)}
                 placeholder="例如: 謝長廷"
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-800 font-semibold focus:border-amber-500 focus:outline-none"
+                className="w-full px-3 py-2 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white font-semibold focus:border-[#D4AF37] focus:outline-none placeholder-neutral-500"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-[10px] text-neutral-500 font-bold mb-1">派工職稱 / 階級</label>
+              <label className="block text-[10px] text-neutral-400 font-bold mb-1">派工職稱 / 階級</label>
               <input
                 type="text"
                 list="new-worker-roles"
                 value={newWorkerRole}
                 onChange={(e) => setNewWorkerRole(e.target.value)}
-                placeholder="例如: 專業師傅 (可自行命名)"
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-808 font-semibold focus:border-amber-500 focus:outline-none"
+                placeholder="例如: 專業師傅"
+                className="w-full px-3 py-2 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white font-semibold focus:border-[#D4AF37] focus:outline-none placeholder-neutral-500"
               />
               <datalist id="new-worker-roles">
                 {workerRoles.map(r => (
@@ -531,7 +522,7 @@ export default function WorkersPanel({
                 <button
                   type="button"
                   onClick={() => setShowRoleConfig(!showRoleConfig)}
-                  className="text-[9px] font-extrabold text-amber-700 bg-amber-50 hover:bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 cursor-pointer flex items-center gap-0.5 transition"
+                  className="text-[9px] font-bold text-[#D4AF37] bg-[rgba(212,175,55,0.08)] hover:bg-[rgba(212,175,55,0.15)] px-2.5 py-1 rounded border border-[rgba(212,175,55,0.15)] cursor-pointer flex items-center gap-0.5 transition"
                 >
                   ⚙️ 管理職稱快選
                 </button>
@@ -539,22 +530,22 @@ export default function WorkersPanel({
             </div>
 
             <div>
-              <label className="block text-[10px] text-neutral-500 font-bold mb-1">對內派工時薪 ($/hr)</label>
+              <label className="block text-[10px] text-neutral-400 font-bold mb-1">對內派工時薪 ($/hr)</label>
               <input
                 type="number"
                 value={newWorkerRate}
                 onChange={(e) => setNewWorkerRate(parseInt(e.target.value, 10) || 0)}
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-808 font-mono font-bold text-center focus:border-amber-500 focus:outline-none"
+                className="w-full px-3 py-2 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white font-mono font-bold text-center focus:border-[#D4AF37] focus:outline-none"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-[10px] text-neutral-500 font-bold mb-1">在職派遣狀態</label>
+              <label className="block text-[10px] text-neutral-400 font-bold mb-1">在職派遣狀態</label>
               <select
                 value={newWorkerStatus}
                 onChange={(e) => setNewWorkerStatus(e.target.value as '在職' | '離職')}
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-850 font-bold focus:border-amber-500 focus:outline-none"
+                className="w-full px-3 py-2 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white font-bold focus:border-[#D4AF37] focus:outline-none"
               >
                 <option value="在職">🟢 在職可派遣</option>
                 <option value="離職">🔴 離職/暫停派遣</option>
@@ -562,33 +553,33 @@ export default function WorkersPanel({
             </div>
 
             <div>
-              <label className="block text-[10px] text-neutral-550 font-bold mb-1">入職日期 <span className="text-red-500">*</span></label>
+              <label className="block text-[10px] text-neutral-400 font-bold mb-1">入職日期 <span className="text-red-400">*</span></label>
               <input
                 type="date"
                 value={newWorkerJoinDate}
                 onChange={(e) => setNewWorkerJoinDate(e.target.value)}
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-800 font-mono font-bold focus:border-amber-500 focus:outline-none"
+                className="w-full px-3 py-2 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white font-mono font-bold focus:border-[#D4AF37] focus:outline-none"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-[10px] text-neutral-500 font-bold mb-1">離職結算日期 {newWorkerStatus === '離職' && <span className="text-red-500">*</span>}</label>
+              <label className="block text-[10px] text-neutral-400 font-bold mb-1">離職結算日期 {newWorkerStatus === '離職' && <span className="text-red-400">*</span>}</label>
               <input
                 type="date"
                 value={newWorkerLeaveDate}
                 onChange={(e) => setNewWorkerLeaveDate(e.target.value)}
                 disabled={newWorkerStatus !== '離職'}
-                className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-xs bg-white disabled:bg-neutral-100 disabled:text-neutral-400 text-rose-800 font-mono font-bold focus:border-rose-500 focus:outline-none"
+                className="w-full px-3 py-2 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] disabled:bg-neutral-800 disabled:text-neutral-500 text-rose-400 font-mono font-bold focus:border-rose-500 focus:outline-none"
                 required={newWorkerStatus === '離職'}
               />
             </div>
           </div>
 
-          {/* Collapsible/expanded extra info registration fields */}
-          <div className="bg-white p-5 rounded-xl border border-neutral-200 space-y-4">
-            <div className="pb-1 border-b border-neutral-100 text-[11px] font-black text-neutral-600 flex items-center gap-1.5">
-              <User size={13} className="text-amber-600" />
+          {/* Collapsible/expanded extra info registration fields - Deep obsidian backdrop */}
+          <div className="bg-[#151515] p-5 rounded-xl border border-[#2C2C2C] space-y-4">
+            <div className="pb-1 border-b border-[#2C2C2C] text-[11px] font-black text-neutral-300 flex items-center gap-1.5">
+              <User size={13} className="text-[#D4AF37]" />
               <span>① 居住 / 戶籍、出生資訊與健保認證雙證件</span>
             </div>
 
@@ -600,7 +591,7 @@ export default function WorkersPanel({
                   placeholder="例如: 0912-345-678"
                   value={newWorkerPhone}
                   onChange={(e) => setNewWorkerPhone(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs text-neutral-800"
+                  className="w-full px-2.5 py-1.5 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white placeholder-neutral-500 focus:border-[#D4AF37] focus:outline-none"
                 />
               </div>
 
@@ -610,7 +601,7 @@ export default function WorkersPanel({
                   type="date"
                   value={newWorkerBirthDate}
                   onChange={(e) => setNewWorkerBirthDate(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs text-neutral-800 font-mono"
+                  className="w-full px-2.5 py-1.5 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white font-mono focus:border-[#D4AF37] focus:outline-none"
                 />
               </div>
 
@@ -621,7 +612,7 @@ export default function WorkersPanel({
                   placeholder="例如: A123456789"
                   value={newWorkerIdNumber}
                   onChange={(e) => setNewWorkerIdNumber(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs text-neutral-850 font-mono"
+                  className="w-full px-2.5 py-1.5 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white font-mono placeholder-neutral-500 focus:border-[#D4AF37] focus:outline-none"
                 />
               </div>
 
@@ -632,7 +623,7 @@ export default function WorkersPanel({
                   placeholder="例如: 北市大安區新生南路一段..."
                   value={newWorkerAddress}
                   onChange={(e) => setNewWorkerAddress(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs text-neutral-800"
+                  className="w-full px-2.5 py-1.5 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white placeholder-neutral-500 focus:border-[#D4AF37] focus:outline-none"
                 />
               </div>
 
@@ -643,7 +634,7 @@ export default function WorkersPanel({
                   placeholder="例如: 宜蘭市中山路二段10號"
                   value={newWorkerRegisteredAddress}
                   onChange={(e) => setNewWorkerRegisteredAddress(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs text-neutral-800"
+                  className="w-full px-2.5 py-1.5 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white placeholder-neutral-500 focus:border-[#D4AF37] focus:outline-none"
                 />
               </div>
 
@@ -654,108 +645,108 @@ export default function WorkersPanel({
                   placeholder="例如: 擅長暗管漏水查驗、具備甲級室內配線技術士證証"
                   value={newWorkerNotes}
                   onChange={(e) => setNewWorkerNotes(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs text-neutral-800"
+                  className="w-full px-2.5 py-1.5 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white placeholder-neutral-500 focus:border-[#D4AF37] focus:outline-none"
                 />
               </div>
             </div>
 
             {/* 勞健保、提撥與固定代扣款設定 (NEW!) */}
-            <div className="bg-neutral-50 p-4 border border-neutral-200 rounded-xl space-y-3">
-              <div className="border-b border-neutral-200 pb-1 flex items-center justify-between">
-                <span className="text-xs font-extrabold text-neutral-700 flex items-center gap-1">🏦 員工勞健保、退休提撥與代扣預設</span>
-                <span className="text-[10px] text-amber-600 font-extrabold">※ 月底算薪各同仁結帳時可自動扣繳沖抵</span>
+            <div className="bg-[#1e1e1e] p-4 border border-[#2C2C2C] rounded-xl space-y-3 text-neutral-300">
+              <div className="border-b border-[#2C2C2C] pb-1 flex items-center justify-between">
+                <span className="text-xs font-bold text-white flex items-center gap-1">🏦 員工勞健保、退休提撥與代扣預設</span>
+                <span className="text-[10px] text-[#D4AF37] font-semibold">※ 月底算薪各同仁結帳時可自動扣繳沖抵</span>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[10px]">
                 <div>
-                  <label className="block text-neutral-500 font-bold mb-0.5">勞保個人自付 (月扣額)</label>
+                  <label className="block text-neutral-400 font-bold mb-0.5">勞保個人自付 (月扣額)</label>
                   <input
                     type="number"
                     placeholder="例如: 1150"
                     value={newLaborSelfPay}
                     onChange={(e) => setNewLaborSelfPay(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full px-2 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-800 font-mono"
+                    className="w-full px-2 py-1.5 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white font-mono placeholder-neutral-500 focus:outline-none focus:border-[#D4AF37]"
                   />
                 </div>
                 <div>
-                  <label className="block text-neutral-500 font-bold mb-0.5">健保個人自付 (月扣額)</label>
+                  <label className="block text-neutral-400 font-bold mb-0.5">健保個人自付 (月扣額)</label>
                   <input
                     type="number"
                     placeholder="例如: 980"
                     value={newHealthSelfPay}
                     onChange={(e) => setNewHealthSelfPay(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full px-2 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-800 font-mono"
+                    className="w-full px-2 py-1.5 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white font-mono placeholder-neutral-500 focus:outline-none focus:border-[#D4AF37]"
                   />
                 </div>
                 <div>
-                  <label className="block text-neutral-500 font-bold mb-0.5">勞退代扣個人自提額</label>
+                  <label className="block text-neutral-400 font-bold mb-0.5">勞退代扣個人自提額</label>
                   <input
                     type="number"
                     placeholder="無提繳不扣除"
                     value={newPensionSelfPay}
                     onChange={(e) => setNewPensionSelfPay(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full px-2 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-800 font-mono"
+                    className="w-full px-2 py-1.5 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white font-mono placeholder-neutral-500 focus:outline-none focus:border-[#D4AF37]"
                   />
                 </div>
                 <div>
-                  <label className="block text-neutral-500 font-bold mb-0.5">其它每月固定代扣款</label>
+                  <label className="block text-neutral-400 font-bold mb-0.5">其它每月固定代扣款</label>
                   <input
                     type="number"
                     placeholder="無則免填"
                     value={newOtherWithholding}
                     onChange={(e) => setNewOtherWithholding(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full px-2 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-800 font-mono"
+                    className="w-full px-2 py-1.5 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white font-mono placeholder-neutral-500 focus:outline-none focus:border-[#D4AF37]"
                   />
                 </div>
                 <div>
-                  <label className="block text-neutral-500 font-bold mb-0.5">勞保雇主負擔 (單位負擔)</label>
+                  <label className="block text-neutral-400 font-bold mb-0.5">勞保雇主負擔 (單位負擔)</label>
                   <input
                     type="number"
                     placeholder="例如: 4050"
                     value={newLaborEmployer}
                     onChange={(e) => setNewLaborEmployer(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full px-2 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-800 font-mono"
+                    className="w-full px-2 py-1.5 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white font-mono placeholder-neutral-500 focus:outline-none focus:border-[#D4AF37]"
                   />
                 </div>
                 <div>
-                  <label className="block text-neutral-500 font-bold mb-0.5">健保雇主負擔 (單位負擔)</label>
+                  <label className="block text-neutral-400 font-bold mb-0.5">健保雇主負擔 (單位負擔)</label>
                   <input
                     type="number"
                     placeholder="例如: 3100"
                     value={newHealthEmployer}
                     onChange={(e) => setNewHealthEmployer(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full px-2 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-800 font-mono"
+                    className="w-full px-2 py-1.5 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white font-mono placeholder-neutral-500 focus:outline-none focus:border-[#D4AF37]"
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-neutral-500 font-bold mb-0.5">勞退公司提撥金 (雇主強制提撥 6%)</label>
+                  <label className="block text-neutral-400 font-bold mb-0.5">勞退公司提撥金 (雇主強制提撥 6%)</label>
                   <input
                     type="number"
                     placeholder="例如: 2160"
                     value={newPensionEmployer}
                     onChange={(e) => setNewPensionEmployer(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full px-2 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-800 font-mono"
+                    className="w-full px-2 py-1.5 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white font-mono placeholder-neutral-500 focus:outline-none focus:border-[#D4AF37]"
                   />
                 </div>
               </div>
             </div>
 
             {/* 雙證件照片上傳與極速生成 */}
-            <div className="bg-neutral-50 p-4 border border-neutral-200 rounded-xl space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-200 pb-2">
-                <span className="text-[11px] font-black text-neutral-700 flex items-center gap-1">
+            <div className="bg-[#1e1e1e] p-4 border border-[#2C2C2C] rounded-xl space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#2C2C2C] pb-2">
+                <span className="text-[11px] font-bold text-white flex items-center gap-1">
                   📸 雙證件存檔證照檔案 (勞保/職災與安全隔離申報) {newWorkerIdPhotos.length > 0 ? `(已載入 ${newWorkerIdPhotos.length} 張)` : '(尚無存檔)'}
                 </span>
                 <button
                   type="button"
                   onClick={() => handleAutoMockPhotos(false)}
-                  className="text-[10px] bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 font-extrabold px-2.5 py-1 rounded transition flex items-center gap-1 cursor-pointer"
+                  className="text-[10px] bg-[#252525] border border-[#3A3A3A] hover:bg-[#2C2C2C] text-[#D4AF37] font-bold px-2.5 py-1 rounded transition flex items-center gap-1 cursor-pointer"
                 >
                   ⚙️ 快速模擬極速生成合格證照五重奏
                 </button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                <div className="md:col-span-4 border-2 border-dashed border-neutral-300 rounded-xl p-3 flex flex-col justify-center items-center h-24 bg-white cursor-pointer hover:border-neutral-400 transition relative">
+                <div className="md:col-span-4 border border-dashed border-[#3A3A3A] rounded-xl p-3 flex flex-col justify-center items-center h-24 bg-[#252525] cursor-pointer hover:border-[#D4AF37] transition relative">
                   <input
                     type="file"
                     multiple
@@ -765,17 +756,17 @@ export default function WorkersPanel({
                     title="選取圖片"
                   />
                   <div className="text-center space-y-1">
-                    <span className="text-xs text-neutral-500 font-bold">📂 點擊或拖曳上傳</span>
+                    <span className="text-xs text-neutral-300 font-bold">📂 點擊或拖曳上傳</span>
                     <p className="text-[9px] text-neutral-400 font-medium">身份證與健保卡/職安認證照片</p>
                   </div>
                 </div>
 
                 <div className="md:col-span-8 flex flex-wrap gap-2 items-center">
                   {newWorkerIdPhotos.length === 0 ? (
-                    <span className="text-[10px] text-neutral-400 italic">💡 尚未放置雙證件檔案。可自行本機上傳或點擊右上方「模擬快速生成」。</span>
+                    <span className="text-[10px] text-neutral-400 italic">💡 尚未放置雙證件檔案。可自行本機上傳或點擊上方「模擬快速生成」。</span>
                   ) : (
                     newWorkerIdPhotos.map((p, pIdx) => (
-                      <div key={pIdx} className="relative group rounded border border-neutral-200 overflow-hidden bg-white shadow-3xs">
+                      <div key={pIdx} className="relative group rounded border border-[#3A3A3A] overflow-hidden bg-[#252525] shadow-3xs">
                         <img src={p} alt={`證件-${pIdx}`} className="h-16 w-28 object-contain bg-neutral-900" referrerPolicy="no-referrer" />
                         <button
                           type="button"
@@ -1111,16 +1102,16 @@ export default function WorkersPanel({
         )}
       </div>
 
-      {/* Roster list query and filter header */}
-      <div className="bg-neutral-50 px-4 py-3 rounded-xl border border-neutral-200/60 flex flex-col md:flex-row items-center justify-between gap-3">
+      {/* Roster list query and filter header - styled with dark #1e1e1e background */}
+      <div className="bg-[#1e1e1e] px-4 py-3 rounded-xl border border-[#2C2C2C] flex flex-col md:flex-row items-center justify-between gap-3 text-white">
         <div className="flex items-center gap-2">
-          <Users size={16} className="text-neutral-500" />
-          <span className="text-xs font-extrabold text-neutral-700">派遣同仁篩選</span>
-          <div className="flex bg-white rounded-lg p-0.5 border border-neutral-250 text-xs">
+          <Users size={16} className="text-neutral-400" />
+          <span className="text-xs font-bold text-neutral-300">派遣同仁篩選</span>
+          <div className="flex bg-[#252525] rounded-lg p-0.5 border border-[#3A3A3A] text-xs">
             <button
               onClick={() => setListStatusFilter('全部')}
               className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                listStatusFilter === '全部' ? 'bg-neutral-800 text-white shadow-3xs' : 'text-neutral-500 hover:text-neutral-800'
+                listStatusFilter === '全部' ? 'bg-[#D4AF37] text-black shadow-3xs' : 'text-neutral-400 hover:text-white'
               }`}
             >
               全部 ({workers.length})
@@ -1128,7 +1119,7 @@ export default function WorkersPanel({
             <button
               onClick={() => setListStatusFilter('在職')}
               className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                listStatusFilter === '在職' ? 'bg-emerald-600 text-white shadow-3xs' : 'text-neutral-500 hover:text-emerald-600'
+                listStatusFilter === '在職' ? 'bg-emerald-600 text-white shadow-3xs' : 'text-neutral-400 hover:text-emerald-400'
               }`}
             >
               在職 ({workers.filter(w => w.status !== '離職').length})
@@ -1136,7 +1127,7 @@ export default function WorkersPanel({
             <button
               onClick={() => setListStatusFilter('離職')}
               className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                listStatusFilter === '離職' ? 'bg-rose-600 text-white shadow-3xs' : 'text-neutral-500 hover:text-rose-600'
+                listStatusFilter === '離職' ? 'bg-rose-600 text-white shadow-3xs' : 'text-neutral-400 hover:text-rose-400'
               }`}
             >
               已離職 ({workers.filter(w => w.status === '離職').length})
@@ -1150,7 +1141,7 @@ export default function WorkersPanel({
             placeholder="搜尋同仁、電話、專長或備註..."
             value={listSearchQuery}
             onChange={(e) => setListSearchQuery(e.target.value)}
-            className="w-full px-3 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white placeholder-neutral-400 text-neutral-800 font-medium"
+            className="w-full px-3 py-1.5 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] placeholder-neutral-500 text-white font-medium focus:outline-none focus:border-[#D4AF37]"
           />
         </div>
       </div>
@@ -1662,7 +1653,7 @@ export default function WorkersPanel({
                               💼 {w.role || '派遣同仁'}
                             </span>
                             {w.joinDate && (
-                              <span className="inline-flex text-[10px] px-1.5 py-0.5 bg-neutral-50 border border-amber-200 text-amber-850 rounded-md font-bold" title="入職日期">
+                              <span style={{ backgroundColor: '#252525' }} className="inline-flex text-[10px] px-1.5 py-0.5 border border-[#3A3A3A] text-[#D4AF37] rounded-md font-bold" title="入職日期">
                                 📅 入職: {w.joinDate}
                               </span>
                             )}

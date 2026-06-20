@@ -1,15 +1,74 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
 @import "tailwindcss";
 
+:root {
+  --bg-main: #0D0D0D;       /* 整個網頁的主底色 */
+  --bg-card: #1A1A1A;       /* 卡片、大庫控制面板、工務日誌、彈出視窗(Modal) 的背景 */
+  --bg-input: #121212;      /* 所有輸入框、搜尋列、下拉選單的內部背景 */
+  --text-primary: #F3E5AB;  /* 核心標題、高亮數據金、核心按鈕文字 */
+  --text-secondary: #E0E0E0;/* 一般說明字、表格內文、表單標籤白 */
+  --color-accent: #D4AF37;  /* 奢華邊框線、核心按鈕漸層基礎色 */
+}
+
+/* =========================================
+   👑 全域黑金暴力覆寫系統 (無死角覆寫)
+   ========================================= */
+
+/* 1. 強制重設全站所有 HTML 與大容器背景 */
+body, html {
+  background-color: var(--bg-main) !important;
+  color: var(--text-secondary) !important;
+}
+
+/* 2. 暴力清除全站所有卡片、彈出視窗(Modal/Dialog)與大庫面板的白色底 */
+div[class*="bg-white"], 
+div[class*="bg-neutral-50"], 
+div[class*="bg-slate-50"],
+[data-role="dialog"], 
+.modal, .dialog, .card {
+  background-color: var(--bg-card) !important;
+  border-color: rgba(214, 175, 55, 0.2) !important;
+}
+
+/* 3. 暴力清除全站所有輸入框、搜尋列、下拉選單與日期選擇器的白灰色底 */
+input, select, textarea, [role="combobox"], [class*="bg-neutral-100"] {
+  background-color: var(--bg-input) !important;
+  color: var(--text-secondary) !important;
+  border: 1px solid rgba(214, 175, 55, 0.3) !important;
+}
+
+/* 4. 修正輸入框提示字（Placeholder）的亮度與易讀性 */
+input::placeholder, textarea::placeholder {
+  color: #8C8C8C !important;
+}
+
+/* 5. 修正所有主要標題與重要文字為金色 */
+h1, h2, th, [class*="text-title"] {
+  color: var(--text-primary) !important;
+}
+
 @theme {
   --font-sans: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  /* 👑 Custom Palette: Luxurious Champagne Gold over standard Amber */
+  --color-amber-50: rgba(212, 175, 55, 0.05);
+  --color-amber-100: rgba(212, 175, 55, 0.12);
+  --color-amber-200: rgba(212, 175, 55, 0.25);
+  --color-amber-300: rgba(212, 175, 55, 0.4);
+  --color-amber-400: #e5bd42;
+  --color-amber-500: var(--color-accent); /* Clean Champagne Gold mapped to accent */
+  --color-amber-600: #c19b2a;
+  --color-amber-700: #a5811f;
+  --color-amber-800: #886819;
+  --color-amber-900: #6a4f12;
+  --color-amber-950: #1a1506;
 }
 
 @layer base {
   body {
-    background-color: #070708;
-    color: #f4f4f5;
+    background-color: var(--bg-main) !important; /* Obsidian Deep Black from variable */
+    color: var(--text-secondary) !important; /* Pearl White/Light Grey text from variable */
   }
 }
 
@@ -26,68 +85,351 @@
 }
 
 /* =========================================
-   👑 EXECUTIVE DARK EMERALD & AMBER THEME ENGINE
+   👑 LUXURIOUS CHAMPAGNE GOLD & OBSIDIAN ENGINE
    ========================================= */
 
 #app-root-container {
-  background-color: #070708 !important; /* Rich Dark Charcoal obsidian canvas */
-  color: #f5f5f4 !important;
+  background-color: var(--bg-main) !important; /* Obsidian Deep Black background */
+  color: var(--text-secondary) !important; /* Pearl White */
 }
 
-/* Backdrops and header */
+/* Header navbar background */
 header {
-  background-color: #0c0b0a !important;
-  border-color: #1b1a19 !important;
+  background-color: var(--bg-input) !important; /* Elegant Premium Dark Charcoal */
+  border-color: rgba(212, 175, 55, 0.2) !important; /* Delicate Champagne Gold border */
 }
 
-/* Modals & Overlays */
+/* Modal Backdrops and Overlays */
 .modal-backdrop,
 div[class*="fixed inset-0 bg-black/50"],
 div[class*="backdrop-blur-sm"] {
-  background-color: rgba(3, 3, 3, 0.85) !important;
+  background-color: rgba(10, 10, 10, 0.85) !important;
   backdrop-filter: blur(8px) !important;
 }
 
-/* Standard cards override */
-#app-root-container .bg-white,
-div[class*="bg-white"] {
-  background-color: #111113 !important; /* Deep steel premium charcoal card */
-  color: #f5f5f4 !important;
+/* Standard cards and sidebar override - Luxury premium dark background with champagne gold borders */
+.bg-white,
+div.bg-white,
+span.bg-white,
+button.bg-white,
+section.bg-white,
+form.bg-white,
+*[class*="bg-white"],
+*[class*="bg-[white]"] {
+  background-color: var(--bg-card) !important; /* Low-key luxury black */
+  color: var(--text-secondary) !important; /* Pearl White */
+  border-color: rgba(212, 175, 55, 0.22) !important; /* Elegant thin golden micro-border */
+  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.55), 0 6px 10px -6px rgba(0, 0, 0, 0.55) !important;
 }
 
-/* Inner panels or headers styles */
+[class*="bg-\[\#ffffff\]"],
+[class*="bg-\[\#FFFFFF\]"],
+[class*="bg-\[\#fafafa\]"],
+[class*="bg-\[\#FAFAFA\]"],
+.bg-\[\#fafafa\],
+.bg-\[\#FAFAFA\],
+.bg-\[\#ffffff\],
+.bg-\[\#FFFFFF\] {
+  background-color: var(--bg-card) !important;
+  color: var(--text-secondary) !important;
+  border-color: rgba(212, 175, 55, 0.22) !important;
+}
+
+/* Ensure explicit luxury hex color classes and native custom backgrounds display perfectly */
+[class*="bg-\[\#1e1e1e\]"],
+[class*="bg-\[\#1E1E1E\]"] {
+  background-color: var(--bg-input) !important;
+  color: var(--text-primary) !important; /* Champagne Gold Text */
+  border-color: rgba(212, 175, 55, 0.22) !important;
+}
+
+[class*="bg-\[\#2c2c2c\]"],
+[class*="bg-\[\#2C2C2C\]"] {
+  background-color: var(--bg-card) !important;
+  color: var(--text-secondary) !important;
+  border-color: rgba(212, 175, 55, 0.22) !important;
+}
+
+[class*="bg-\[\#252525\]"] {
+  background-color: var(--bg-card) !important;
+  color: var(--text-secondary) !important;
+  border-color: rgba(212, 175, 55, 0.18) !important;
+}
+
+div[id*="panel-"],
+span[id*="panel-"],
+*[id*="panel-"] {
+  background-color: var(--bg-card) !important;
+  color: var(--text-secondary) !important;
+  border-color: rgba(212, 175, 55, 0.25) !important;
+}
+
+/* Ensure smooth interactive animation properties on all panels, cards, and buttons, starts with standard premium elevation */
+button,
+a,
+div[id*="-panel"],
+*[class*="bg-white"],
+*[class*="bg-[#fafafa]"],
+div[class*="bg-[#1E1E1E]"],
+div[class*="bg-[#252525]"],
+div[class*="bg-neutral-900"],
+div.rounded-2xl {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transform: translateY(-1.5px); /* Pre-elevated interactive feel as requested */
+}
+
+/* Force state overrides to prevent light background flashing and apply elegant, premium hover effects with gold breathing glow */
+*[class*="bg-white"]:hover,
+*[class*="bg-[#ffffff]"]:hover,
+*[class*="bg-[#FFFFFF]"]:hover,
+*[class*="bg-[white]"]:hover,
+*[class*="bg-[#fafafa]"]:hover,
+*[class*="bg-[#FAFAFA]"]:hover,
+*[class*="bg-[#1e1e1e]"]:hover,
+*[class*="bg-[#1E1E1E]"]:hover,
+*[class*="bg-[#2c2c2c]"]:hover,
+*[class*="bg-[#2C2C2C]"]:hover,
+*[class*="bg-[#252525]"]:hover,
+*[class*="bg-[#252525]"]:hover,
+*[class*="bg-neutral-50"]:hover,
+*[class*="bg-slate-50"]:hover,
+*[class*="bg-zinc-50"]:hover,
+*[class*="bg-stone-50"]:hover,
+*[class*="bg-gray-50"]:hover,
+*[class*="bg-neutral-100"]:hover,
+*[class*="bg-slate-100"]:hover,
+*[class*="bg-zinc-100"]:hover,
+*[class*="bg-stone-100"]:hover,
+*[class*="bg-gray-100"]:hover,
+div[id*="-panel"]:hover,
+div[class*="bg-[#1E1E1E]"]:hover,
+div[class*="bg-[#252525]"]:hover,
+button:not(:disabled):hover,
+a:hover {
+  filter: brightness(0.9) contrast(1.05) !important; /* Premium dimming color shift */
+  transform: translateY(-3.5px) !important; /* Lifts further dynamically on hover */
+  border-color: rgba(212, 175, 55, 0.45) !important; /* Golden edge brightens */
+  box-shadow: 0 15px 35px -8px rgba(0, 0, 0, 0.75), 0 0 18px rgba(212, 175, 55, 0.35) !important; /* Royal Golden Glow */
+}
+
+*[class*="bg-white"]:active,
+button:not(:disabled):active {
+  transform: translateY(0.5px) scale(0.97) !important; /* Satisfying physical click/active state */
+  filter: brightness(0.8) !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4) !important;
+}
+
+*[class*="bg-white"]:focus,
+*[class*="bg-neutral-50"]:focus,
+*[class*="bg-slate-50"]:focus {
+  background-color: var(--bg-card) !important;
+  border-color: var(--color-accent) !important;
+}
+
+*[class*="bg-white"]:disabled,
+*[class*="bg-neutral-50"]:disabled,
+*[class*="bg-neutral-100"]:disabled {
+  background-color: var(--bg-card) !important;
+  color: #777777 !important;
+  border-color: #262626 !important;
+}
+
+/* Sub-panels, list rows or inner card elevations */
+.bg-neutral-50,
+.bg-slate-50,
+.bg-zinc-50,
+.bg-stone-50,
+.bg-gray-50,
 #app-root-container .bg-neutral-50,
 #app-root-container .bg-slate-50,
 #app-root-container .bg-zinc-50,
 #app-root-container .bg-stone-50,
-#app-root-container .bg-[#fcfbfa],
-div[class*="bg-neutral-50"],
-div[class*="bg-slate-50"] {
-  background-color: #161619 !important; /* Slightly lighter depth elevation */
+#app-root-container .bg-\[\#fcfbfa\],
+*[class*="bg-neutral-50"],
+*[class*="bg-slate-50"],
+*[class*="bg-zinc-50"],
+*[class*="bg-stone-50"],
+*[class*="bg-gray-50"],
+[class*="bg-\[\#fcfbfa\]"],
+.bg-\[\#fcfbfa\] {
+  background-color: var(--bg-input) !important; /* Elegant input background variable */
+  color: var(--text-secondary) !important;
+  border-color: rgba(212, 175, 55, 0.15) !important;
 }
 
+.bg-neutral-100,
+.bg-slate-100,
+.bg-zinc-100,
+.bg-stone-100,
+.bg-gray-100,
 #app-root-container .bg-neutral-100,
 #app-root-container .bg-slate-100,
 #app-root-container .bg-zinc-100,
-div[class*="bg-neutral-100"],
-div[class*="bg-slate-100"] {
-  background-color: #1a1a1f !important;
+*[class*="bg-neutral-100"],
+*[class*="bg-slate-100"],
+*[class*="bg-zinc-100"],
+*[class*="bg-stone-100"],
+*[class*="bg-gray-100"] {
+  background-color: #141414 !important; /* Slightly lighter black tone */
+  color: #E2E2E2 !important;
+  border-color: rgba(212, 175, 55, 0.15) !important;
 }
 
-/* Metallic clean golden borders */
+.bg-neutral-150,
+.bg-slate-150,
+.bg-zinc-150,
+.bg-gray-150,
+#app-root-container .bg-neutral-150,
+*[class*="bg-neutral-150"],
+*[class*="bg-slate-150"],
+*[class*="bg-zinc-150"] {
+  background-color: #171717 !important;
+  color: #E2E2E2 !important;
+  border-color: rgba(212, 175, 55, 0.15) !important;
+}
+
+.bg-neutral-200,
+.bg-slate-200,
+.bg-zinc-200,
+.bg-stone-200,
+.bg-gray-200,
+#app-root-container .bg-neutral-200,
+*[class*="bg-neutral-200"],
+*[class*="bg-slate-200"],
+*[class*="bg-zinc-200"],
+*[class*="bg-stone-200"],
+*[class*="bg-gray-200"] {
+  background-color: #1C1C1C !important;
+  color: #FFFFFF !important;
+  border-color: rgba(212, 175, 55, 0.2) !important;
+}
+
+.bg-neutral-250,
+.bg-slate-250,
+.bg-zinc-250,
+.bg-gray-250,
+#app-root-container .bg-neutral-250,
+*[class*="bg-neutral-250"],
+*[class*="bg-slate-250"],
+*[class*="bg-zinc-250"] {
+  background-color: #202020 !important;
+  color: #FFFFFF !important;
+  border-color: rgba(212, 175, 55, 0.2) !important;
+}
+
+.bg-neutral-300,
+.bg-slate-300,
+.bg-zinc-300,
+.bg-stone-300,
+.bg-gray-300,
+#app-root-container .bg-neutral-300,
+*[class*="bg-neutral-300"],
+*[class*="bg-slate-300"],
+*[class*="bg-zinc-300"],
+*[class*="bg-stone-300"],
+*[class*="bg-gray-300"] {
+  background-color: #262626 !important;
+  color: #FFFFFF !important;
+  border-color: rgba(212, 175, 55, 0.25) !important;
+}
+
+/* Colored light backgrounds also mapped to beautiful dark equivalents */
+*[class*="bg-amber-50"],
+*[class*="bg-amber-100"] {
+  background-color: #24201c !important;
+  color: #FFFFFF !important;
+  border-color: #3a3222 !important;
+}
+*[class*="bg-emerald-50"],
+*[class*="bg-emerald-100"] {
+  background-color: #1e2a22 !important;
+  color: #FFFFFF !important;
+  border-color: #24352a !important;
+}
+*[class*="bg-rose-50"],
+*[class*="bg-rose-100"],
+*[class*="bg-red-50"],
+*[class*="bg-red-100"] {
+  background-color: #2d1a1a !important;
+  color: #FFFFFF !important;
+  border-color: #3a2222 !important;
+}
+*[class*="bg-blue-50"],
+*[class*="bg-blue-100"],
+*[class*="bg-indigo-50"],
+*[class*="bg-indigo-100"] {
+  background-color: #1a202d !important;
+  color: #FFFFFF !important;
+  border-color: #222d3a !important;
+}
+
+/* Dark mode grid borders */
+#app-root-container .border-neutral-100,
 #app-root-container .border-neutral-200,
 #app-root-container .border-neutral-300,
 #app-root-container .border-neutral-400,
+#app-root-container .border-slate-100,
 #app-root-container .border-slate-200,
 #app-root-container .border-slate-350,
+#app-root-container .border-gray-100,
 #app-root-container .border-gray-200,
+#app-root-container .border-zinc-100,
 #app-root-container .border-zinc-200,
+*[class*="border-neutral-100"],
+*[class*="border-neutral-200"],
+*[class*="border-neutral-250"],
+*[class*="border-neutral-300"],
+*[class*="border-neutral-400"],
+*[class*="border-slate-100"],
+*[class*="border-slate-200"],
+*[class*="border-slate-300"],
+*[class*="border-slate-350"],
+*[class*="border-zinc-100"],
+*[class*="border-zinc-250"],
+*[class*="border-zinc-200"],
+*[class*="border-gray-100"],
+*[class*="border-gray-200"],
+*[class*="border-stone-150"],
+*[class*="border-stone-200"],
 div[class*="border-neutral-200"],
-div[class*="border-slate-200"] {
-  border-color: #1e1e24 !important; /* Beautiful dark grid */
+div[class*="border-slate-200"],
+div[class*="border-neutral-800"],
+div[class*="border-neutral-850"],
+.border-neutral-200,
+.border-neutral-300,
+.border-neutral-400,
+.border-slate-200,
+.border-slate-300,
+.border-gray-200,
+.border-zinc-200,
+*[class*="border-neutral-"],
+*[class*="border-slate-"],
+*[class*="divider"],
+hr,
+.divider {
+  border-color: rgba(212, 175, 55, 0.2) !important; /* Elegant subtle champagne Gold micro border */
 }
 
-/* High contrast white and grey texts */
+/* Map text-white and absolute pure-white text to luxurious gold and pearl shades */
+.text-white,
+*[class*="text-white"],
+*[class*="text-[#ffffff]"],
+*[class*="text-[#FFFFFF]"],
+*[class*="text-neutral-50"] {
+  color: var(--text-secondary) !important; /* Premium Pearl White from variable */
+}
+
+/* Primary text & headings - Luxurious Champagne Gold for major titles, Pearl White for others */
+h1, h2, h3, h4,
+ul > li > span[class*="text-neutral-900"],
+*[class*="text-2xl"],
+*[class*="text-3xl"],
+*[class*="text-4xl"],
+.text-amber-500,
+.text-amber-600 {
+  color: var(--text-primary) !important; /* Luxury Bright Gold from variable */
+}
+
 #app-root-container .text-neutral-900,
 #app-root-container .text-slate-900,
 #app-root-container .text-zinc-900,
@@ -97,10 +439,12 @@ div[class*="border-slate-200"] {
 #app-root-container .text-neutral-800,
 #app-root-container .text-slate-800,
 #app-root-container .text-stone-800,
-h1, h2, h3, h4, h5, h6 {
-  color: #fbfbfb !important; /* Brilliant readability */
+h5, h6,
+.font-bold, .font-black {
+  color: var(--text-secondary) !important; /* Elegant Pearl White from variable */
 }
 
+/* Secondary / helper texts - Metallic Gray */
 #app-root-container .text-neutral-600,
 #app-root-container .text-neutral-500,
 #app-root-container .text-slate-600,
@@ -108,149 +452,213 @@ h1, h2, h3, h4, h5, h6 {
 #app-root-container .text-zinc-500,
 #app-root-container .text-gray-500,
 div[class*="text-neutral-500"],
-p {
-  color: #a1a1aa !important; /* Midtones zinc color */
+p, label, span[class*="text-slate-300"], span[class*="text-neutral-300"] {
+  color: #A0A0A0 !important; /* Metallic Gray fallback, elegant for body */
 }
 
 #app-root-container .text-neutral-460,
 #app-root-container .text-neutral-400,
 #app-root-container .text-slate-400 {
-  color: #71717a !important; /* Soft descriptive subtexts */
+  color: #8A8A8A !important; /* Slightly dimmer gray */
 }
 
-/* Hover and active subtab states for tab bars */
+/* Tab controls background & non-active states */
 #app-root-container .bg-white.text-neutral-800:not(.bg-amber-600),
-#app-root-container button[class*="bg-white text-neutral-800"]:not([class*="bg-amber-600"]) {
-  background-color: #151518 !important;
-  color: #d4d4d8 !important;
-  border-color: #27272a !important;
+#app-root-container button[class*="bg-white text-neutral-800"]:not([class*="bg-amber-600"]):not([class*="bg-amber-500"]) {
+  background-color: var(--bg-card) !important;
+  color: var(--text-secondary) !important;
+  border-color: rgba(212, 175, 55, 0.2) !important;
 }
 
-#app-root-container .bg-white.text-neutral-800:not(.bg-amber-600):hover,
+#app-root-container .bg-white.text-neutral-800:not(.bg-amber-600):not([class*="bg-amber-500"]):hover,
 #app-root-container button[class*="bg-white text-neutral-800"]:not([class*="bg-amber-600"]):hover {
-  background-color: #1d1d22 !important;
-  color: #ffffff !important;
+  background-color: var(--bg-input) !important;
+  color: var(--text-primary) !important; /* Elegant Champagne Gold hover active */
 }
 
-/* Navigation tab bar backdrops */
-#app-root-container .bg-neutral-100.p-1.5,
+/* Force semantic text colors of badges and statuses to be high contrast and readable on dark panels */
+#app-root-container .text-emerald-800,
+#app-root-container .text-emerald-700,
+#app-root-container .text-emerald-900,
+#app-root-container .text-emerald-600 {
+  color: #34D399 !important; /* Elegant bright emerald green */
+}
+#app-root-container .text-amber-850,
+#app-root-container .text-amber-800,
+#app-root-container .text-amber-750,
+#app-root-container .text-amber-700,
+#app-root-container .text-amber-900,
+#app-root-container .text-amber-600 {
+  color: #FBBF24 !important; /* Elegant amber gold */
+}
+#app-root-container .text-red-800,
+#app-root-container .text-rose-700,
+#app-root-container .text-red-700,
+#app-root-container .text-red-900,
+#app-root-container .text-rose-600 {
+  color: #F87171 !important; /* Elegant soft red */
+}
+#app-root-container .text-blue-800,
+#app-root-container .text-blue-700,
+#app-root-container .text-indigo-700,
+#app-root-container .text-indigo-800 {
+  color: #60A5FA !important; /* Elegant soft blue */
+}
+
+/* Navigation tab bar and scroll panels */
+#app-root-container .bg-neutral-100.p-1\.5,
 #app-root-container .border-neutral-300 {
-  background-color: #0e0e11 !important;
-  border-color: #1e1e24 !important;
+  background-color: #171717 !important;
+  border-color: #2D2D2D !important;
 }
 
-/* Nav links states */
+/* Nav Link overrides */
 #app-root-container nav button {
   font-weight: 800 !important;
 }
 
 #app-root-container nav button[class*="text-neutral-500"]:hover {
-  color: #f4f4f5 !important;
+  color: #FFFFFF !important;
 }
 
+/* Active links styled to Champagne gold */
 #app-root-container nav button[class*="text-amber-700"],
 #app-root-container nav button[class*="text-amber-650"],
 #app-root-container nav button[class*="text-amber-600"],
-#app-root-container nav button[class*="border-amber-600"] {
-  color: #fbbf24 !important; /* Premium golden highlight */
-  border-color: #fbbf24 !important;
-  background-color: rgba(251, 191, 36, 0.08) !important;
+#app-root-container nav button[class*="text-amber-500"],
+#app-root-container nav button[class*="border-amber-600"],
+#app-root-container nav button[class*="border-amber-500"] {
+  color: #D4AF37 !important; /* Champagne Gold color */
+  border-color: #D4AF37 !important;
+  background-color: rgba(212, 175, 55, 0.08) !important;
 }
 
-/* Form elements styling */
+/* Inputs, Textareas, Selector dropdowns */
+input,
+select,
+textarea,
+option,
 #app-root-container input,
 #app-root-container select,
 #app-root-container textarea,
 div[class*="bg-neutral-50"] input,
 div[class*="bg-neutral-50"] select,
 div[class*="bg-neutral-50"] textarea {
-  background-color: #141416 !important;
-  color: #fafafa !important;
-  border-color: #27272a !important;
+  background-color: #181818 !important;
+  color: #FFFFFF !important;
+  border-color: #303030 !important;
 }
 
+input:focus,
+select:focus,
+textarea:focus,
 #app-root-container input:focus,
 #app-root-container select:focus,
 #app-root-container textarea:focus {
-  border-color: #f59e0b !important;
-  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.2) !important;
+  border-color: #D4AF37 !important;
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.25) !important;
   outline: none;
 }
 
-/* Buttons amber highlights and classes */
-#app-root-container .text-amber-700 {
-  color: #fbbf24 !important;
+/* Highlights for texts with golden class */
+#app-root-container .text-amber-700,
+#app-root-container .text-amber-600,
+#app-root-container .text-amber-500 {
+  color: #D4AF37 !important;
 }
 
 #app-root-container .bg-amber-50 {
-  background-color: rgba(251, 191, 36, 0.08) !important;
-  color: #fbbf24 !important;
-  border-color: rgba(251, 191, 36, 0.2) !important;
+  background-color: rgba(212, 175, 55, 0.08) !important;
+  color: #D4AF37 !important;
+  border-color: rgba(212, 175, 55, 0.2) !important;
 }
 
 #app-root-container .bg-amber-100 {
-  background-color: rgba(251, 191, 36, 0.15) !important;
-  color: #fbbf24 !important;
+  background-color: rgba(212, 175, 55, 0.15) !important;
+  color: #D4AF37 !important;
 }
 
-/* Success statuses (e.g., active workers, completed billing, ongoing milestones) */
+#app-root-container .bg-amber-600,
+#app-root-container button[class*="bg-amber-600"] {
+  background: linear-gradient(135deg, #D4AF37 0%, #AA7C11 100%) !important;
+  color: #0D0D0D !important; /* High contrast dark text inside champagne buttons */
+  font-weight: 900 !important;
+  border-color: rgba(212, 175, 55, 0.4) !important;
+}
+
+#app-root-container .bg-amber-600:hover,
+#app-root-container button[class*="bg-amber-600"]:hover {
+  background: linear-gradient(135deg, #E6CA65 0%, #C19B2A 100%) !important;
+  box-shadow: 0 0 18px rgba(212, 175, 55, 0.45) !important;
+  filter: brightness(1.1) !important;
+}
+
+/* Success status (Green with dark contrast) */
 .bg-emerald-50, .bg-green-50, .bg-emerald-500\/10 {
-  background-color: rgba(16, 185, 129, 0.08) !important;
-  color: #34d399 !important;
-  border-color: rgba(16, 185, 129, 0.2) !important;
+  background-color: rgba(46, 125, 50, 0.12) !important;
+  color: #81C784 !important;
+  border-color: rgba(46, 125, 50, 0.25) !important;
 }
 
 .text-emerald-700, .text-green-700, .text-emerald-600 {
-  color: #34d399 !important;
+  color: #81C784 !important;
 }
 
-/* Danger / alerts statuses (e.g. unpaid bills, advances) */
+/* Danger / Alerts states (Red with dark contrast) */
 .bg-rose-50, .bg-red-50, .bg-rose-500\/10 {
-  background-color: rgba(244, 63, 94, 0.08) !important;
-  color: #f43f5e !important;
-  border-color: rgba(244, 63, 94, 0.2) !important;
+  background-color: rgba(198, 40, 40, 0.12) !important;
+  color: #E57373 !important;
+  border-color: rgba(198, 40, 40, 0.25) !important;
 }
 
 .text-rose-700, .text-red-700, .text-rose-600 {
-  color: #f43f5e !important;
+  color: #E57373 !important;
 }
 
-/* Badges / statuses */
+/* Badges / Pill tags */
 span[class*="bg-amber-500/10"],
-span[class*="text-amber-700"] {
-  background-color: rgba(245, 158, 11, 0.1) !important;
-  color: #fbbf24 !important;
+span[class*="text-amber-700"],
+span[class*="text-amber-650"] {
+  background-color: rgba(212, 175, 55, 0.1) !important;
+  color: #D4AF37 !important;
 }
 
-/* Table styles */
+/* Tables styling */
 table {
-  background-color: #111113 !important;
+  background-color: #1E1E1E !important; /* Match deep gray cards */
 }
 
 th {
-  background-color: #0e0e11 !important;
-  color: #e4e4e7 !important;
-  border-color: #1e1e24 !important;
+  background-color: #151515 !important;
+  color: #FFFFFF !important;
+  border-color: #2D2D2D !important;
 }
 
 td {
-  border-color: #1e1e24 !important;
+  border-color: #2D2D2D !important;
+  color: #E0E0E0 !important;
 }
 
 tr:hover td {
-  background-color: #151518 !important;
+  background-color: #262626 !important;
 }
 
-/* List buttons */
+/* Interactive elements */
 button:hover {
-  transition: all 0.2s ease-in-out;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Chart custom styling elements to ensure readability of SVGs on dark bg */
+/* SVG charts adjustment for deep contrast */
 svg text {
-  fill: #a1a1aa !important;
+  fill: #A0A0A0 !important;
 }
 svg .recharts-cartesian-grid-horizontal line,
 svg .recharts-cartesian-grid-vertical line {
-  stroke: #1e1e24 !important;
+  stroke: #2D2D2D !important;
 }
+
+/* 🎯 AIS Studio Focus Mode Target Element */
+div#root:nth-of-type(1) > div#app-root-container:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(4) > div:nth-of-type(1) > span:nth-of-type(1) {
+  background-color: #870000 !important;
+}
+

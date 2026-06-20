@@ -21,7 +21,6 @@ import MaterialsPanel from './components/MaterialsPanel';
 import ProjectsPanel from './components/ProjectsPanel';
 import SuppliersPanel from './components/SuppliersPanel';
 import BillingPanel from './components/BillingPanel';
-import BlueprintPanel from './components/BlueprintPanel';
 import FirebaseSyncPanel from './components/FirebaseSyncPanel';
 
 export default function App() {
@@ -430,7 +429,7 @@ export default function App() {
   }, [pettyCashTransactions]);
 
   // ---- 3. Navigation Controls & Modal states ----
-  const [activeTab, setActiveTab] = useState<'blueprint' | 'construction' | 'billing' | 'workers' | 'materials' | 'supabase-excel'>('blueprint');
+  const [activeTab, setActiveTab] = useState<'construction' | 'billing' | 'workers' | 'materials' | 'supabase-excel'>('construction');
   const [recordsSubTab, setRecordsSubTab] = useState<'today' | 'projects' | 'history' | 'customers'>('today');
 
   // ---- 2.5 Firebase 雲端狀態監測 ----
@@ -595,6 +594,7 @@ export default function App() {
   // Auto preset fields when triggering project modal from customer panels
   const [preSelCustomer, setPreSelCustomer] = useState<Customer | null>(null);
   const [preSelAddress, setPreSelAddress] = useState<string | undefined>(undefined);
+  const [billingTriggerStamp, setBillingTriggerStamp] = useState<number>(0);
 
   // Floating Interactive Toast message state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -880,33 +880,19 @@ export default function App() {
       {/* Main Container workspace */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
         {/* Tab Selection Navigation */}
-        <nav className="flex space-x-2 border-b border-neutral-200 mb-6 pb-px overflow-x-auto select-none">
-          {/* TAB -1: ERP blueprint & guide */}
-          <button
-            id="tab-blueprint"
-            onClick={() => { setActiveTab('blueprint'); setShowRecordForm(false); setRecordToEdit(undefined); }}
-            className={`flex items-center gap-2 py-3 px-4 font-bold text-xs border-b-2 transition-all whitespace-nowrap cursor-pointer ${
-              activeTab === 'blueprint'
-                ? 'border-amber-600 text-amber-700 font-black'
-                : 'border-transparent text-neutral-500 hover:text-neutral-900'
-            }`}
-          >
-            <Sparkles size={16} className="text-amber-500 animate-pulse animate-duration-[2000ms]" />
-            ERP 導覽 & 藍圖
-          </button>
-
+        <nav className="flex space-x-2 border-b border-neutral-850 mb-6 pb-px overflow-x-auto select-none no-scrollbar scrollbar-none">
           {/* TAB 0: Combined Construction Management */}
           <button
             id="tab-construction"
             onClick={() => { setActiveTab('construction'); setRecordsSubTab('today'); setShowRecordForm(false); setRecordToEdit(undefined); }}
             className={`flex items-center gap-2 py-3 px-4 font-bold text-xs border-b-2 transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'construction'
-                ? 'border-amber-600 text-amber-700 font-black'
-                : 'border-transparent text-neutral-500 hover:text-neutral-900'
+                ? 'border-amber-500 text-amber-500 font-black'
+                : 'border-transparent text-neutral-500 hover:text-neutral-300'
             }`}
           >
             <ClipboardList size={16} />
-            🏗️ 施工與案場管理
+            工程施作與案場管控
           </button>
 
           {/* TAB 3: billing */}
@@ -915,12 +901,12 @@ export default function App() {
             onClick={() => { setActiveTab('billing'); setShowRecordForm(false); setRecordToEdit(undefined); }}
             className={`flex items-center gap-2 py-3 px-4 font-bold text-xs border-b-2 transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'billing'
-                ? 'border-amber-600 text-amber-700 font-black'
-                : 'border-transparent text-neutral-500 hover:text-neutral-900'
+                ? 'border-amber-500 text-amber-500 font-black'
+                : 'border-transparent text-neutral-500 hover:text-neutral-300'
             }`}
           >
             <Coins size={16} className="text-amber-500 font-black" />
-            💰 請款應收與收付
+            請款撥付與收支管理
           </button>
 
           {/* TAB 4: workers */}
@@ -929,12 +915,12 @@ export default function App() {
             onClick={() => { setActiveTab('workers'); setShowRecordForm(false); setRecordToEdit(undefined); }}
             className={`flex items-center gap-2 py-3 px-4 font-bold text-xs border-b-2 transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'workers'
-                ? 'border-amber-600 text-amber-700 font-black'
-                : 'border-transparent text-neutral-500 hover:text-neutral-900'
+                ? 'border-amber-500 text-amber-500 font-black'
+                : 'border-transparent text-neutral-500 hover:text-neutral-300'
             }`}
           >
             <HardHat size={16} />
-            👷 工班團隊名冊
+            工班部署與考勤清冊
           </button>
 
           {/* TAB 5: materials & suppliers */}
@@ -943,12 +929,12 @@ export default function App() {
             onClick={() => { setActiveTab('materials'); setMaterialsSubTab('records'); setShowRecordForm(false); setRecordToEdit(undefined); }}
             className={`flex items-center gap-2 py-3 px-4 font-bold text-xs border-b-2 transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'materials'
-                ? 'border-amber-600 text-amber-700 font-black'
-                : 'border-transparent text-neutral-500 hover:text-neutral-900'
+                ? 'border-amber-500 text-amber-500 font-black'
+                : 'border-transparent text-neutral-500 hover:text-neutral-300'
             }`}
           >
             <ShoppingBag size={16} />
-            📦 資材材料與商家
+            資材物料與供應商簿
           </button>
 
           {/* TAB 6: supabase-excel */}
@@ -957,12 +943,12 @@ export default function App() {
             onClick={() => { setActiveTab('supabase-excel'); setShowRecordForm(false); setRecordToEdit(undefined); }}
             className={`flex items-center gap-2 py-3 px-4 font-bold text-xs border-b-2 transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'supabase-excel'
-                ? 'border-amber-500 text-amber-700 font-black'
-                : 'border-transparent text-neutral-500 hover:text-neutral-900 font-semibold'
+                ? 'border-amber-500 text-amber-500 font-black'
+                : 'border-transparent text-neutral-500 hover:text-neutral-300 font-semibold'
             }`}
           >
             <Cloud size={16} className="text-amber-500 animate-pulse" />
-            ☁️ Firebase 雲端備份中心
+            雲端數據備份對照
           </button>
         </nav>
 
@@ -1002,93 +988,113 @@ export default function App() {
               >
                 {activeTab === 'construction' && (
                   <div className="space-y-6 animate-fadeIn">
+                    {/* Unified Executive Header */}
+                    <div className="bg-[#1E1E1E] border border-[#2C2C2C] p-6 rounded-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] uppercase tracking-widest font-extrabold text-[#D4AF37] bg-[rgba(212,175,55,0.08)] px-2.5 py-1 rounded border border-[rgba(212,175,55,0.15)]">CONSTRUCTION HUB</span>
+                        </div>
+                        <h1 className="text-xl font-black text-white tracking-widest">
+                          工務施作與工程案場調度主控台
+                        </h1>
+                        <p className="text-xs text-[#A0A0A0] mt-1.5 leading-relaxed">
+                          整合自每日現場派遣日誌登錄、工程預算精算、歷史工期回報與業主聯繫歸檔。提供全方位現場實績比對。
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <button
+                          onClick={() => {
+                            setPreSelCustomer(null);
+                            setPreSelAddress(undefined);
+                            setShowProjectModal(true);
+                          }}
+                          className="px-5 py-2.5 text-xs font-black text-black bg-[#D4AF37] hover:bg-[#e5bd42] active:scale-95 rounded-xl border border-[#D4AF37] shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5 font-bold"
+                        >
+                          <Plus size={14} className="stroke-[3]" />
+                          新開案場專案
+                        </button>
+                      </div>
+                    </div>
+
                     {/* Integrated Sub-Navigation Controls */}
-                    <div className="flex border-2 border-neutral-300 bg-neutral-100 p-1.5 rounded-xl max-w-4xl select-none gap-2 shadow-3xs overflow-x-auto scrollbar-none">
-                      <button
-                        onClick={() => { setRecordsSubTab('today'); setShowRecordForm(false); }}
-                        className={`flex-1 py-2.5 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
-                          recordsSubTab === 'today'
-                            ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
-                            : 'bg-white text-neutral-800 border-neutral-300 hover:text-neutral-950 hover:bg-neutral-50 font-bold'
-                        }`}
-                      >
-                        <Calendar size={15} className="shrink-0 stroke-[2.5]" />
-                        <span>
-                          <span className="hidden sm:inline">📌 當日施工</span>
-                          <span className="inline sm:hidden">📌 當日施工</span>
-                        </span>
-                      </button>
-                      
-                      <button
-                        onClick={() => { setRecordsSubTab('projects'); setShowRecordForm(false); }}
-                        className={`flex-1 py-2.5 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
-                          recordsSubTab === 'projects'
-                            ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
-                            : 'bg-white text-neutral-800 border-neutral-300 hover:text-neutral-950 hover:bg-neutral-50 font-bold'
-                        }`}
-                      >
-                        <FolderLock size={15} className="shrink-0 stroke-[2.5]" />
-                        <span>
-                          <span className="hidden sm:inline">🏗️ 工程案場</span>
-                          <span className="inline sm:hidden">🏗️ 工程案場</span>
-                        </span>
-                      </button>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 select-none">
+                      <div className="flex border border-[#2D2D2D] bg-[#1E1E1E] p-1.5 rounded-xl flex-1 max-w-4xl gap-2 shadow-sm overflow-x-auto scrollbar-none">
+                        <button
+                          onClick={() => { setRecordsSubTab('today'); setShowRecordForm(false); }}
+                          className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+                            recordsSubTab === 'today'
+                              ? 'bg-amber-600 text-white border-amber-700 shadow-sm font-black'
+                              : 'bg-[#252525] text-neutral-300 border-[#333333] hover:text-white hover:bg-[#2C2C2C] font-bold'
+                          }`}
+                        >
+                          <Calendar size={15} className="shrink-0 stroke-[2.5]" />
+                          <span>
+                            <span className="hidden sm:inline">當日施工進度</span>
+                            <span className="inline sm:hidden">當日施工</span>
+                          </span>
+                        </button>
+                        
+                        <button
+                          onClick={() => { setRecordsSubTab('projects'); setShowRecordForm(false); }}
+                          className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+                            recordsSubTab === 'projects'
+                              ? 'bg-amber-600 text-white border-amber-700 shadow-sm font-black'
+                              : 'bg-[#252525] text-neutral-300 border-[#333333] hover:text-white hover:bg-[#2C2C2C] font-bold'
+                          }`}
+                        >
+                          <FolderLock size={15} className="shrink-0 stroke-[2.5]" />
+                          <span>
+                            <span className="hidden sm:inline">工程案場總覽</span>
+                            <span className="inline sm:hidden">工程案場</span>
+                          </span>
+                        </button>
 
-                      <button
-                        onClick={() => { setRecordsSubTab('history'); setShowRecordForm(false); }}
-                        className={`flex-1 py-2.5 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
-                          recordsSubTab === 'history'
-                            ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
-                            : 'bg-white text-neutral-800 border-neutral-305 hover:text-neutral-950 hover:bg-neutral-50 font-bold'
-                        }`}
-                      >
-                        <ClipboardList size={15} className="shrink-0 stroke-[2.5]" />
-                        <span>
-                          <span className="hidden sm:inline">📜 歷史日誌彙整</span>
-                          <span className="inline sm:hidden">📜 歷史日誌</span>
-                        </span>
-                      </button>
+                        <button
+                          onClick={() => { setRecordsSubTab('history'); setShowRecordForm(false); }}
+                          className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+                            recordsSubTab === 'history'
+                              ? 'bg-amber-600 text-white border-amber-700 shadow-sm font-black'
+                              : 'bg-[#252525] text-neutral-300 border-[#333333] hover:text-white hover:bg-[#2C2C2C] font-bold'
+                          }`}
+                        >
+                          <ClipboardList size={15} className="shrink-0 stroke-[2.5]" />
+                          <span>
+                            <span className="hidden sm:inline">歷史派工彙整</span>
+                            <span className="inline sm:hidden">歷史日誌</span>
+                          </span>
+                        </button>
 
-                      <button
-                        onClick={() => { setRecordsSubTab('customers'); setShowRecordForm(false); }}
-                        className={`flex-1 py-2.5 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
-                          recordsSubTab === 'customers'
-                            ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
-                            : 'bg-white text-neutral-800 border-neutral-300 hover:text-neutral-950 hover:bg-neutral-50 font-bold'
-                        }`}
-                      >
-                        <Users size={15} className="shrink-0 stroke-[2.5]" />
-                        <span>
-                          <span className="hidden sm:inline">👥 特約業主</span>
-                          <span className="inline sm:hidden">👥 特約業主</span>
-                        </span>
-                      </button>
+                        <button
+                          onClick={() => { setRecordsSubTab('customers'); setShowRecordForm(false); }}
+                          className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+                            recordsSubTab === 'customers'
+                              ? 'bg-amber-600 text-white border-amber-700 shadow-sm font-black'
+                              : 'bg-[#252525] text-neutral-300 border-[#333333] hover:text-white hover:bg-[#2C2C2C] font-bold'
+                          }`}
+                        >
+                          <Users size={15} className="shrink-0 stroke-[2.5]" />
+                          <span>
+                            <span className="hidden sm:inline">合作業主名錄</span>
+                            <span className="inline sm:hidden">合作業主</span>
+                          </span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-3 shrink-0">
+                        <button
+                          id="quick-start-record-btn"
+                          onClick={() => { setRecordToEdit(undefined); setShowRecordForm(true); }}
+                          className="px-5 py-2.5 bg-[#D4AF37] hover:bg-[#e5bd42] active:scale-95 text-black font-black text-xs rounded-xl transition-all border border-[#D4AF37] shadow-sm flex items-center justify-center gap-1.5 cursor-pointer font-bold"
+                        >
+                          <Plus size={14} className="stroke-[3]" />
+                          <span>登錄當日工務日誌</span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* SUB-TAB: TODAY'S CONSTRUCTION */}
                     {recordsSubTab === 'today' && (
                       <div className="space-y-6">
-                        {/* Upper Action block */}
-                        <div className="bg-white p-6 rounded-2xl border border-neutral-200/80 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-5">
-                          <div className="space-y-1">
-                            <span className="text-[9px] uppercase tracking-wider font-extrabold text-amber-600 block">DAILY SHIFT SYSTEM</span>
-                            <h2 className="text-base font-bold text-neutral-800">
-                              快速派遣施工紀錄與回報大廳
-                            </h2>
-                            <p className="text-xs text-neutral-400 font-medium">記錄今日出勤同仁、耗用工料材料與現況進度回報。</p>
-                          </div>
-
-                          <div className="flex items-center gap-3 w-full sm:w-auto">
-                            <button
-                              id="quick-start-record-btn"
-                              onClick={() => { setRecordToEdit(undefined); setShowRecordForm(true); }}
-                              className="flex-1 sm:flex-none px-6 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm rounded-xl transition-all shadow-md shadow-amber-600/10 flex items-center justify-center gap-1.5 cursor-pointer"
-                            >
-                              <Plus size={16} />
-                              登錄當日工務日誌
-                            </button>
-                          </div>
-                        </div>
 
                         {/* Today Stats Summary */}
                         {(() => {
@@ -1147,9 +1153,6 @@ export default function App() {
 
                         {/* Today Records List */}
                         <div className="space-y-3">
-                          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 font-mono flex items-center gap-1.5">
-                            📋 今日施工動態
-                          </h3>
 
                           {(() => {
                             const todayStr = new Date().toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
@@ -1295,6 +1298,7 @@ export default function App() {
                     {/* SUB-TAB: HISTORY LOGS LIST */}
                     {recordsSubTab === 'history' && (
                       <div className="space-y-4">
+
                         {/* Search and Filters bar */}
                         <div className="bg-white p-5 rounded-2xl border border-neutral-200/80 shadow-3xs space-y-4">
                           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
@@ -1565,79 +1569,115 @@ export default function App() {
                   </div>
                 )}
 
-                {/* TAB -1 Display: BlueprintPanel */}
-                {activeTab === 'blueprint' && (
-                  <BlueprintPanel
-                    projects={projects}
-                    records={records}
-                    customers={customers}
-                    workers={workers}
-                    materials={materials}
-                    suppliers={suppliers}
-                    transactions={transactions}
-                    workerAdvances={workerAdvances}
-                    pettyCashTransactions={pettyCashTransactions}
-                    setActiveTab={setActiveTab}
-                    setRecordsSubTab={setRecordsSubTab}
-                  />
-                )}
-
                 {/* TAB 2.5 Display: BillingPanel */}
                 {activeTab === 'billing' && (
-                  <BillingPanel
-                    customers={customers}
-                    projects={projects}
-                    records={records}
-                    transactions={transactions}
-                    setTransactions={setTransactions}
-                    workersPreset={workers}
-                    materialsPreset={materials}
-                    workerAdvances={workerAdvances}
-                    setWorkerAdvances={setWorkerAdvances}
-                    pettyCashTransactions={pettyCashTransactions}
-                    setPettyCashTransactions={setPettyCashTransactions}
-                    onEditRecord={handleEditRecordTrigger}
-                    onDeleteRecord={handleDeleteRecord}
-                    onSaveToast={triggerToast}
-                  />
+                  <div className="space-y-6 animate-fadeIn">
+                    {/* Unified Executive Header */}
+                    <div className="bg-[#1E1E1E] border border-[#2C2C2C] p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] uppercase tracking-widest font-extrabold text-[#D4AF37] bg-[rgba(212,175,55,0.08)] px-2.5 py-1 rounded border border-[rgba(212,175,55,0.15)]">FINANCE & BILLING</span>
+                        </div>
+                        <h1 className="text-xl font-black text-white tracking-widest text-[#D4AF37]">
+                          工程請款與收支帳務主控台
+                        </h1>
+                        <p className="text-xs text-[#A0A0A0] mt-1.5 leading-relaxed">
+                          核算與對銷各案場的外部工程應收款、實收金額、現場代墊、師傅出勤工資派發及公司營運雜支，實現精準利潤分析與金流對接。
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setBillingTriggerStamp(Date.now())}
+                        className="px-5 py-2.5 bg-[#D4AF37] hover:bg-[#bfa032] text-black font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md shrink-0 cursor-pointer border border-[#D4AF37]"
+                      >
+                        <Plus size={16} className="stroke-[2.5]" />
+                        登錄客戶水電款項
+                      </button>
+                    </div>
+
+                    <BillingPanel
+                      customers={customers}
+                      projects={projects}
+                      records={records}
+                      transactions={transactions}
+                      setTransactions={setTransactions}
+                      workersPreset={workers}
+                      materialsPreset={materials}
+                      workerAdvances={workerAdvances}
+                      setWorkerAdvances={setWorkerAdvances}
+                      pettyCashTransactions={pettyCashTransactions}
+                      setPettyCashTransactions={setPettyCashTransactions}
+                      onEditRecord={handleEditRecordTrigger}
+                      onDeleteRecord={handleDeleteRecord}
+                      onSaveToast={triggerToast}
+                      triggerAddPayment={billingTriggerStamp}
+                    />
+                  </div>
                 )}
 
                 {/* TAB 4 Display: WorkersPanel */}
                 {activeTab === 'workers' && (
-                  <WorkersPanel
-                    workers={workers}
-                    setWorkers={setWorkers}
-                    onSaveToast={triggerToast}
-                  />
+                  <div className="space-y-6 animate-fadeIn">
+                    {/* Unified Executive Header */}
+                    <div className="bg-[#1E1E1E] border border-[#2C2C2C] p-6 rounded-2xl">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] uppercase tracking-widest font-extrabold text-[#D4AF37] bg-[rgba(212,175,55,0.08)] px-2.5 py-1 rounded border border-[rgba(212,175,55,0.15)]">WORKFORCE MANAGEMENT</span>
+                      </div>
+                      <h1 className="text-xl font-black text-white tracking-widest">
+                        工班部署與考勤清冊系統
+                      </h1>
+                      <p className="text-xs text-[#A0A0A0] mt-1.5 leading-relaxed">
+                        維護工班與外調師傅人事檔案、基本配工日工資基準、個人代扣明細，並可即時調閱歷史派遣考勤天數與發薪審核。
+                      </p>
+                    </div>
+
+                    <WorkersPanel
+                      workers={workers}
+                      setWorkers={setWorkers}
+                      onSaveToast={triggerToast}
+                    />
+                  </div>
                 )}
 
                 {/* TAB 5 Display: Materials & Suppliers Panel */}
                 {activeTab === 'materials' && (
                   <div className="space-y-6 animate-fadeIn">
+                    {/* Unified Executive Header */}
+                    <div className="bg-[#1E1E1E] border border-[#2C2C2C] p-6 rounded-2xl">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] uppercase tracking-widest font-extrabold text-[#D4AF37] bg-[rgba(212,175,55,0.08)] px-2.5 py-1 rounded border border-[rgba(212,175,55,0.15)]">MATERIALS & SUPPLY CHAIN</span>
+                      </div>
+                      <h1 className="text-xl font-black text-white tracking-widest">
+                        資材物料耗用與供應商管理
+                      </h1>
+                      <p className="text-xs text-[#A0A0A0] mt-1.5 leading-relaxed">
+                        管理工程所需常備材料與基本單位採購指導牌價，並維護特約合作五金行、石材木水電耗材供應商家檔案。
+                      </p>
+                    </div>
+
                     {/* Materials Integrated Sub-Navigation Controls */}
-                    <div className="flex border-2 border-neutral-300 bg-neutral-100 p-1.5 rounded-xl max-w-md select-none gap-2 shadow-3xs overflow-x-auto scrollbar-none">
+                    <div className="flex border border-[#2D2D2D] bg-[#1E1E1E] p-1.5 rounded-xl max-w-md select-none gap-2 shadow-sm overflow-x-auto scrollbar-none">
                       <button
                         onClick={() => setMaterialsSubTab('records')}
                         className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
                           materialsSubTab === 'records'
-                            ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
-                            : 'bg-white text-neutral-800 border-neutral-300 hover:text-neutral-950 hover:bg-neutral-50 font-bold'
+                            ? 'bg-amber-600 text-white border-amber-700 shadow-sm font-black'
+                            : 'bg-[#252525] text-neutral-300 border-[#333333] hover:text-white hover:bg-[#2C2C2C] font-bold'
                         }`}
                       >
                         <ShoppingBag size={15} className="shrink-0 stroke-[2.5]" />
-                        <span>箱米折算材料大庫</span>
+                        <span>常備資材儲備大庫</span>
                       </button>
                       
                       <button
                         onClick={() => setMaterialsSubTab('suppliers')}
                         className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
                           materialsSubTab === 'suppliers'
-                            ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
-                            : 'bg-white text-neutral-800 border-neutral-300 hover:text-neutral-950 hover:bg-neutral-50 font-bold'
+                            ? 'bg-amber-600 text-white border-amber-700 shadow-sm font-black'
+                            : 'bg-[#252525] text-neutral-300 border-[#333333] hover:text-white hover:bg-[#2C2C2C] font-bold'
                         }`}
                       >
                         <Store size={15} className="shrink-0 stroke-[2.5]" />
-                        <span>特約合作材料商家</span>
+                        <span>特約供應商家名冊</span>
                       </button>
                     </div>
 
@@ -1665,7 +1705,20 @@ export default function App() {
 
                 {/* TAB 6 Display: Firebase 雲端備份中心 */}
                 {activeTab === 'supabase-excel' && (
-                  <div className="animate-fadeIn">
+                  <div className="space-y-6 animate-fadeIn">
+                    {/* Unified Executive Header */}
+                    <div className="bg-[#1E1E1E] border border-[#2C2C2C] p-6 rounded-2xl">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] uppercase tracking-widest font-extrabold text-[#D4AF37] bg-[rgba(212,175,55,0.08)] px-2.5 py-1 rounded border border-[rgba(212,175,55,0.15)]">CLOUD SECURITY & DATA SNAPSHOT</span>
+                      </div>
+                      <h1 className="text-xl font-black text-white tracking-widest">
+                        雲端數據備份與安全備置維護組
+                      </h1>
+                      <p className="text-xs text-[#A0A0A0] mt-1.5 leading-relaxed">
+                        連結雲端安全分散式儲存，實現全資料庫安全快照打包備份、一鍵按檔還原及雲端備置狀態對照，確保水電裝修工料資產歷程永不丟失。
+                      </p>
+                    </div>
+
                     <FirebaseSyncPanel
                       workers={workers}
                       setWorkers={setWorkers}

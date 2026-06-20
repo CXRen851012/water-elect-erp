@@ -250,15 +250,15 @@ export default function FirebaseSyncPanel({
         setLastSync(nowStr);
         localStorage.setItem('firebase_last_sync', nowStr);
         setSyncSuccessInfo(result.message);
-        onSaveToast('☁️ 雲端全庫備份與循環快照已建立！');
+        onSaveToast('雲端全庫備份與循環快照已成功建立！');
         fetchBackups(currentUser.uid);
       } else {
         setSyncError(result.message);
-        onSaveToast('⚠️ 雲端備份有部分失敗，請查看控制診報告。');
+        onSaveToast('雲端備份部分遭遇錯誤，請檢視控制台診斷報告。');
       }
     } catch (err: any) {
       setSyncError(err?.message || '不明連線或安全性權限拒絕錯誤。');
-      onSaveToast('❌ 同步上傳遭遇安全性攔截。');
+      onSaveToast('同步上傳因安全驗證未通過。');
     } finally {
       setIsSyncing(false);
     }
@@ -267,13 +267,13 @@ export default function FirebaseSyncPanel({
   // ---- 雲端一鍵還原 ----
   const handleDownloadFromFirebase = () => {
     if (!currentUser) {
-      onSaveToast('⚠️ 請先登入 Google 帳號，才能從雲端還原您的多載資料！');
+      onSaveToast('請先登入系統帳戶，以讀取雲端備置數據。');
       return;
     }
 
     triggerConfirm(
-      '🚨 警告：還原將覆蓋本地數據！',
-      '您目前瀏覽器中的本地暫存數據將會被雲端資料完全覆蓋！確定要執行還原嗎？',
+      '確認：還原操作將覆蓋本機數據',
+      '您目前瀏覽器中的本機快取數據將會被雲端資料完整覆蓋！確定要執行還原下載嗎？',
       async () => {
         setIsSyncing(true);
         setSyncError(null);
@@ -294,14 +294,14 @@ export default function FirebaseSyncPanel({
             if (d.workerAdvances) setWorkerAdvances(d.workerAdvances);
             if (d.pettyCashTransactions) setPettyCashTransactions(d.pettyCashTransactions);
 
-            onSaveToast('☁️ 雲端還原全庫覆蓋已成功！請核對當前數據。');
+            onSaveToast('雲端還原全庫載入已成功！請立刻核對最新統計數據。');
           } else {
             setSyncError(result.message);
-            onSaveToast('⚠️ 雲端還原未完成，查無備份或連線不穩。');
+            onSaveToast('雲端還原未完成，請確認安全連線是否穩定。');
           }
         } catch (err: any) {
           setSyncError(err?.message || '還原同步出錯。');
-          onSaveToast('❌ 同步還原遭遇攔截。');
+          onSaveToast('同步還原遭遇系統安全驗證攔截。');
         } finally {
           setIsSyncing(false);
         }
@@ -350,27 +350,13 @@ export default function FirebaseSyncPanel({
       {/* 頂部 Firebase 連線與雲端金鑰診斷面板 */}
       <div className="bg-neutral-900 text-white rounded-2xl p-6 shadow-xl border border-neutral-800">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="p-1 px-2.5 bg-amber-500/20 text-amber-500 font-bold font-mono rounded-lg text-[10px] uppercase tracking-wider">
-                Google Firebase Powered
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400">
-                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping"></span>
-                雲端主機通道已就緒 (免寫SQL)
-              </span>
-            </div>
-            <h2 className="text-xl font-black tracking-tight leading-none flex items-center gap-2">
-              <Cloud className="text-amber-500" size={24} />
-              <span>水電工務通 雲端備份中心</span>
-            </h2>
-            <p className="text-xs text-neutral-400 max-w-2xl font-medium leading-relaxed">
-              全面轉用零 SQL 維護的 <strong>Google Cloud Firestore</strong> 企業級雲端資料庫。
-              Google 專利的安全連線與防護，讓您的工班點工日誌與材料帳目能在多台裝置間一鍵備份與還原。
-            </p>
+          <div className="flex items-center gap-2">
+            <span className="p-1 px-2.5 bg-amber-500/20 text-amber-500 font-bold font-mono rounded-lg text-[10px] uppercase tracking-wider">
+              Google Firebase Connected
+            </span>
           </div>
 
-          <div className="bg-neutral-800/60 border border-neutral-700/50 p-4 rounded-xl flex items-center gap-4 shrink-0 w-full lg:w-auto">
+          <div className="bg-[#1E1E1E] border border-neutral-700/50 p-4 rounded-xl flex items-center gap-4 shrink-0 w-full lg:w-auto">
             {authLoading ? (
               <div className="flex items-center gap-2 text-xs text-neutral-400 py-1 font-mono">
                 <RefreshCw size={14} className="animate-spin text-amber-500" />
