@@ -1398,64 +1398,64 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
     <div className="space-y-6">
       
       {/* 🚀 SUB-TAB VIEW HEADER NAVIGATION */}
-      <div className="flex border border-[#2C2C2C] bg-[#1E1E1E] p-1.5 rounded-xl max-w-4xl select-none gap-2 shadow-3xs overflow-x-auto scrollbar-none">
+      <div className="flex border border-[#2D2D2D] bg-[#1E1E1E] p-1.5 rounded-xl flex-1 max-w-4xl gap-2 shadow-sm overflow-x-auto scrollbar-none">
         <button
           onClick={() => setActiveSubTab('billing_records')}
-          className={`flex-1 py-2 px-3.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+          className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
             activeSubTab === 'billing_records' 
               ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-3xs font-extrabold' 
               : 'bg-[#252525] text-neutral-300 border-[#3A3A3A] hover:text-[#D4AF37] hover:bg-[#2C2C2C] font-semibold'
           }`}
         >
-          <Landmark size={14} className="stroke-[2]" />
+          <Landmark size={15} className="shrink-0 stroke-[2.5]" />
           款項對帳
         </button>
 
         <button
           onClick={() => setActiveSubTab('operating_analytics')}
-          className={`flex-1 py-2 px-3.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+          className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
             activeSubTab === 'operating_analytics' 
               ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-3xs font-extrabold' 
               : 'bg-[#252525] text-neutral-300 border-[#3A3A3A] hover:text-[#D4AF37] hover:bg-[#2C2C2C] font-semibold'
           }`}
         >
-          <TrendingUp size={14} className="stroke-[2]" />
+          <TrendingUp size={15} className="shrink-0 stroke-[2.5]" />
           利潤分析
         </button>
 
         <button
           onClick={() => setActiveSubTab('worker_attendance')}
-          className={`flex-1 py-2 px-3.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+          className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
             activeSubTab === 'worker_attendance' 
               ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-3xs font-extrabold' 
               : 'bg-[#252525] text-neutral-300 border-[#3A3A3A] hover:text-[#D4AF37] hover:bg-[#2C2C2C] font-semibold'
           }`}
         >
-          <HardHat size={14} className="stroke-[2]" />
+          <HardHat size={15} className="shrink-0 stroke-[2.5]" />
           工班考勤
         </button>
 
         <button
           onClick={() => setActiveSubTab('worker_advances')}
-          className={`flex-1 py-2 px-3.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+          className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
             activeSubTab === 'worker_advances' 
               ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-3xs font-extrabold' 
               : 'bg-[#252525] text-neutral-300 border-[#3A3A3A] hover:text-[#D4AF37] hover:bg-[#2C2C2C] font-semibold'
           }`}
         >
-          <DollarSign size={14} className="stroke-[2]" />
+          <DollarSign size={15} className="shrink-0 stroke-[2.5]" />
           預支借支
         </button>
 
         <button
           onClick={() => setActiveSubTab('petty_cash')}
-          className={`flex-1 py-2 px-3.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+          className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
             activeSubTab === 'petty_cash' 
               ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-3xs font-extrabold' 
               : 'bg-[#252525] text-neutral-300 border-[#3A3A3A] hover:text-[#D4AF37] hover:bg-[#2C2C2C] font-semibold'
           }`}
         >
-          <Wallet size={14} className="stroke-[2]" />
+          <Wallet size={15} className="shrink-0 stroke-[2.5]" />
           零用金簿
         </button>
       </div>
@@ -3297,7 +3297,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-black text-neutral-600 mb-1">
+                  <label className="block text-[11px] font-bold !text-[#E0E0E0] mb-1">
                     經手同仁姓名 / 出納
                   </label>
                   <input
@@ -3305,7 +3305,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     placeholder="如: 林冠宇、陳建志等"
                     value={addPcPayer}
                     onChange={(e) => setAddPcPayer(e.target.value)}
-                    className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-800 font-bold"
+                    className="w-full px-2.5 py-1.5 border border-[#D4AF37]/20 rounded-lg text-xs bg-[#121212] !text-[#E0E0E0] font-bold outline-none focus:border-[#D4AF37]"
                   />
                   {/* 可快速點擊代入當前同仁 */}
                   <div className="flex flex-wrap gap-1 mt-1">
@@ -3314,7 +3314,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                         key={w.id}
                         type="button"
                         onClick={() => setAddPcPayer(w.name)}
-                        className="text-[9px] bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 px-1.5 py-0.5 rounded transition cursor-pointer"
+                        className="text-[9px] bg-[#D4AF37]/10 hover:bg-[#D4AF37]/25 border border-[#D4AF37]/15 !text-[#F3E5AB] px-1.5 py-0.5 rounded transition cursor-pointer"
                       >
                         👷 {w.name}
                       </button>
@@ -3323,23 +3323,23 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-black text-neutral-600 mb-1">
+                  <label className="block text-[11px] font-bold !text-[#E0E0E0] mb-1">
                     關聯工事案場 (非必填，填寫便於精算特定案場雜費)
                   </label>
                   <select
                     value={addPcProjId}
                     onChange={(e) => setAddPcProjId(e.target.value)}
-                    className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-800 font-medium"
+                    className="w-full px-2.5 py-1.5 border border-[#D4AF37]/20 rounded-lg text-xs bg-[#121212] !text-[#E0E0E0] font-medium outline-none focus:border-[#D4AF37]"
                   >
-                    <option value="">-- 無特定工地 / 公司全公用 --</option>
+                    <option className="!bg-[#1A1A1A]" value="">-- 無特定工地 / 公司全公用 --</option>
                     {projects.map(p => (
-                      <option key={p.id} value={p.id}>{getProjectDisplayName(p)}</option>
+                      <option className="!bg-[#1A1A1A]" key={p.id} value={p.id}>{getProjectDisplayName(p)}</option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-black text-neutral-600 mb-1">
+                  <label className="block text-[11px] font-bold !text-[#E0E0E0] mb-1">
                     細項摘要與材料規格描述 <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -3347,7 +3347,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     placeholder="如: 新店現場師傅午後加購沙士3罐、南亞水管膠1罐"
                     value={addPcDescription}
                     onChange={(e) => setAddPcDescription(e.target.value)}
-                    className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-800 font-medium"
+                    className="w-full px-2.5 py-1.5 border border-[#D4AF37]/20 rounded-lg text-xs bg-[#121212] !text-[#E0E0E0] font-medium outline-none focus:border-[#D4AF37]"
                     required
                   />
                   {/* 動態智慧事由預設標籤 */}
@@ -3365,7 +3365,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                         key={item}
                         type="button"
                         onClick={() => setAddPcDescription(item)}
-                        className="text-[9px] bg-amber-50 hover:bg-amber-100 text-amber-850 hover:border-amber-400 px-1.5 py-0.5 rounded border border-amber-200/50 font-bold transition cursor-pointer"
+                        className="text-[9px] bg-[#D4AF37]/10 hover:bg-[#D4AF37]/25 text-[#F3E5AB] hover:border-[#D4AF37]/50 px-1.5 py-0.5 rounded border border-[#D4AF37]/15 font-bold transition cursor-pointer"
                       >
                         ⚡ {item}
                       </button>
@@ -3375,7 +3375,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
 
                 <button
                   type="submit"
-                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md mt-2 flex items-center justify-center gap-1 cursor-pointer"
+                  className="w-full py-2.5 bg-[#D4AF37] hover:bg-[#bfa032] text-black font-extrabold text-xs rounded-xl transition-all shadow-md mt-2 flex items-center justify-center gap-1 cursor-pointer"
                 >
                   <Check size={14} className="stroke-[2.5]" />
                   安全核實登錄公金帳
@@ -3384,13 +3384,13 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
             </div>
 
             {/* List Table of Petty cash details */}
-            <div className="bg-white rounded-2xl border border-neutral-200 shadow-3xs overflow-hidden lg:col-span-2 space-y-4">
-              <div className="px-5 py-4 border-b border-neutral-100 flex items-center justify-between">
-                <h4 className="text-xs sm:text-sm font-black text-neutral-800 flex items-center gap-1.5 font-sans">
-                  <Wallet size={16} className="text-amber-500" />
+            <div className="!bg-[#1A1A1A] rounded-2xl border border-[#D4AF37]/25 shadow-3xs overflow-hidden lg:col-span-2 space-y-4">
+              <div className="px-5 py-4 border-b border-[#D4AF37]/15 flex items-center justify-between">
+                <h4 className="text-xs sm:text-sm font-black !text-[#F3E5AB] flex items-center gap-1.5 font-sans">
+                  <Wallet size={16} className="text-[#D4AF37]" />
                   手備零用金與公基金收支帳目往來登記
                 </h4>
-                <span className="text-[10px] font-mono bg-neutral-100 text-neutral-600 px-2.5 py-1 rounded font-bold">
+                <span className="text-[10px] font-mono bg-[#121212] !text-[#E0E0E0] border border-[#D4AF37]/15 px-2.5 py-1 rounded font-bold">
                   共 {pettyCashTransactions.length} 筆帳目明細
                 </span>
               </div>
@@ -3403,31 +3403,31 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                 <div className="overflow-x-auto max-h-[450px]">
                   <table className="w-full text-left border-collapse text-[11px]">
                     <thead>
-                      <tr className="bg-neutral-50 text-neutral-500 uppercase tracking-wider text-[10px] font-bold border-b border-neutral-200">
-                        <th className="py-2.5 px-4">對帳日期</th>
-                        <th className="py-2.5 px-4">主分類</th>
-                        <th className="py-2.5 px-4 font-bold text-right border-r border-neutral-100">金額流動</th>
-                        <th className="py-2.5 px-4">交易名目規格敘事</th>
-                        <th className="py-2.5 px-4">經手同仁</th>
-                        <th className="py-2.5 px-4">歸屬特定工地</th>
+                      <tr className="bg-[#121212] !text-[#F3E5AB] uppercase tracking-wider text-[10px] font-bold border-b border-[#D4AF37]/20">
+                        <th className="py-2.5 px-4 font-bold">對帳日期</th>
+                        <th className="py-2.5 px-4 font-bold">主分類</th>
+                        <th className="py-2.5 px-4 font-bold text-right border-r border-[#D4AF37]/10 pr-4">金額流動</th>
+                        <th className="py-2.5 px-4 font-bold">交易名目規格敘事</th>
+                        <th className="py-2.5 px-4 font-bold">經手同仁</th>
+                        <th className="py-2.5 px-4 font-bold">歸屬特定工地</th>
                         <th className="py-2.5 px-4 text-center">操作</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-neutral-150">
+                    <tbody className="divide-y divide-[#D4AF37]/10">
                       {pettyCashTransactions.map(t => {
                         const relProj = projects.find(p => p.id === t.projectNameOrId);
                         const relProjName = relProj ? (relProj.addressAbbreviated || relProj.companyOrOwner) : '🚚 貨車公備';
                         
                         return (
-                          <tr key={t.id} className="hover:bg-neutral-50/50">
-                            <td className="py-3 px-4 font-mono font-bold text-neutral-600 whitespace-nowrap">{t.date}</td>
+                          <tr key={t.id} className="hover:bg-[#D4AF37]/5">
+                            <td className="py-3 px-4 font-mono font-bold text-[#E0E0E0] whitespace-nowrap">{t.date}</td>
                             <td className="py-3 px-4 whitespace-nowrap">
                               {t.type === 'income' ? (
-                                <span className="text-emerald-700 bg-emerald-100 font-extrabold px-2 py-0.5 rounded text-[10px]">
+                                <span className="text-emerald-400 bg-emerald-950/45 border border-emerald-900/40 font-extrabold px-2 py-0.5 rounded text-[10px]">
                                   📥 存入公金
                                 </span>
                               ) : (
-                                <span className="text-red-700 bg-red-100 font-extrabold px-2 py-0.5 rounded text-[10px]">
+                                <span className="text-rose-400 bg-rose-950/45 border border-rose-900/40 font-extrabold px-2 py-0.5 rounded text-[10px]">
                                   {t.category === 'feed' ? '🍱 伙食涼水' :
                                    t.category === 'tool' ? '🔨 臨採五金' :
                                    t.category === 'parking' ? '🚗 停車代墊' :
@@ -3435,22 +3435,22 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                 </span>
                               )}
                             </td>
-                            <td className={`py-3 px-4 text-right font-mono font-extrabold text-xs border-r border-neutral-100 whitespace-nowrap ${
-                              t.type === 'income' ? 'text-emerald-600 font-black' : 'text-neutral-900'
+                            <td className={`py-3 px-4 text-right font-mono font-extrabold text-xs border-r border-[#D4AF37]/10 pr-4 whitespace-nowrap ${
+                              t.type === 'income' ? 'text-emerald-400' : 'text-[#E5E5E5]'
                             }`}>
                               {t.type === 'income' ? '+' : '-'}${t.amount.toLocaleString()} 元
                             </td>
-                            <td className="py-3 px-4 text-neutral-700 font-medium max-w-[170px] truncate" title={t.description}>
+                            <td className="py-3 px-4 text-[#E0E0E0] font-medium max-w-[170px] truncate" title={t.description}>
                               {t.description}
                             </td>
-                            <td className="py-3 px-4 text-neutral-600 font-extrabold whitespace-nowrap">{t.payerName || <span className="text-neutral-300">系統提撥</span>}</td>
-                            <td className="py-3 px-4 text-xs font-semibold text-neutral-500 max-w-[120px] truncate whitespace-nowrap" title={relProj ? getProjectDisplayName(relProj) : ''}>
+                            <td className="py-3 px-4 text-[#E0E0E0] font-extrabold whitespace-nowrap">{t.payerName || <span className="text-neutral-500">系統提撥</span>}</td>
+                            <td className="py-3 px-4 text-xs font-semibold text-neutral-400 max-w-[120px] truncate whitespace-nowrap" title={relProj ? getProjectDisplayName(relProj) : ''}>
                               {relProjName}
                             </td>
                             <td className="py-3 px-4 text-center whitespace-nowrap">
                               <button
                                 onClick={() => handleDeletePettyCashTransaction(t.id)}
-                                className="text-neutral-400 hover:text-red-600 p-1 cursor-pointer transition"
+                                className="text-neutral-400 hover:text-rose-500 p-1 cursor-pointer transition"
                                 title="移除帳目"
                               >
                                 <Trash2 size={12} />
@@ -3468,29 +3468,28 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
         </div>
       )}
 
-
       {/* ---------------------------------------------------- */}
       {/* ADD PAYMENT MODAL WITH SIMPLIFIED OPTIONS */}
       {/* ---------------------------------------------------- */}
       {showAddPaymentModal && (
-        <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden max-h-[95vh] flex flex-col border border-neutral-200">
+        <div className="fixed inset-0 bg-[#0D0D0D]/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn overflow-y-auto">
+          <div className="!bg-[#1A1A1A] rounded-2xl w-full max-w-lg shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden max-h-[95vh] flex flex-col border border-[#D4AF37]/35">
             
             {/* Modal header */}
-            <div className="bg-neutral-900 text-white px-5 py-4 flex items-center justify-between border-b border-neutral-950 shrink-0">
+            <div className="bg-[#121212] border-b border-[#D4AF37]/25 px-5 py-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center text-slate-950">
+                <div className="w-8 h-8 bg-[#D4AF37] rounded-lg flex items-center justify-center text-black font-extrabold">
                   <Landmark size={18} className="stroke-[2.5]" />
                 </div>
                 <div>
-                  <h3 className="text-xs sm:text-sm font-black">登錄客戶實收水電工程款項</h3>
-                  <p className="text-[10px] text-neutral-400 mt-0.5">錄款入帳沖鎖與多工程拆帳自動化</p>
+                  <h3 className="text-xs sm:text-sm font-black !text-[#F3E5AB]">登錄客戶實收水電工程款項</h3>
+                  <p className="text-[10px] !text-[#8C8C8C] mt-0.5">錄款入帳沖鎖與多工程拆帳自動化</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowAddPaymentModal(false)}
-                className="w-6 h-6 rounded-full hover:bg-neutral-800 flex items-center justify-center text-neutral-400 hover:text-white text-xs"
+                className="w-6 h-6 rounded-full hover:bg-[#121212] flex items-center justify-center !text-[#D4AF37] hover:!text-white text-xs"
               >
                 ✕
               </button>
@@ -3502,7 +3501,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
               {/* Select Customer */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-black text-neutral-600 mb-1">
+                  <label className="block text-[11px] font-bold !text-[#E0E0E0] mb-1">
                     配合客戶商戶 <span className="text-red-500">*</span>
                   </label>
                   <select
@@ -3512,26 +3511,26 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                       setPayTargetProjId(''); // Reset project on customer switch
                       setMultiAllocSplits({});
                     }}
-                    className="w-full px-2.5 py-1.5 border border-neutral-300 rounded-lg text-xs bg-white text-neutral-800 font-bold"
+                    className="w-full px-2.5 py-1.5 border border-[#D4AF37]/20 rounded-lg text-xs !bg-[#121212] !text-[#E0E0E0] font-bold outline-none focus:border-[#D4AF37]"
                     required
                   >
-                    <option value="">-- 請選定繳款配合戶 --</option>
+                    <option className="!bg-[#1A1A1A] !text-[#E5E5E5]" value="">-- 請選定繳款配合戶 --</option>
                     {customers.map(c => (
-                      <option key={c.id} value={c.id}>👤 {c.name}</option>
+                      <option className="!bg-[#1A1A1A] !text-[#E5E5E5]" key={c.id} value={c.id}>👤 {c.name}</option>
                     ))}
                   </select>
                 </div>
 
                 {/* Date */}
                 <div>
-                  <label className="block text-[11px] font-black text-neutral-600 mb-1">
+                  <label className="block text-[11px] font-bold !text-[#E0E0E0] mb-1">
                     入帳收款日期 <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="date"
                     value={payDate}
                     onChange={(e) => setPayDate(e.target.value)}
-                    className="w-full px-2.5 py-1.5 border border-neutral-300 rounded-lg text-xs font-bold"
+                    className="w-full px-2.5 py-1.5 border border-[#D4AF37]/20 rounded-lg text-xs !bg-[#121212] !text-[#E0E0E5] font-bold outline-none focus:border-[#D4AF37]"
                     required
                   />
                 </div>
@@ -3540,7 +3539,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
               {/* Amount and Payment Method */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-black text-neutral-600 mb-1">
+                  <label className="block text-[11px] font-bold !text-[#E0E0E0] mb-1">
                     實收繳款金額 (新台幣 NT) <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -3549,7 +3548,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     placeholder="例如: 35000"
                     value={payAmount || ''}
                     onChange={(e) => setPayAmount(Math.max(0, parseInt(e.target.value) || 0))}
-                    className="w-full px-2.5 py-1.5 border border-neutral-300 rounded-lg text-xs font-mono font-bold text-neutral-900 bg-amber-50"
+                    className="w-full px-2.5 py-1.5 border border-[#D4AF37]/20 rounded-lg text-xs font-mono font-bold !text-[#F3E5AB] !bg-[#121212] outline-none focus:border-[#D4AF37]"
                     required
                   />
                   {/* 快速金額加成按鈕 */}
@@ -3562,7 +3561,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                           const current = payAmount || 0;
                           setPayAmount(current + val);
                         }}
-                        className="text-[9px] bg-neutral-100 hover:bg-neutral-200 text-neutral-700 px-1.5 py-0.5 rounded font-extrabold transition cursor-pointer"
+                        className="text-[9px] !bg-[#D4AF37]/10 hover:!bg-[#D4AF37]/25 !text-[#F3E5AB] border border-[#D4AF37]/15 px-1.5 py-0.5 rounded font-extrabold transition cursor-pointer"
                       >
                         +{val >= 10000 ? `${val/10000}萬` : val}
                       </button>
@@ -3570,7 +3569,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     <button
                       type="button"
                       onClick={() => setPayAmount(0)}
-                      className="text-[9px] bg-rose-50 hover:bg-rose-100 text-rose-500 px-1.5 py-0.5 rounded transition cursor-pointer font-bold"
+                      className="text-[9px] !bg-rose-950/40 hover:!bg-rose-900/60 !text-rose-450 border border-rose-900/30 px-1.5 py-0.5 rounded transition cursor-pointer font-bold"
                     >
                       重置
                     </button>
@@ -3578,19 +3577,19 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-black text-neutral-600 mb-1">
+                  <label className="block text-[11px] font-bold !text-[#E0E0E0] mb-1">
                     入網金流管道
                   </label>
                   <select
                     value={payMethod}
                     onChange={(e) => setPayMethod(e.target.value)}
-                    className="w-full px-2.5 py-1.5 border border-neutral-300 rounded-lg text-xs bg-white text-neutral-800"
+                    className="w-full px-2.5 py-1.5 border border-[#D4AF37]/20 rounded-lg text-xs !bg-[#121212] !text-[#E0E0E5] outline-none focus:border-[#D4AF37]"
                   >
-                    <option value="銀行轉帳">⚡ 配合銀行虛擬代收 / 網銀轉帳</option>
-                    <option value="工務現場收取(現金)">💵 工務直接收取 (現金袋)</option>
-                    <option value="客戶交付本票支票">🎫 交付支票本票 / 期票</option>
-                    <option value="材料代採退佣內扣">🔄 上游材料退佣內扣折抵</option>
-                    <option value="其它抵算折扣">💬 其它折算 / 口頭特例折扣</option>
+                    <option className="!bg-[#1A1A1A] !text-[#E5E5E5]" value="銀行轉帳">⚡ 配合銀行虛擬代收 / 網銀轉帳</option>
+                    <option className="!bg-[#1A1A1A] !text-[#E5E5E5]" value="工務現場收取(現金)">💵 工務直接收取 (現金袋)</option>
+                    <option className="!bg-[#1A1A1A] !text-[#E5E5E5]" value="客戶交付本票支票">🎫 交付支票本票 / 期票</option>
+                    <option className="!bg-[#1A1A1A] !text-[#E5E5E5]" value="材料代採退佣內扣">🔄 上游材料退佣內扣折抵</option>
+                    <option className="!bg-[#1A1A1A] !text-[#E5E5E5]" value="其它抵算折扣">💬 其它折算 / 口頭特例折扣</option>
                   </select>
                 </div>
               </div>
@@ -3599,16 +3598,16 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
               {/* ======================================================== */}
               {/* SIMPLIFIED SCHEMES - STREAMLINED TO THREE INTUITIVE CATEGORIES */}
               {/* ======================================================== */}
-              <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-200/80 space-y-2.5">
-                <span className="block text-xs font-black text-neutral-750">
+              <div className="!bg-[#121212] p-3 rounded-xl border border-[#D4AF37]/20 space-y-2.5">
+                <span className="block text-xs font-black !text-[#F3E5AB]">
                   🧬 選擇沖帳目的分配選項（已精簡）：
                 </span>
 
                 <div className="grid grid-cols-3 gap-1.5">
                   <label className={`flex flex-col items-center justify-center p-2 rounded-lg border text-center cursor-pointer transition ${
                     simplifiedAllocType === 'single' 
-                      ? 'bg-amber-100/50 border-amber-500 text-amber-900' 
-                      : 'bg-white border-neutral-200 hover:border-amber-300 text-neutral-600'
+                      ? 'bg-[#D4AF37]/15 border-[#D4AF37] text-[#F3E5AB]' 
+                      : 'bg-[#1A1A1A] border-[#D4AF37]/10 hover:border-[#D4AF37]/35 text-neutral-400'
                   }`}>
                     <input
                       type="radio"
@@ -3623,8 +3622,8 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
 
                   <label className={`flex flex-col items-center justify-center p-2 rounded-lg border text-center cursor-pointer transition ${
                     simplifiedAllocType === 'pool' 
-                      ? 'bg-amber-100/50 border-amber-500 text-amber-900' 
-                      : 'bg-white border-neutral-200 hover:border-amber-300 text-neutral-600'
+                      ? 'bg-[#D4AF37]/15 border-[#D4AF37] text-[#F3E5AB]' 
+                      : 'bg-[#1A1A1A] border-[#D4AF37]/10 hover:border-[#D4AF37]/35 text-neutral-400'
                   }`}>
                     <input
                       type="radio"
@@ -3639,8 +3638,8 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
 
                   <label className={`flex flex-col items-center justify-center p-2 rounded-lg border text-center cursor-pointer transition ${
                     simplifiedAllocType === 'multi' 
-                      ? 'bg-amber-100/50 border-amber-500 text-amber-900' 
-                      : 'bg-white border-neutral-200 hover:border-amber-300 text-neutral-600'
+                      ? 'bg-[#D4AF37]/15 border-[#D4AF37] text-[#F3E5AB]' 
+                      : 'bg-[#1A1A1A] border-[#D4AF37]/10 hover:border-[#D4AF37]/35 text-neutral-400'
                   }`}>
                     <input
                       type="radio"
@@ -3654,12 +3653,11 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   </label>
                 </div>
 
-
                 {/* 1. DYNAMIC SECONDARY FIELDS FOR SINGLE */}
                 {simplifiedAllocType === 'single' && (
-                  <div className="space-y-3 pt-1 border-t border-neutral-200/50">
+                  <div className="space-y-3 pt-1 border-t border-[#D4AF37]/20">
                     <div>
-                      <label className="block text-[10px] font-black text-neutral-500 mb-1">
+                      <label className="block text-[10px] font-bold !text-[#E0E0E0] mb-1">
                         指定繳款沖銷之工地案場 <span className="text-red-500">*</span>
                       </label>
                       {targetCustomerProjects.length === 0 ? (
@@ -3668,15 +3666,15 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                         <select
                           value={payTargetProjId}
                           onChange={(e) => setPayTargetProjId(e.target.value)}
-                          className="w-full px-2.5 py-1.5 border border-neutral-300 rounded-lg text-xs bg-white text-neutral-800 font-bold"
+                          className="w-full px-2.5 py-1.5 border border-[#D4AF37]/20 rounded-lg text-xs bg-[#121212] !text-[#E0E0E0] font-bold outline-none focus:border-[#D4AF37]"
                           required={simplifiedAllocType === 'single'}
                         >
-                          <option value="">-- 請選擇指定工地 --</option>
+                          <option className="!bg-[#1A1A1A]" value="">-- 請選擇指定工地 --</option>
                           {targetCustomerProjects.map(p => {
                             const sum = projectSummaries[p.id];
                             const unpaid = sum ? sum.outstandingBalance : 0;
                             return (
-                              <option key={p.id} value={p.id}>
+                              <option className="!bg-[#1A1A1A]" key={p.id} value={p.id}>
                                 {getProjectDisplayName(p)} (未結欠款: ${unpaid.toLocaleString()}元)
                               </option>
                             );
@@ -3687,10 +3685,10 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
 
                     {/* Sub modes under single */}
                     <div>
-                      <label className="block text-[10px] font-black text-neutral-500 mb-1">沖抵特定案場屬性子選項：</label>
+                      <label className="block text-[10px] font-bold !text-[#E0E0E0] mb-1">沖抵特定案場屬性子選項：</label>
                       <div className="grid grid-cols-3 gap-2">
-                        <label className={`flex items-center gap-1.5 p-1.5 bg-white rounded border cursor-pointer text-[10px] hover:border-amber-400 ${
-                          singleAllocSubMode === 'normal' ? 'border-amber-500 bg-amber-50/20' : 'border-neutral-200'
+                        <label className={`flex items-center gap-1.5 p-1.5 bg-[#121212] rounded border cursor-pointer text-[10px] hover:border-[#D4AF37]/60 ${
+                          singleAllocSubMode === 'normal' ? 'border-[#D4AF37] bg-[#D4AF37]/10 text-[#F3E5AB]' : 'border-[#D4AF37]/10 text-neutral-400'
                         }`}>
                           <input
                             type="radio"
@@ -3702,8 +3700,8 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                           <span>💵 工程標準款</span>
                         </label>
 
-                        <label className={`flex items-center gap-1.5 p-1.5 bg-white rounded border cursor-pointer text-[10px] hover:border-amber-400 ${
-                          singleAllocSubMode === 'advance' ? 'border-amber-500 bg-amber-50/20' : 'border-neutral-200'
+                        <label className={`flex items-center gap-1.5 p-1.5 bg-[#121212] rounded border cursor-pointer text-[10px] hover:border-[#D4AF37]/60 ${
+                          singleAllocSubMode === 'advance' ? 'border-[#D4AF37] bg-[#D4AF37]/10 text-[#F3E5AB]' : 'border-[#D4AF37]/10 text-neutral-400'
                         }`}>
                           <input
                             type="radio"
@@ -3712,11 +3710,11 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                             onChange={() => setSingleAllocSubMode('advance')}
                             className="sr-only"
                           />
-                          <span>🎬 開工保證金/訂金</span>
+                          <span>🎬 開工訂金</span>
                         </label>
 
-                        <label className={`flex items-center gap-1.5 p-1.5 bg-white rounded border cursor-pointer text-[10px] hover:border-amber-400 ${
-                          singleAllocSubMode === 'rounding' ? 'border-amber-500 bg-amber-50/20' : 'border-neutral-200'
+                        <label className={`flex items-center gap-1.5 p-1.5 bg-[#121212] rounded border cursor-pointer text-[10px] hover:border-[#D4AF37]/60 ${
+                          singleAllocSubMode === 'rounding' ? 'border-[#D4AF37] bg-[#D4AF37]/10 text-[#F3E5AB]' : 'border-[#D4AF37]/10 text-neutral-400'
                         }`}>
                           <input
                             type="radio"
@@ -3725,30 +3723,30 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                             onChange={() => setSingleAllocSubMode('rounding')}
                             className="sr-only"
                           />
-                          <span>🔩 去尾抹零特調</span>
+                          <span>🔩 去尾抹零</span>
                         </label>
                       </div>
                     </div>
 
                     {/* Part/Stage of Partial Payments Indicator */}
                     {singleAllocSubMode === 'normal' && (
-                      <div className="p-2.5 bg-amber-50/20 rounded-lg border border-dashed border-amber-250 animate-fadeIn space-y-1">
-                        <label className="block text-[10px] font-black text-amber-900 mb-0.5">
+                      <div className="p-2.5 bg-[#D4AF37]/5 rounded-lg border border-dashed border-[#D4AF37]/35 animate-fadeIn space-y-1">
+                        <label className="block text-[10px] font-bold !text-[#F3E5AB] mb-0.5">
                           📊 部分收款 / 階段期款 (Stage Payment) 軌跡標記：
                         </label>
                         <select
                           value={payStage}
                           onChange={(e) => setPayStage(e.target.value)}
-                          className="w-full px-2 py-1 border border-neutral-300 rounded text-xs bg-white text-neutral-850 font-bold"
+                          className="w-full px-2 py-1 border border-[#D4AF37]/20 rounded text-xs bg-[#121212] !text-[#E0E0E0] font-bold outline-none focus:border-[#D4AF37]"
                         >
-                          <option value="一般單次/實收工程款">💵 一般單次 / 實收工程進度款</option>
-                          <option value="第一期款 (簽約訂金)">🥇 第一期 : 簽約與定金期款</option>
-                          <option value="第二期款 (施工開工款)">🥈 第二期 : 工程開工進場款</option>
-                          <option value="第三期款 (階段進度款)">🥉 第三期 : 工程中段進度款</option>
-                          <option value="第四期款 (尾款與驗收款)">🏆 第四期 : 尾款與驗收結案款</option>
-                          <option value="其他分期收款">💬 其他自訂分期部分收款</option>
+                          <option className="!bg-[#1A1A1A]" value="一般單次/實收工程款">💵 一般單次 / 實收工程進度款</option>
+                          <option className="!bg-[#1A1A1A]" value="第一期款 (簽約訂金)">🥇 第一期 : 簽約與定金期款</option>
+                          <option className="!bg-[#1A1A1A]" value="第二期款 (施工開工款)">🥈 第二期 : 工程開工進場款</option>
+                          <option className="!bg-[#1A1A1A]" value="第三期款 (階段進度款)">🥉 第三期 : 工程中段進度款</option>
+                          <option className="!bg-[#1A1A1A]" value="第四期款 (尾款與驗收款)">🏆 第四期 : 尾款與驗收結案款</option>
+                          <option className="!bg-[#1A1A1A]" value="其他分期收款">💬 其他自訂分期部分收款</option>
                         </select>
-                        <p className="text-[9px] text-neutral-400 leading-normal">
+                        <p className="text-[9px] !text-neutral-400 leading-normal">
                           此標記會登錄在本筆收款之「期款軌跡」中，便於案場對帳核對。
                         </p>
                       </div>
@@ -3756,40 +3754,39 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   </div>
                 )}
 
-
                 {/* 2. DYNAMIC SECONDARY FIELDS FOR PREPAYMENTS POOL */}
                 {simplifiedAllocType === 'pool' && (
-                  <div className="space-y-3 pt-1 border-t border-neutral-200/50">
+                  <div className="space-y-3 pt-1 border-t border-[#D4AF37]/20">
                     <div>
-                      <label className="block text-[10px] font-black text-neutral-500 mb-1">
+                      <label className="block text-[10px] font-bold !text-[#E0E0E0] mb-1">
                         存入/折銷模式指定：
                       </label>
                       <div className="space-y-2">
-                        <label className="flex items-start gap-2 p-2 bg-white rounded-lg border border-neutral-200 hover:border-amber-300 cursor-pointer">
+                        <label className="flex items-start gap-2 p-2 bg-[#121212] rounded-lg border border-[#D4AF37]/15 hover:border-[#D4AF37]/35 cursor-pointer">
                           <input
                             type="radio"
                             name="poolSub"
                             checked={poolAllocSubMode === 'pool_store'}
                             onChange={() => setPoolAllocSubMode('pool_store')}
-                            className="mt-0.5 text-amber-600 focus:ring-amber-500 shrink-0"
+                            className="mt-0.5 text-[#D4AF37] focus:ring-[#D4AF37] shrink-0"
                           />
                           <div className="text-[11px] leading-tight">
-                            <span className="font-bold text-neutral-800 block">儲存至客戶預收款帳戶 (備用合扣)</span>
-                            <span className="text-neutral-400 text-[10px]">款項不限案子，將存入此配合戶的溢領餘額中，未來隨時手工指定抵扣。</span>
+                            <span className="font-bold !text-[#F3E5AB] block">儲存至客戶預收款帳戶 (備用合扣)</span>
+                            <span className="!text-neutral-400 text-[10px]">款項不限案子，將存入此配合戶的溢領餘額中，未來隨時手工指定抵扣。</span>
                           </div>
                         </label>
 
-                        <label className="flex items-start gap-2 p-2 bg-white rounded-lg border border-neutral-200 hover:border-amber-300 cursor-pointer">
+                        <label className="flex items-start gap-2 p-2 bg-[#121212] rounded-lg border border-[#D4AF37]/15 hover:border-[#D4AF37]/35 cursor-pointer">
                           <input
                             type="radio"
                             name="poolSub"
                             checked={poolAllocSubMode === 'old_debt_auto'}
                             onChange={() => setPoolAllocSubMode('old_debt_auto')}
-                            className="mt-0.5 text-amber-600 focus:ring-amber-500 shrink-0"
+                            className="mt-0.5 text-[#D4AF37] focus:ring-[#D4AF37] shrink-0"
                           />
                           <div className="text-[11px] leading-tight">
-                            <span className="font-bold text-neutral-800 block">由系統優先自動沖銷最舊欠款</span>
-                            <span className="text-neutral-400 text-[10px]">自動按照工程流水開案順序，由舊到新優先折抵此客戶名下的未繳欠款案，溢收部分仍自動存入預收池。</span>
+                            <span className="font-bold !text-[#F3E5AB] block">由系統優先自動沖銷最舊欠款</span>
+                            <span className="!text-neutral-400 text-[10px]">自動按照工程流水開案順序，由舊到新優先折抵此客戶名下的未繳欠款案，溢收部分仍自動存入預收池。</span>
                           </div>
                         </label>
                       </div>
@@ -3797,11 +3794,10 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   </div>
                 )}
 
-
                 {/* 3. DYNAMIC MULTI PROJECT MANUAL SPLIT */}
                 {simplifiedAllocType === 'multi' && (
-                  <div className="space-y-2 pt-1 border-t border-neutral-200/50">
-                    <span className="text-[10px] font-bold text-amber-950 block">手動指定金額分配給各個工地 (實收: ${payAmount.toLocaleString()})</span>
+                  <div className="space-y-2 pt-1 border-t border-[#D4AF37]/20">
+                    <span className="text-[10px] font-bold !text-[#F3E5AB] block">手動指定金額分配給各個工地 (實收: ${payAmount.toLocaleString()})</span>
                     
                     {targetCustomerProjects.length === 0 ? (
                       <p className="text-[10px] text-neutral-400 italic">該配合客戶名下目前尚未開立任何案場工程。</p>
@@ -3811,12 +3807,12 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                           const unpaid = projectSummaries[p.id]?.outstandingBalance || 0;
                           const alloc = multiAllocSplits[p.id] || 0;
                           return (
-                            <div key={p.id} className="flex items-center justify-between gap-2 text-[10px] bg-white p-1.5 rounded border border-neutral-200">
-                              <span className="font-bold text-neutral-700 truncate max-w-[220px]" title={getProjectDisplayName(p)}>
+                            <div key={p.id} className="flex items-center justify-between gap-2 text-[10px] bg-[#121212] p-1.5 rounded border border-[#D4AF37]/15 font-bold">
+                              <span className="font-bold !text-[#E0E0E0] truncate max-w-[220px]" title={getProjectDisplayName(p)}>
                                 {getProjectDisplayName(p)}
                               </span>
                               <div className="flex items-center gap-1">
-                                <span className="text-neutral-400">未結: ${unpaid} | 分配:</span>
+                                <span className="!text-neutral-400">未結: ${unpaid} | 分配:</span>
                                 <input
                                   type="number"
                                   placeholder="0"
@@ -3825,7 +3821,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                     const val = Math.max(0, parseInt(e.target.value) || 0);
                                     setMultiAllocSplits(prev => ({ ...prev, [p.id]: val }));
                                   }}
-                                  className="w-16 border rounded text-center py-0.5 font-bold font-mono px-0.5"
+                                  className="w-16 border border-[#D4AF37]/20 bg-[#1A1A1A] !text-[#F3E5AB] rounded text-center py-0.5 font-bold font-mono px-0.5"
                                 />
                               </div>
                             </div>
@@ -3834,9 +3830,9 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                       </div>
                     )}
 
-                    <div className="flex justify-between items-center text-[10px] text-neutral-500 font-bold border-t pt-1.5">
+                    <div className="flex justify-between items-center text-[10px] !text-[#E0E0E0] font-bold border-t border-[#D4AF37]/15 pt-1.5">
                       <span>已分配金額小計：</span>
-                      <span className="font-mono bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded">
+                      <span className="font-mono bg-[#D4AF37]/10 !text-[#F3E5AB] border border-[#D4AF37]/25 px-1.5 py-0.5 rounded">
                         ${(Object.values(multiAllocSplits) as number[]).reduce((s, v) => s + v, 0).toLocaleString()} 元
                       </span>
                     </div>
@@ -3845,10 +3841,9 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
 
               </div>
 
-
               {/* Core Description Remark */}
               <div>
-                <label className="block text-[11px] font-black text-neutral-600 mb-1">
+                <label className="block text-[11px] font-bold !text-[#E0E0E0] mb-1">
                   帳務核銷日誌描述備忘 (選填)
                 </label>
                 <input
@@ -3856,22 +3851,22 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   placeholder="如: 張慶祥中山自宅訂金、去尾不找零累計、退佣抵扣等"
                   value={payDescription}
                   onChange={(e) => setPayDescription(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-neutral-300 rounded-lg text-xs"
+                  className="w-full px-2.5 py-1.5 border border-[#D4AF37]/20 rounded-lg text-xs bg-[#121212] !text-[#E0E0E0] outline-none focus:border-[#D4AF37]"
                 />
               </div>
 
               {/* Action buttons */}
-              <div className="pt-4 flex items-center justify-end gap-3 border-t border-neutral-200">
+              <div className="pt-4 flex items-center justify-end gap-3 border-t border-[#D4AF37]/20">
                 <button
                   type="button"
                   onClick={() => setShowAddPaymentModal(false)}
-                  className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 rounded-lg text-xs font-bold cursor-pointer"
+                  className="px-4 py-2 border border-[#D4AF37]/25 bg-[#121212] !text-[#D4AF37] hover:!bg-[#D4AF37]/15 rounded-lg text-xs font-bold cursor-pointer"
                 >
                   取消
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-black shadow flex items-center gap-1 cursor-pointer"
+                  className="px-5 py-2 bg-[#D4AF37] hover:bg-[#bfa032] text-black rounded-lg text-xs font-black shadow flex items-center gap-1 cursor-pointer"
                 >
                   <Check size={14} className="stroke-[2.5]" />
                   安全核實記帳入帳
@@ -3883,6 +3878,18 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
           </div>
         </div>
       )}
+
+
+
+
+
+
+
+
+
+
+
+
 
       {/* Custom Elegant Confirm Dialog */}
       {confirmModal.isOpen && (

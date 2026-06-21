@@ -953,7 +953,7 @@ export default function App() {
         </nav>
 
         {/* Dynamic Display area */}
-        <div className="space-y-6">
+        <div className="space-y-6 min-h-[750px]">
           <AnimatePresence mode="wait">
             {/* RECORD FORM SCREEN */}
             {showRecordForm ? (
@@ -1008,7 +1008,7 @@ export default function App() {
                             setPreSelAddress(undefined);
                             setShowProjectModal(true);
                           }}
-                          className="px-5 py-2.5 text-xs font-black text-black bg-[#D4AF37] hover:bg-[#e5bd42] active:scale-95 rounded-xl border border-[#D4AF37] shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5 font-bold"
+                          className="px-5 py-2.5 bg-[#D4AF37] hover:bg-[#bfa032] text-black font-extrabold text-xs rounded-xl transition-all border border-[#D4AF37] shadow-md flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
                         >
                           <Plus size={14} className="stroke-[3]" />
                           新開案場專案
@@ -1021,10 +1021,10 @@ export default function App() {
                       <div className="flex border border-[#2D2D2D] bg-[#1E1E1E] p-1.5 rounded-xl flex-1 max-w-4xl gap-2 shadow-sm overflow-x-auto scrollbar-none">
                         <button
                           onClick={() => { setRecordsSubTab('today'); setShowRecordForm(false); }}
-                          className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+                          className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
                             recordsSubTab === 'today'
-                              ? 'bg-amber-600 text-white border-amber-700 shadow-sm font-black'
-                              : 'bg-[#252525] text-neutral-300 border-[#333333] hover:text-white hover:bg-[#2C2C2C] font-bold'
+                              ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-3xs font-extrabold'
+                              : 'bg-[#252525] text-neutral-300 border-[#3A3A3A] hover:text-[#D4AF37] hover:bg-[#2C2C2C] font-semibold'
                           }`}
                         >
                           <Calendar size={15} className="shrink-0 stroke-[2.5]" />
@@ -1036,10 +1036,10 @@ export default function App() {
                         
                         <button
                           onClick={() => { setRecordsSubTab('projects'); setShowRecordForm(false); }}
-                          className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+                          className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
                             recordsSubTab === 'projects'
-                              ? 'bg-amber-600 text-white border-amber-700 shadow-sm font-black'
-                              : 'bg-[#252525] text-neutral-300 border-[#333333] hover:text-white hover:bg-[#2C2C2C] font-bold'
+                              ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-3xs font-extrabold'
+                              : 'bg-[#252525] text-neutral-300 border-[#3A3A3A] hover:text-[#D4AF37] hover:bg-[#2C2C2C] font-semibold'
                           }`}
                         >
                           <FolderLock size={15} className="shrink-0 stroke-[2.5]" />
@@ -1051,10 +1051,10 @@ export default function App() {
 
                         <button
                           onClick={() => { setRecordsSubTab('history'); setShowRecordForm(false); }}
-                          className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+                          className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
                             recordsSubTab === 'history'
-                              ? 'bg-amber-600 text-white border-amber-700 shadow-sm font-black'
-                              : 'bg-[#252525] text-neutral-300 border-[#333333] hover:text-white hover:bg-[#2C2C2C] font-bold'
+                              ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-3xs font-extrabold'
+                              : 'bg-[#252525] text-neutral-300 border-[#3A3A3A] hover:text-[#D4AF37] hover:bg-[#2C2C2C] font-semibold'
                           }`}
                         >
                           <ClipboardList size={15} className="shrink-0 stroke-[2.5]" />
@@ -1066,10 +1066,10 @@ export default function App() {
 
                         <button
                           onClick={() => { setRecordsSubTab('customers'); setShowRecordForm(false); }}
-                          className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+                          className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
                             recordsSubTab === 'customers'
-                              ? 'bg-amber-600 text-white border-amber-700 shadow-sm font-black'
-                              : 'bg-[#252525] text-neutral-300 border-[#333333] hover:text-white hover:bg-[#2C2C2C] font-bold'
+                              ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-3xs font-extrabold'
+                              : 'bg-[#252525] text-neutral-300 border-[#3A3A3A] hover:text-[#D4AF37] hover:bg-[#2C2C2C] font-semibold'
                           }`}
                         >
                           <Users size={15} className="shrink-0 stroke-[2.5]" />
@@ -1084,7 +1084,7 @@ export default function App() {
                         <button
                           id="quick-start-record-btn"
                           onClick={() => { setRecordToEdit(undefined); setShowRecordForm(true); }}
-                          className="px-5 py-2.5 bg-[#D4AF37] hover:bg-[#e5bd42] active:scale-95 text-black font-black text-xs rounded-xl transition-all border border-[#D4AF37] shadow-sm flex items-center justify-center gap-1.5 cursor-pointer font-bold"
+                          className="px-5 py-2.5 bg-[#D4AF37] hover:bg-[#bfa032] text-black font-extrabold text-xs rounded-xl transition-all border border-[#D4AF37] shadow-md flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
                         >
                           <Plus size={14} className="stroke-[3]" />
                           <span>登錄當日工務日誌</span>
@@ -1169,13 +1169,14 @@ export default function App() {
 
                             if (todayRecords.length === 0) {
                               return (
-                                <div className="text-center py-10 bg-white rounded-2xl border border-neutral-200 border-dashed">
-                                  <p className="text-sm text-neutral-500 font-medium">今天尚未登錄任何施工日誌！</p>
+                                <div className="text-center py-10 bg-[#1E1E1E] border border-[#2C2C2C] rounded-2xl border-dashed flex flex-col items-center justify-center">
+                                  <p className="text-sm text-neutral-400 font-extrabold mb-1">今天尚未登錄任何施工日誌！</p>
                                   <button
-                                    onClick={() => setShowRecordForm(true)}
-                                    className="mt-3 px-5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold cursor-pointer"
+                                    onClick={() => { setRecordToEdit(undefined); setShowRecordForm(true); }}
+                                    className="mt-3 px-5 py-2.5 bg-[#D4AF37] hover:bg-[#bfa032] text-black font-extrabold text-xs rounded-xl transition-all border border-[#D4AF37] shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
                                   >
-                                    立即登錄今日工程
+                                    <Plus size={14} className="stroke-[3]" />
+                                    <span>登錄當日工務日誌</span>
                                   </button>
                                 </div>
                               );
@@ -1194,37 +1195,37 @@ export default function App() {
                                     const formattedProjName = matchedProj ? getProjectDisplayName(matchedProj) : record.projectName;
 
                                     return (
-                                      <div key={record.id} className="p-4.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-amber-50/50 border-amber-300 shadow-xs">
+                                      <div key={record.id} className="p-4.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#1E1E1E] border-[#D4AF37]/20 shadow-xs">
                                         <div className="space-y-1.5">
                                           <div className="flex items-center gap-2">
-                                            <span className="font-mono text-xs font-black bg-amber-200 text-amber-950 px-2 py-0.5 rounded">
+                                            <span className="font-mono text-[10px] font-black bg-[#D4AF37]/10 text-[#F3E5AB] border border-[#D4AF37]/20 px-2 py-0.5 rounded">
                                               {record.date} 🔥 本日施工
                                             </span>
                                             {record.markAsCompleted ? (
-                                              <span className="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded-full">已宣告結案</span>
+                                              <span className="text-[10px] px-2 py-0.5 bg-emerald-950/80 text-[#10B981] font-bold border border-emerald-900/40 rounded-full">已宣告結案</span>
                                             ) : (
-                                              <span className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-800 font-bold rounded-full">持續施作中</span>
+                                              <span className="text-[10px] px-2 py-0.5 bg-[#D4AF37]/5 text-[#D4AF37] font-bold border border-[#D4AF37]/20 rounded-full">持續施作中</span>
                                             )}
                                           </div>
-                                          <h4 className="text-xs sm:text-sm font-extrabold text-neutral-800">
+                                          <h4 className="text-xs sm:text-sm font-extrabold text-[#F3E5AB]">
                                             {formattedProjName}
                                           </h4>
-                                          <p className="text-xs text-neutral-400 font-medium font-mono">
+                                          <p className="text-xs text-neutral-400 font-medium">
                                             {record.notes ? `施工說明/進度備份：${record.notes}` : '工作正常，無特殊狀況。'}
                                           </p>
                                         </div>
 
-                                        <div className="flex items-center justify-between sm:justify-end gap-5 pt-3 sm:pt-0 border-t sm:border-t-0 border-neutral-100">
+                                        <div className="flex items-center justify-between sm:justify-end gap-5 pt-3 sm:pt-0 border-t sm:border-t-0 border-[#D4AF37]/15">
                                           <div className="text-left sm:text-right">
                                             <span className="text-[10px] text-neutral-400 font-bold block leading-relaxed">日誌工料估算費用</span>
-                                            <span className="text-xs sm:text-sm font-black text-neutral-800 font-mono">
+                                            <span className="text-xs sm:text-sm font-black text-[#F3E5AB] font-mono">
                                               ${recordTotalCost.toLocaleString()} 元
                                             </span>
                                           </div>
                                           <div className="flex items-center gap-2">
                                             <button
                                               onClick={() => handleEditRecordTrigger(record)}
-                                              className="px-3.5 py-1.5 bg-white hover:bg-neutral-100 text-neutral-800 border border-neutral-200 font-bold text-xs rounded-xl transition-all cursor-pointer shadow-3xs"
+                                              className="px-3.5 py-1.5 bg-[#121212] hover:bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/25 font-bold text-xs rounded-xl transition-all cursor-pointer shadow-3xs"
                                             >
                                               詳細與修改
                                             </button>
@@ -1236,8 +1237,8 @@ export default function App() {
                                 </div>
 
                                 {/* Active projects suggestion anyway for quick add */}
-                                <div className="mt-6 bg-neutral-50 p-5 rounded-2xl border border-neutral-200/80">
-                                  <h4 className="text-xs font-extrabold uppercase tracking-widest text-neutral-500 mb-3 flex items-center gap-1.5">
+                                <div className="mt-6 bg-[#1A1A1A] p-5 rounded-2xl border border-[#D4AF37]/10">
+                                  <h4 className="text-xs font-black uppercase tracking-widest text-[#D4AF37] mb-3 flex items-center gap-1.5">
                                     <span>🏗️ 其他施作中案場 (快速登錄)</span>
                                   </h4>
                                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1259,13 +1260,13 @@ export default function App() {
                                               });
                                               setShowRecordForm(true);
                                             }}
-                                        className="text-left p-3 bg-white hover:bg-amber-50 hover:border-amber-300 transition-all border border-neutral-200 rounded-xl cursor-pointer group"
+                                        className="text-left p-3 bg-[#121212] hover:bg-[#D4AF37]/5 hover:border-[#D4AF37]/45 transition-all border border-[#D4AF37]/15 rounded-xl cursor-pointer group"
                                       >
-                                        <div className="text-[10px] font-mono font-bold text-amber-600 mb-1 flex items-center justify-between">
+                                        <div className="text-[10px] font-mono font-bold text-[#D4AF37] mb-1 flex items-center justify-between">
                                           <span>{p.serialNumber}</span>
-                                          <span className="text-neutral-400 group-hover:text-amber-600 transition-colors">快速登錄 →</span>
+                                          <span className="text-neutral-450 group-hover:text-[#D4AF37] transition-colors">快速登錄 →</span>
                                         </div>
-                                        <div className="text-xs font-bold text-neutral-800 line-clamp-1">
+                                        <div className="text-xs font-bold text-[#E0E0E0] line-clamp-1">
                                           {getProjectDisplayName(p)}
                                         </div>
                                       </button>
@@ -1658,10 +1659,10 @@ export default function App() {
                     <div className="flex border border-[#2D2D2D] bg-[#1E1E1E] p-1.5 rounded-xl max-w-md select-none gap-2 shadow-sm overflow-x-auto scrollbar-none">
                       <button
                         onClick={() => setMaterialsSubTab('records')}
-                        className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+                        className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
                           materialsSubTab === 'records'
-                            ? 'bg-amber-600 text-white border-amber-700 shadow-sm font-black'
-                            : 'bg-[#252525] text-neutral-300 border-[#333333] hover:text-white hover:bg-[#2C2C2C] font-bold'
+                            ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-3xs font-extrabold'
+                            : 'bg-[#252525] text-neutral-300 border-[#3A3A3A] hover:text-[#D4AF37] hover:bg-[#2C2C2C] font-semibold'
                         }`}
                       >
                         <ShoppingBag size={15} className="shrink-0 stroke-[2.5]" />
@@ -1670,10 +1671,10 @@ export default function App() {
                       
                       <button
                         onClick={() => setMaterialsSubTab('suppliers')}
-                        className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+                        className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
                           materialsSubTab === 'suppliers'
-                            ? 'bg-amber-600 text-white border-amber-700 shadow-sm font-black'
-                            : 'bg-[#252525] text-neutral-300 border-[#333333] hover:text-white hover:bg-[#2C2C2C] font-bold'
+                            ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-3xs font-extrabold'
+                            : 'bg-[#252525] text-neutral-300 border-[#3A3A3A] hover:text-[#D4AF37] hover:bg-[#2C2C2C] font-semibold'
                         }`}
                       >
                         <Store size={15} className="shrink-0 stroke-[2.5]" />

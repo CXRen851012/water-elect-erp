@@ -663,7 +663,7 @@ export default function ProjectForm({
               id="btn-confirm-project"
               type="submit"
               disabled={!companyOrOwner.trim() || !fullAddress.trim()}
-              className="px-5 py-2 text-xs font-black !text-[#0D0D0D] bg-gradient-to-r from-[#D4AF37] to-[#AA7C11] hover:brightness-110 active:scale-95 disabled:!from-[#333333] disabled:!to-[#222222] disabled:!text-[#8C8C8C] disabled:opacity-30 disabled:cursor-not-allowed rounded-lg shadow-md transition flex items-center gap-1"
+              className="px-5 py-2 text-xs font-black !text-[#0D0D0D] bg-gradient-to-r from-[#D4AF37] to-[#AA7C11] hover:brightness-110 disabled:!from-[#333333] disabled:!to-[#222222] disabled:!text-[#8C8C8C] disabled:opacity-30 disabled:cursor-not-allowed rounded-lg shadow-md transition flex items-center gap-1"
             >
               <CheckCircle2 size={13} />
               建立新案場
