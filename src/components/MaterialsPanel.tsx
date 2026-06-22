@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { MaterialPreset, Supplier, MaterialUnitOption, MaterialSupplier } from '../types';
-import { Plus, Trash2, Edit, ShoppingBag, Info, ShieldCheck, ChevronDown, ChevronUp, Scale, Settings, Check, X } from 'lucide-react';
-import { calculateMaterialListPrice, getCategoryMaterialConfigs, saveCategoryMaterialConfigs } from '../utils/billingUtils';
+import { Plus, Trash2, Edit, ShoppingBag, Info, ShieldCheck, ChevronDown, ChevronUp, Scale, Settings, Check, X, FileSpreadsheet, Download, Upload } from 'lucide-react';
+import { calculateMaterialListPrice, getCategoryMaterialConfigs, saveCategoryMaterialConfigs, getSubcategories, saveSubcategories, getSubcategoryMultipliers, saveSubcategoryMultipliers } from '../utils/billingUtils';
+import * as XLSX from 'xlsx';
+
+export const DEFAULT_SUBCATEGORIES: { [key: string]: string[] } = {
+  '水路管材類': ['PVC管/另件', '不銹鋼管/接頭', '壓接另件', '配管閥門', '止洩帶/膠水', '冷熱水龍頭', '給排水管件'],
+  '電路電材類': ['電線單線', '絞線電纜', '電工膠帶', '插座開關', '配電箱/斷路器', '線槽軟管', '絕緣套管/端子'],
+  '廚衛設備類': ['衛生馬桶', '面盆面鏡', '花灑淋浴', '排風機/暖風機', '廚房水槽/龍頭', '衛浴五金掛件'],
+  '五金緊固類': ['木工牙螺絲', '水泥壁虎/膨脹螺栓', '鋼牙螺母', '吊架固定環', '矽利康/結構膠'],
+  '工具與雜耗': ['手工具類', '電動工具', '測量計量', '保護雜耗', '清潔打掃/手套']
+};
 
 interface MaterialsPanelProps {
   materials: MaterialPreset[];
@@ -19,6 +28,10 @@ export default function MaterialsPanel({
   const activeSuppliers = suppliers.filter(s => s.showInMaterialsDatabase !== false);
 
   const [categoryConfigs, setCategoryConfigs] = useState(() => getCategoryMaterialConfigs());
+  const [subcategories, setSubcategories] = useState<{ [category: string]: string[] }>(() => getSubcategories());
+  const [subMultipliers, setSubMultipliers] = useState<{ [key: string]: number }>(() => getSubcategoryMultipliers());
+  const [activeConfigCategory, setActiveConfigCategory] = useState<string | null>(null);
+  const [newSubcatName, setNewSubcatName] = useState('');
 
   // Material categories state
   const [categories, setCategories] = useState<string[]>(() => {
@@ -62,6 +75,27 @@ export default function MaterialsPanel({
   // New Material form state
   const [newMatName, setNewMatName] = useState('');
   const [newMatCategory, setNewMatCategory] = useState(categories[0] || '水路管材類');
+  const [newMatSubcategory, setNewMatSubcategory] = useState('');
+  const [editMatSubcategory, setEditMatSubcategory] = useState('');
+  const [settingsMatSubcategoryFilter, setSettingsMatSubcategoryFilter] = useState('全部');
+  const [excelImportReport, setExcelImportReport] = useState<{
+    show: boolean;
+    allReadCount: number;
+    newItems: {
+      item: MaterialPreset;
+      decision: 'import' | 'skip';
+    }[];
+    dupItems: {
+      item: MaterialPreset;
+      matchedExistingItem: MaterialPreset;
+      decision: 'overwrite' | 'skip';
+    }[];
+    suspectItems: {
+      importedItem: MaterialPreset;
+      matchedExistingItem: MaterialPreset;
+      decision: 'import_as_new' | 'skip' | 'overwrite';
+    }[];
+  } | null>(null);
 
   // 類似/重複材料防呆提示機制
   const [dupConflictMaterials, setDupConflictMaterials] = useState<MaterialPreset[]>([]);
@@ -84,6 +118,7 @@ export default function MaterialsPanel({
     if (settingsMatCategoryFilter !== '全部' && categories.includes(settingsMatCategoryFilter)) {
       setNewMatCategory(settingsMatCategoryFilter);
     }
+    setSettingsMatSubcategoryFilter('全部');
   }, [settingsMatCategoryFilter]);
 
   // 2. 當 categories 變更時，確保現選的新增和編輯分類依然合法存在於名單中，避免被刪除後報錯
@@ -97,6 +132,385 @@ export default function MaterialsPanel({
       }
     }
   }, [categories]);
+
+  // --- EXCEL IMPORT / EXPORT OPERATIONS ---
+  const handleExportExcel = () => {
+    try {
+      const dataToExport = materials.map((m, idx) => {
+        const uos = m.unitOptions && m.unitOptions.length > 0 ? m.unitOptions : [
+          {
+            unit: m.unit || '個',
+            defaultUnitPrice: m.defaultUnitPrice || 0,
+            defaultCostPrice: m.defaultCostPrice || 0
+          }
+        ];
+        // We export primary or first option
+        const primary = uos[0];
+        return {
+          '系統防重複ID(請勿更動，空白視為全新增)': m.id,
+          '名稱(必填)': m.name,
+          '大分類(必填)': m.category || '水路管材類',
+          '次細分類二層(選填)': m.subcategory || '',
+          '計量單位(必填)': primary.unit || '個',
+          '建議對外牌價(元)': primary.defaultUnitPrice || 0,
+          '進料實際成本(元)': primary.defaultCostPrice || 0
+        };
+      });
+
+      if (dataToExport.length === 0) {
+        dataToExport.push({
+          '系統防重複ID(請勿更動，空白視為全新增)': 'template-1',
+          '名稱(必填)': '南亞 PVC 1英吋水管 (4米/支)',
+          '大分類(必填)': '水路管材類',
+          '次細分類二層(選填)': 'PVC管/另件',
+          '計量單位(必填)': '支',
+          '建議對外牌價(元)': 150,
+          '進料實際成本(元)': 95
+        });
+        dataToExport.push({
+          '系統防重複ID(請勿更動，空白視為全新增)': 'template-2',
+          '名稱(必填)': '太平洋 2.0 單線紅 100米',
+          '大分類(必填)': '電路電材類',
+          '次細分類二層(選填)': '電線單線',
+          '計量單位(必填)': '捲',
+          '建議對外牌價(元)': 1800,
+          '進料實際成本(元)': 1350
+        });
+      }
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, '材料儲備大庫');
+      XLSX.writeFile(workbook, `常備資材儲備大庫_${new Date().toISOString().substring(0, 10)}.xlsx`);
+      onSaveToast('📥 已成功產出並下載常備資材大庫 Excel 清單/範本！');
+    } catch (err) {
+      console.error(err);
+      alert('產生 Excel 失敗：' + (err instanceof Error ? err.message : String(err)));
+    }
+  };
+
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const workbook = XLSX.read(bstr, { type: 'binary' });
+        const wsname = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[wsname];
+        const rawData = XLSX.utils.sheet_to_json<any>(worksheet);
+
+        if (rawData.length === 0) {
+          alert('上傳的 Excel 中沒有讀取到任何資料！');
+          return;
+        }
+
+        const imported: MaterialPreset[] = [];
+        
+        rawData.forEach((row: any) => {
+          // Identify columns
+          const idKey = Object.keys(row).find(k => k.includes('系統') || k.includes('ID') || k.toLowerCase().includes('id'));
+          const nameKey = Object.keys(row).find(k => k.includes('名稱') || k.toLowerCase().includes('name') || k.includes('品項'));
+          const catKey = Object.keys(row).find(k => k.includes('大分類') || k.includes('分類') || k.toLowerCase().includes('category'));
+          const subcatKey = Object.keys(row).find(k => k.includes('次細') || k.includes('次分類') || k.includes('二層') || k.toLowerCase().includes('subcat'));
+          const unitKey = Object.keys(row).find(k => k.includes('計量單位') || k.includes('單位') || k.toLowerCase().includes('unit'));
+          const priceKey = Object.keys(row).find(k => k.includes('牌價') || k.includes('單價') || k.toLowerCase().includes('price') || k.includes('定價'));
+          const costKey = Object.keys(row).find(k => k.includes('成本') || k.includes('進價') || k.toLowerCase().includes('cost'));
+
+          if (!nameKey || !row[nameKey]) return; // Skip blank lines
+
+          const rawId = idKey && row[idKey] ? String(row[idKey]).trim() : '';
+          const nameVal = String(row[nameKey]).trim();
+          if (rawId.startsWith('template-')) return; // Ignore guide row
+
+          const catVal = catKey && row[catKey] ? String(row[catKey]).trim() : '水路管材類';
+          const subcatVal = subcatKey && row[subcatKey] ? String(row[subcatKey]).trim() : '';
+          const unitVal = unitKey && row[unitKey] ? String(row[unitKey]).trim() : '個';
+          const priceVal = priceKey && row[priceKey] ? Math.max(0, parseFloat(row[priceKey]) || 0) : 0;
+          const costVal = costKey && row[costKey] ? Math.max(0, parseFloat(row[costKey]) || 0) : 0;
+
+          // Deduce unique ID or generate new
+          const cleanId = rawId && rawId.length > 3 ? rawId : `m-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+          imported.push({
+            id: cleanId,
+            name: nameVal,
+            category: catVal,
+            subcategory: subcatVal || undefined,
+            unit: unitVal,
+            defaultUnitPrice: priceVal,
+            defaultCostPrice: costVal,
+            unitOptions: [
+              {
+                id: `uo-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+                unit: unitVal,
+                defaultUnitPrice: priceVal,
+                defaultCostPrice: costVal,
+                suppliers: []
+              }
+            ]
+          });
+        });
+
+        if (imported.length === 0) {
+          alert('未能成功識別有效材料品項，請檢查欄位格式是否包含「名稱」！');
+          return;
+        }
+
+        const newItems: MaterialPreset[] = [];
+        const dupItems: MaterialPreset[] = [];
+        const suspectItems: {
+          importedItem: MaterialPreset;
+          matchedExistingItem: MaterialPreset;
+          decision: 'import_as_new' | 'skip' | 'overwrite';
+        }[] = [];
+
+        imported.forEach(item => {
+          // Both name match or ID match count as exact duplicates
+          const exactMatch = materials.find(m => 
+            m.name.toLowerCase().replace(/\s+/g, '') === item.name.toLowerCase().replace(/\s+/g, '') ||
+            m.id === item.id
+          );
+          
+          if (exactMatch) {
+            dupItems.push(item);
+          } else {
+            // Check for fuzzy similar matches (includes substrings or 65%+ letter overlaps)
+            const fuzzyMatch = materials.find(m => {
+              const na = m.name.toLowerCase().trim();
+              const nb = item.name.toLowerCase().trim();
+              if (na === nb) return false;
+              if (na.includes(nb) || nb.includes(na)) return true;
+              
+              const setA = new Set<string>(na.replace(/\s+/g, '').split(''));
+              const setB = new Set<string>(nb.replace(/\s+/g, '').split(''));
+              let intersectCount = 0;
+              setA.forEach(char => {
+                if (setB.has(char)) intersectCount++;
+              });
+              const maxLength = Math.max(setA.size, setB.size);
+              if (maxLength > 0) {
+                const ratio = intersectCount / maxLength;
+                if (ratio >= 0.65) return true;
+              }
+              return false;
+            });
+
+            if (fuzzyMatch) {
+              suspectItems.push({
+                importedItem: item,
+                matchedExistingItem: fuzzyMatch,
+                decision: 'import_as_new'
+              });
+            } else {
+              newItems.push(item);
+            }
+          }
+        });
+
+        setExcelImportReport({
+          show: true,
+          allReadCount: imported.length,
+          newItems: newItems.map(item => ({ item, decision: 'import' as const })),
+          dupItems: dupItems.map(item => {
+            const matchedExistingItem = materials.find(m => 
+              m.name.toLowerCase().replace(/\s+/g, '') === item.name.toLowerCase().replace(/\s+/g, '') ||
+              m.id === item.id
+            ) || item;
+            return {
+              item,
+              matchedExistingItem,
+              decision: 'overwrite' as const
+            };
+          }),
+          suspectItems
+        });
+      } catch (err) {
+        console.error(err);
+        alert('匯入解析失敗，請確認檔案格式是否正確。');
+      } finally {
+        e.target.value = ''; // Reset
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleApplyImport = (mode: 'skip_dups' | 'overwrite_dups' | 'force_all') => {
+    if (!excelImportReport) return;
+    const { newItems, dupItems, suspectItems } = excelImportReport;
+    
+    let resultMaterials = [...materials];
+    
+    // 1. Process new items based on choice
+    const finalNewItemsToImport: MaterialPreset[] = [];
+    newItems.forEach(ni => {
+      if (mode === 'force_all' || ni.decision === 'import') {
+        finalNewItemsToImport.push(ni.item);
+      }
+    });
+
+    // 2. Process duplicate items based on choice
+    const finalDupItemsToOverwrite: MaterialPreset[] = [];
+    const finalDupItemsToForceAdd: MaterialPreset[] = [];
+    let dupsSkipped = 0;
+
+    dupItems.forEach(di => {
+      if (mode === 'force_all') {
+        const cleanId = `m-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        finalDupItemsToForceAdd.push({
+          ...di.item,
+          id: cleanId
+        });
+      } else {
+        let actualDecision = di.decision;
+        if (actualDecision === 'overwrite') {
+          finalDupItemsToOverwrite.push(di.item);
+        } else {
+          dupsSkipped++;
+        }
+      }
+    });
+
+    // Strip existing duplicate items that are being overwritten
+    if (finalDupItemsToOverwrite.length > 0) {
+      const overNames = finalDupItemsToOverwrite.map(d => d.name.toLowerCase().replace(/\s+/g, ''));
+      resultMaterials = resultMaterials.filter(m => !overNames.includes(m.name.toLowerCase().replace(/\s+/g, '')));
+    }
+
+    resultMaterials = [...resultMaterials, ...finalNewItemsToImport, ...finalDupItemsToOverwrite, ...finalDupItemsToForceAdd];
+
+    // 3. Process suspect items based on decision
+    let suspectAdded = 0;
+    let suspectOverwritten = 0;
+    let suspectSkipped = 0;
+
+    suspectItems.forEach(rep => {
+      if (rep.decision === 'import_as_new' || mode === 'force_all') {
+        const cleanId = `m-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        resultMaterials.push({
+          ...rep.importedItem,
+          id: cleanId
+        });
+        suspectAdded++;
+      } else if (rep.decision === 'overwrite' && mode !== 'skip_dups') {
+        const foundIdx = resultMaterials.findIndex(m => m.id === rep.matchedExistingItem.id);
+        if (foundIdx > -1) {
+          resultMaterials[foundIdx] = {
+            ...rep.importedItem,
+            id: rep.matchedExistingItem.id
+          };
+          suspectOverwritten++;
+        } else {
+          resultMaterials.push(rep.importedItem);
+          suspectAdded++;
+        }
+      } else {
+        suspectSkipped++;
+      }
+    });
+
+    // 4. Automatically check and ask if we should register new Categories/Subcategories
+    const allImportedItems: MaterialPreset[] = [
+      ...finalNewItemsToImport,
+      ...finalDupItemsToOverwrite,
+      ...finalDupItemsToForceAdd
+    ];
+    suspectItems.forEach(rep => {
+      if (rep.decision === 'import_as_new' || mode === 'force_all') {
+        allImportedItems.push(rep.importedItem);
+      } else if (rep.decision === 'overwrite' && mode !== 'skip_dups') {
+        allImportedItems.push(rep.importedItem);
+      }
+    });
+
+    const newCatsToRegister: string[] = [];
+    const newSubcatsToRegister: { [cat: string]: string[] } = {};
+
+    let registeredCats = [...categories];
+    let registeredSubcats = { ...subcategories };
+
+    allImportedItems.forEach(m => {
+      if (m.category && !registeredCats.includes(m.category) && !newCatsToRegister.includes(m.category)) {
+        newCatsToRegister.push(m.category);
+      }
+      if (m.category && m.subcategory && m.subcategory.trim()) {
+        const sub = m.subcategory.trim();
+        const currentList = registeredSubcats[m.category] || [];
+        if (!currentList.includes(sub)) {
+          if (!newSubcatsToRegister[m.category]) {
+            newSubcatsToRegister[m.category] = [];
+          }
+          if (!newSubcatsToRegister[m.category].includes(sub)) {
+            newSubcatsToRegister[m.category].push(sub);
+          }
+        }
+      }
+    });
+
+    let autoRegisteredMessage = '';
+    const hasNewCats = newCatsToRegister.length > 0;
+    const hasNewSubcats = Object.keys(newSubcatsToRegister).length > 0;
+
+    if (hasNewCats || hasNewSubcats) {
+      let confirmMsg = '⚙️ 偵測到本次匯入之品項含有「尚未註冊」之全新分類名稱：\n';
+      if (hasNewCats) {
+        confirmMsg += `🔹 全新大分類：${newCatsToRegister.join('、')}\n`;
+      }
+      if (hasNewSubcats) {
+        confirmMsg += `🔹 全新次細分類：\n`;
+        Object.entries(newSubcatsToRegister).forEach(([cat, subs]) => {
+          confirmMsg += `  * 屬於【${cat}】：${subs.join('、')}\n`;
+        });
+      }
+      confirmMsg += '\n是否要一併將這些全新分類名稱自動註冊至您的系統常用分類大庫中，以利日後排序或進行快速倍率調整？\n(若選擇「取消」，商品仍會照常匯入，但不會為其新增常用選單項目)';
+
+      if (window.confirm(confirmMsg)) {
+        // Register categories
+        if (hasNewCats) {
+          registeredCats = [...registeredCats, ...newCatsToRegister];
+          setCategories(registeredCats);
+          localStorage.setItem('engineering_material_categories', JSON.stringify(registeredCats));
+          
+          // categoryConfigs
+          const updatedConfigs = [...categoryConfigs];
+          newCatsToRegister.forEach(newCat => {
+            if (!updatedConfigs.some(cfg => cfg.category === newCat)) {
+              updatedConfigs.push({ category: newCat, multiplier: 1.10 });
+            }
+          });
+          setCategoryConfigs(updatedConfigs);
+          saveCategoryMaterialConfigs(updatedConfigs);
+        }
+
+        // Register subcategories
+        Object.entries(newSubcatsToRegister).forEach(([cat, subs]) => {
+          const currentList = registeredSubcats[cat] || [];
+          const combined = Array.from(new Set([...currentList, ...subs]));
+          registeredSubcats[cat] = combined;
+        });
+        setSubcategories(registeredSubcats);
+        saveSubcategories(registeredSubcats);
+
+        autoRegisteredMessage = `，並已自動註冊常用大類 ${newCatsToRegister.length} 個、次細分類 ${Object.values(newSubcatsToRegister).flat().length} 個。`;
+      }
+    }
+
+    const exactInfo = mode === 'skip_dups' 
+      ? `已新增 ${finalNewItemsToImport.length} 項全新，略過 ${dupsSkipped} 項重複。`
+      : mode === 'overwrite_dups'
+      ? `已新增 ${finalNewItemsToImport.length} 項全新，覆蓋 ${finalDupItemsToOverwrite.length} 項重複已存在。`
+      : `強制全部直接新增 ${finalNewItemsToImport.length + finalDupItemsToForceAdd.length} 筆項目。`;
+
+    const suspectInfo = suspectItems.length > 0
+      ? ` 另外對於疑似重複之疑慮品項：已手動新增 ${suspectAdded} 項、覆蓋 ${suspectOverwritten} 項、跳過不匯入 ${suspectSkipped} 項。`
+      : '';
+
+    onSaveToast(`✅ 成功匯入大庫！${exactInfo}${suspectInfo}${autoRegisteredMessage}`);
+
+    setMaterials(resultMaterials);
+    setExcelImportReport(null);
+  };
 
   const [deleteConfirmCategory, setDeleteConfirmCategory] = useState<string | null>(null);
   const [deleteConfirmMatId, setDeleteConfirmMatId] = useState<string | null>(null);
@@ -184,6 +598,7 @@ export default function MaterialsPanel({
       defaultUnitPrice: 0,
       defaultCostPrice: 0,
       category: newMatCategory,
+      subcategory: newMatSubcategory.trim() || undefined,
       suppliers: [],
       unitOptions: [
         {
@@ -225,6 +640,7 @@ export default function MaterialsPanel({
     } else {
       setMaterials([...materials, item]);
       setNewMatName('');
+      setNewMatSubcategory('');
       onSaveToast(`✅ 材料品項【${item.name}】已成功建檔！可於下方直接追加不同包裝單位，或編輯配合廠商牌價與進價。`);
     }
   };
@@ -236,6 +652,7 @@ export default function MaterialsPanel({
     setPendingMaterialToAdd(null);
     setDupConflictMaterials([]);
     setNewMatName('');
+    setNewMatSubcategory('');
     onSaveToast(`✅ 已忽略重複警告，材料品項【${addedName}】已成功強制建檔！`);
   };
 
@@ -248,6 +665,7 @@ export default function MaterialsPanel({
     setEditingMatId(m.id);
     setEditMatName(m.name);
     setEditMatCategory(m.category || '水路管材類');
+    setEditMatSubcategory(m.subcategory || '');
   };
 
   const handleSaveEditMat = () => {
@@ -257,12 +675,14 @@ export default function MaterialsPanel({
         return {
           ...m,
           name: editMatName.trim(),
-          category: editMatCategory
+          category: editMatCategory,
+          subcategory: editMatSubcategory.trim() || undefined
         };
       }
       return m;
     }));
     setEditingMatId(null);
+    setEditMatSubcategory('');
     onSaveToast('✅ 材料名稱與分類更新成功！');
   };
 
@@ -580,7 +1000,7 @@ export default function MaterialsPanel({
 
               // 當輸入特約材料行之進價成本(costPrice)時，依分類加成倍率自動將成本計算為牌價，但仍可手動覆寫修改牌價
               if (field === 'costPrice') {
-                updatedRecord.listPrice = calculateMaterialListPrice(m.category, numericVal);
+                updatedRecord.listPrice = calculateMaterialListPrice(m.category, numericVal, m.subcategory);
               }
               
               if (updatedRecord.listPrice === 0 && updatedRecord.costPrice === 0) {
@@ -589,7 +1009,7 @@ export default function MaterialsPanel({
                 updatedSuppliers[existingIndex] = updatedRecord;
               }
             } else if (numericVal > 0) {
-              const initialListPrice = field === 'costPrice' ? calculateMaterialListPrice(m.category, numericVal) : (field === 'listPrice' ? numericVal : 0);
+              const initialListPrice = field === 'costPrice' ? calculateMaterialListPrice(m.category, numericVal, m.subcategory) : (field === 'listPrice' ? numericVal : 0);
               updatedSuppliers.push({
                 id: `sup-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
                 storeName,
@@ -637,16 +1057,292 @@ export default function MaterialsPanel({
   return (
     <div id="materials-panel" className="!bg-[var(--bg-card)] p-6 rounded-2xl border border-[#D4AF37]/20 shadow-3xs space-y-6">
 
+      {/* Excel Upload Progress Report Dialog / Banner */}
+      {excelImportReport && excelImportReport.show && (
+        <div className="p-5 bg-[#1B1212] border-2 border-red-950 rounded-2xl space-y-4 shadow-md text-left">
+          <div className="flex items-center gap-2.5 text-rose-400 font-bold text-sm">
+            <FileSpreadsheet size={20} className="animate-bounce" />
+            <span>📊 Excel 批次匯入檢測報告與疑慮審查</span>
+          </div>
+          <p className="text-xs text-neutral-400">
+            系統成功載入檔案，共讀取到 <span className="font-bold text-[#F3E5AB] font-mono text-sm">{excelImportReport.allReadCount}</span> 筆名單品項。
+            經過與大庫目前資料庫比對後：
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="p-3 bg-neutral-900/50 rounded-xl border border-neutral-800">
+              <span className="text-[10px] text-emerald-400 font-extrabold block mb-1">🆕 全新建建增商品 ({excelImportReport.newItems.length} 筆)</span>
+              <p className="text-[11px] text-neutral-300">
+                大庫中查無重複，將直接匯入儲備庫中。
+              </p>
+            </div>
+            <div className="p-3 bg-neutral-900/50 rounded-xl border border-neutral-850">
+              <span className="text-[10px] text-amber-500 font-extrabold block mb-1">⚠️ 偵測已重複品項 ({excelImportReport.dupItems.length} 筆)</span>
+              <p className="text-[11px] text-neutral-300">
+                品項名稱已存在，適用下方大批規覆蓋或跳過決策。
+              </p>
+            </div>
+            <div className="p-3 bg-[#241C15] rounded-xl border border-amber-900/30">
+              <span className="text-[10px] text-[#E5A93C] font-extrabold block mb-1">🔍 疑似重複疑慮 ({excelImportReport.suspectItems.length} 筆)</span>
+              <p className="text-[11px] text-neutral-300">
+                名稱非常接近現有項目，可能有誤入重複之疑。
+              </p>
+            </div>
+          </div>
+
+          {/* 1. Newly Created Items Auditing List */}
+          {excelImportReport.newItems && excelImportReport.newItems.length > 0 && (
+            <div className="p-3 bg-[#121B15] border border-emerald-900/30 rounded-xl space-y-2">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-emerald-400 font-extrabold block">🆕 全新建增商品審核清單 ({excelImportReport.newItems.length} 筆)：</span>
+                <span className="text-neutral-500 font-bold">(預設直接匯入，可個別切換略過)</span>
+              </div>
+              <div className="max-h-[140px] overflow-y-auto space-y-1.5 pr-1">
+                {excelImportReport.newItems.map((ni, idx) => (
+                  <div key={`ni-${idx}`} className="p-2 bg-[#0E1510] border border-emerald-950/40 rounded-lg flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-left">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-extrabold text-[#F3E5AB] text-[11px] truncate">
+                        品項：{ni.item.name}
+                      </div>
+                      <div className="text-[10px] text-neutral-400 mt-0.5">
+                        分類：{ni.item.category || '未分類'} {ni.item.subcategory ? ` • 次細類：${ni.item.subcategory}` : ''} | 牌價: {ni.item.defaultUnitPrice}元 / 成本: {ni.item.defaultCostPrice}元
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = [...excelImportReport.newItems];
+                          updated[idx] = { ...updated[idx], decision: 'import' };
+                          setExcelImportReport({ ...excelImportReport, newItems: updated });
+                        }}
+                        className={`px-2 py-0.5 text-[9.5px] font-extrabold rounded border transition cursor-pointer ${
+                          ni.decision === 'import'
+                            ? 'bg-emerald-950 text-emerald-400 border-emerald-900'
+                            : 'bg-[#121212] text-neutral-400 border-neutral-800 hover:text-white'
+                        }`}
+                      >
+                        📥 匯入
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = [...excelImportReport.newItems];
+                          updated[idx] = { ...updated[idx], decision: 'skip' };
+                          setExcelImportReport({ ...excelImportReport, newItems: updated });
+                        }}
+                        className={`px-2 py-0.5 text-[9.5px] font-extrabold rounded border transition cursor-pointer ${
+                          ni.decision === 'skip'
+                            ? 'bg-rose-950 text-rose-400 border-rose-900'
+                            : 'bg-[#121212] text-neutral-400 border-neutral-800 hover:text-white'
+                        }`}
+                      >
+                        ⏭️ 略過
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 2. Detected Duplicates Auditing List */}
+          {excelImportReport.dupItems && excelImportReport.dupItems.length > 0 && (
+            <div className="p-3 bg-[#24211A] border border-amber-900/30 rounded-xl space-y-2">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-amber-500 font-extrabold block">⚠️ 偵測已重複品項審核清單 ({excelImportReport.dupItems.length} 筆)：</span>
+                <span className="text-neutral-500 font-bold">(預設覆蓋更新，可個別切換略過)</span>
+              </div>
+              <div className="max-h-[140px] overflow-y-auto space-y-1.5 pr-1">
+                {excelImportReport.dupItems.map((di, idx) => (
+                  <div key={`di-${idx}`} className="p-2 bg-[#1C1A14] border border-neutral-850 rounded-lg flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-left">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-extrabold text-[#F3E5AB] text-[11px] truncate">
+                        品項：{di.item.name}
+                      </div>
+                      <div className="text-[10px] text-neutral-400 mt-0.5">
+                        大庫中已存在現有分類: {di.matchedExistingItem.category || '未分類'} | 新匯牌價: {di.item.defaultUnitPrice}元 (現有牌價: {di.matchedExistingItem.defaultUnitPrice}元)
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = [...excelImportReport.dupItems];
+                          updated[idx] = { ...updated[idx], decision: 'overwrite' };
+                          setExcelImportReport({ ...excelImportReport, dupItems: updated });
+                        }}
+                        className={`px-2 py-0.5 text-[9.5px] font-extrabold rounded border transition cursor-pointer ${
+                          di.decision === 'overwrite'
+                            ? 'bg-amber-950 text-amber-400 border-amber-900'
+                            : 'bg-[#121212] text-neutral-400 border-neutral-800 hover:text-white'
+                        }`}
+                      >
+                        🔄 覆蓋
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = [...excelImportReport.dupItems];
+                          updated[idx] = { ...updated[idx], decision: 'skip' };
+                          setExcelImportReport({ ...excelImportReport, dupItems: updated });
+                        }}
+                        className={`px-2 py-0.5 text-[9.5px] font-extrabold rounded border transition cursor-pointer ${
+                          di.decision === 'skip'
+                            ? 'bg-rose-950 text-rose-400 border-rose-900'
+                            : 'bg-[#121212] text-neutral-400 border-neutral-800 hover:text-white'
+                        }`}
+                      >
+                        ⏭️ 略過
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 3. Individual suspicious similar items check list */}
+          {excelImportReport.suspectItems && excelImportReport.suspectItems.length > 0 && (
+            <div className="p-3 bg-[#221614] border border-[#DE5045]/20 rounded-xl space-y-2">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-[10.5px] text-amber-500 font-extrabold block">🔍 疑似已有類似名稱之「疑慮品項」審核清單：</span>
+                <span className="text-[9.5px] text-neutral-500 font-bold">(可在此個別決定是否匯入或如何匯入)</span>
+              </div>
+              <div className="max-h-[190px] overflow-y-auto space-y-1.5 pr-1">
+                {excelImportReport.suspectItems.map((sus, idx) => (
+                  <div key={`sus-${idx}`} className="p-2 bg-[#1A1010] border border-red-950/25 rounded-lg flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-left">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-extrabold text-neutral-205 text-[11px] truncate">
+                        📥 匯入：{sus.importedItem.name} <span className="text-[9.5px] font-normal text-neutral-500">({sus.importedItem.category})</span>
+                      </div>
+                      <div className="text-[10px] text-amber-500 mt-0.5 font-bold">
+                        ⚠️ 相似：<span className="underline">{sus.matchedExistingItem.name}</span> <span className="text-[9px] font-normal text-neutral-500">({sus.matchedExistingItem.category})</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = [...excelImportReport.suspectItems];
+                          updated[idx] = { ...updated[idx], decision: 'skip' };
+                          setExcelImportReport({ ...excelImportReport, suspectItems: updated });
+                        }}
+                        className={`px-2 py-0.5 text-[9.5px] font-extrabold rounded border transition cursor-pointer ${
+                          sus.decision === 'skip'
+                            ? 'bg-rose-950 text-rose-400 border-rose-900'
+                            : 'bg-[#121212] text-neutral-400 border-neutral-800 hover:text-white'
+                        }`}
+                        title="不匯入此相似項目"
+                      >
+                        ⏭️ 略過此項
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = [...excelImportReport.suspectItems];
+                          updated[idx] = { ...updated[idx], decision: 'import_as_new' };
+                          setExcelImportReport({ ...excelImportReport, suspectItems: updated });
+                        }}
+                        className={`px-2 py-0.5 text-[9.5px] font-extrabold rounded border transition cursor-pointer ${
+                          sus.decision === 'import_as_new'
+                            ? 'bg-emerald-950 text-emerald-400 border-emerald-900'
+                            : 'bg-[#121212] text-neutral-400 border-neutral-800 hover:text-white'
+                        }`}
+                        title="依然當成全新獨立商品匯入"
+                      >
+                        ➕ 仍作全新
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = [...excelImportReport.suspectItems];
+                          updated[idx] = { ...updated[idx], decision: 'overwrite' };
+                          setExcelImportReport({ ...excelImportReport, suspectItems: updated });
+                        }}
+                        className={`px-2 py-0.5 text-[9.5px] font-extrabold rounded border transition cursor-pointer ${
+                          sus.decision === 'overwrite'
+                            ? 'bg-amber-955 text-amber-400 border-amber-900'
+                            : 'bg-[#121212] text-neutral-400 border-neutral-800 hover:text-white'
+                        }`}
+                        title="以此規格覆蓋現有同名之品項"
+                      >
+                        🔄 覆蓋現有
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-xs">
+            <div className="flex flex-wrap gap-2 text-[11px]">
+              <button
+                type="button"
+                onClick={() => handleApplyImport('skip_dups')}
+                className="px-3.5 py-2 bg-emerald-900/40 text-emerald-400 hover:bg-emerald-900/60 border border-emerald-900/30 font-bold rounded-lg cursor-pointer transition"
+              >
+                ⏭️ 跳過重複 (僅匯入全新 {excelImportReport.newItems.length} 筆)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyImport('overwrite_dups')}
+                className="px-3.5 py-2 bg-amber-900/40 text-amber-400 hover:bg-amber-900/60 border border-amber-900/30 font-bold rounded-lg cursor-pointer transition"
+              >
+                🔄 覆蓋更新 (匯入全新並覆蓋更新 {excelImportReport.dupItems.length} 筆)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyImport('force_all')}
+                className="px-3 py-2 bg-slate-900/40 text-slate-400 hover:bg-slate-900/60 border border-slate-900/30 font-bold rounded-lg cursor-pointer transition"
+              >
+                ➕ 強制全部直接新增 (不排除任何重複)
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setExcelImportReport(null)}
+              className="px-3 py-2 bg-neutral-900 text-neutral-400 hover:bg-neutral-800 border border-neutral-850 font-bold rounded-lg cursor-pointer transition shrink-0"
+            >
+              取消匯入
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Add new material preset main item form */}
       <div className="!bg-[var(--bg-main)] !text-[var(--text-secondary)] p-5 border border-[#D4AF37]/20 rounded-xl space-y-4">
-        <div>
-          <h3 className="text-sm font-bold !text-[var(--text-primary)] flex items-center gap-2">
-            <Plus size={16} className="text-[#D4AF37]" />
-            建立新材料品項至大庫
-          </h3>
-          <p className="text-[11px] text-neutral-400 mt-0.5">
-            建立後，可於下方材料卡內直接點擊「新增其他規格單位」，為同一個材料增設不同的計量單位裝箱。
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#D4AF37]/10 pb-3">
+          <div>
+            <h3 className="text-sm font-bold !text-[var(--text-primary)] flex items-center gap-2">
+              <Plus size={16} className="text-[#D4AF37]" />
+              建立新材料品項至大庫
+            </h3>
+            <p className="text-[11px] text-neutral-400 mt-0.5">
+              建立後，可於下方材料卡內直接點擊「新增其他規格單位」，為同一個材料增設不同的計量單位裝箱。
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              className="px-3 py-1.5 bg-[#1E1E1E] text-[#D4AF37] border border-[#D4AF37]/30 hover:bg-[#D4AF37]/15 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-3xs cursor-pointer transition"
+            >
+              <Download size={13} />
+              📥 下載大庫 EXCEL
+            </button>
+            <label className="px-3 py-1.5 bg-[#1E1E1E] text-[#F3E5AB] border border-[#F3E5AB]/30 hover:bg-[#F3E5AB]/15 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-3xs cursor-pointer transition-all">
+              <Upload size={13} />
+              📤 匯入 EXCEL
+              <input
+                type="file"
+                accept=".xlsx, .xls, .csv"
+                onChange={handleImportExcel}
+                className="hidden"
+              />
+            </label>
+          </div>
         </div>
         <form onSubmit={handleAddMaterial} className="grid grid-cols-12 gap-3 mt-1 text-xs">
           <div className="col-span-12 sm:col-span-7">
@@ -665,7 +1361,12 @@ export default function MaterialsPanel({
             <label className="block text-[10px] text-neutral-300 font-bold mb-1">品項分類</label>
             <select
               value={newMatCategory}
-              onChange={(e) => setNewMatCategory(e.target.value)}
+              onChange={(e) => {
+                const cat = e.target.value;
+                setNewMatCategory(cat);
+                const suggested = subcategories[cat] || [];
+                setNewMatSubcategory(suggested[0] || '');
+              }}
               className="w-full px-3 py-2 border border-[#D4AF37]/20 !text-[var(--text-secondary)] !bg-[var(--bg-input)] rounded-lg font-bold focus:outline-none focus:border-[#D4AF37]"
             >
               {categories.map(cat => (
@@ -673,6 +1374,42 @@ export default function MaterialsPanel({
               ))}
             </select>
           </div>
+
+          {/* Subcategory */}
+          <div className="col-span-12 grid grid-cols-12 gap-2 border-t border-[#D4AF37]/10 pt-3 mt-1">
+            <div className="col-span-12 sm:col-span-6">
+              <label className="block text-[10px] text-neutral-300 font-bold mb-1">✍️ 品項次細分類 (二層二級分類)</label>
+              <div className="flex gap-2">
+                <select
+                  value={subcategories[newMatCategory]?.includes(newMatSubcategory) ? newMatSubcategory : (newMatSubcategory ? 'custom' : '')}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'custom') {
+                      setNewMatSubcategory('');
+                    } else {
+                      setNewMatSubcategory(val);
+                    }
+                  }}
+                  className="w-1/2 px-3 py-2 border border-[#D4AF37]/20 !text-[var(--text-secondary)] !bg-[var(--bg-input)] rounded-lg font-bold focus:outline-none focus:border-[#D4AF37]"
+                >
+                  <option value="" className="!bg-[var(--bg-card)]">-- 無特定次分類 --</option>
+                  {(subcategories[newMatCategory] || []).map(sub => (
+                    <option key={sub} value={sub} className="!bg-[var(--bg-card)]">{sub}</option>
+                  ))}
+                  <option value="custom" className="!bg-[var(--bg-card)]">➕ 自行手動輸入...</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="請在此輸入或修改次分類名稱"
+                  value={newMatSubcategory}
+                  onChange={(e) => setNewMatSubcategory(e.target.value)}
+                  className="w-1/2 px-3 py-2 border border-[#D4AF37]/20 !text-[var(--text-secondary)] !bg-[var(--bg-input)] rounded-lg placeholder-neutral-500 focus:outline-none focus:border-[#D4AF37]"
+                />
+              </div>
+              <span className="text-[10px] text-neutral-400 mt-1 block">提示：您可以選取常見之推薦次分類，亦可直接於右側文字框自行編修。</span>
+            </div>
+          </div>
+
           <div className="col-span-12 flex justify-end">
             <button
               type="submit"
@@ -894,6 +1631,194 @@ export default function MaterialsPanel({
                     );
                   })}
                 </div>
+
+                {/* Subcategory configurations */}
+                <div className="mt-4 border-t border-[#D4AF37]/15 pt-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-[#D4AF37] text-[11px]">🛠️ 二級次細分類設定與自訂排序 (請點選大類配置)</span>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-1.5 justify-start">
+                    {categories.map(cat => (
+                      <button
+                        key={`subcfg-${cat}`}
+                        type="button"
+                        onClick={() => {
+                          setActiveConfigCategory(activeConfigCategory === cat ? null : cat);
+                          setNewSubcatName('');
+                        }}
+                        className={`px-2 py-0.5 text-[10px] font-bold rounded border transition ${
+                          activeConfigCategory === cat
+                            ? 'bg-[#D4AF37]/20 text-[#D4AF37] border-[#D4AF37]'
+                            : 'bg-[#121212] text-neutral-450 border-neutral-800 hover:border-neutral-700'
+                        }`}
+                      >
+                        📂 {cat} ({subcategories[cat]?.length ?? 0})
+                      </button>
+                    ))}
+                  </div>
+
+                  {activeConfigCategory && (
+                    <div className="!bg-[#121212] p-2.5 rounded-lg border border-neutral-800 space-y-2 animate-fadeIn text-[11px] mt-1.5 text-left">
+                      <div className="flex items-center justify-between border-b border-neutral-850 pb-1 font-bold">
+                        <span className="text-amber-200">二級次分類清單 : 【{activeConfigCategory}】</span>
+                        <button
+                          type="button"
+                          onClick={() => setActiveConfigCategory(null)}
+                          className="text-neutral-500 hover:text-white"
+                        >
+                          關閉
+                        </button>
+                      </div>
+
+                      {/* Add new subcategory */}
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          placeholder="輸入新次細分類，例如: PVC管/另件"
+                          value={newSubcatName}
+                          onChange={(e) => setNewSubcatName(e.target.value)}
+                          className="w-full px-2 py-0.5 text-xs border border-neutral-800 rounded bg-[#1A1A1A] text-white focus:border-[#D4AF37] outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const val = newSubcatName.trim();
+                            if (!val) return;
+                            const currentList = subcategories[activeConfigCategory] || [];
+                            if (currentList.includes(val)) {
+                              onSaveToast('⚠️ 該大類下已存在此二級次分類！');
+                              return;
+                            }
+                            const updatedList = [...currentList, val];
+                            const updatedAll = {
+                              ...subcategories,
+                              [activeConfigCategory]: updatedList
+                            };
+                            setSubcategories(updatedAll);
+                            saveSubcategories(updatedAll);
+                            setNewSubcatName('');
+                            onSaveToast(`➕ 已新增次細分類：【${val}】！`);
+                          }}
+                          className="px-2.5 py-0.5 bg-neutral-850 hover:bg-neutral-800 text-amber-200 font-bold border border-neutral-700/80 rounded shrink-0 cursor-pointer"
+                        >
+                          新增
+                        </button>
+                      </div>
+
+                      {/* Subcategory items with sorting, multipliers, and delete */}
+                      <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
+                        {(subcategories[activeConfigCategory] || []).length === 0 ? (
+                          <p className="text-neutral-500 text-[10px] text-center py-1">目前無任何次級分類，請在上方輸入新增</p>
+                        ) : (
+                          (subcategories[activeConfigCategory] || []).map((sub, sidx) => {
+                            const multKey = `${activeConfigCategory}:${sub}`;
+                            return (
+                              <div key={`subitem-${sub}`} className="flex items-center justify-between bg-[#151515] p-1.5 rounded border border-neutral-900">
+                                <div className="flex flex-col flex-1 min-w-0 pr-2">
+                                  <span className="font-extrabold text-neutral-300 text-[10.5px] truncate">
+                                    {sidx + 1}. {sub}
+                                  </span>
+                                  
+                                  {/* Custom markup rate for this subcategory */}
+                                  <div className="flex items-center gap-1.5 mt-0.5 text-[9.5px]">
+                                    <span className="text-neutral-500">自訂加成：</span>
+                                    <input
+                                      type="number"
+                                      step="0.05"
+                                      min="1.0"
+                                      max="3.0"
+                                      placeholder="繼承大類"
+                                      value={subMultipliers[multKey] || ''}
+                                      onChange={(e) => {
+                                        const valStr = e.target.value;
+                                        const updated = { ...subMultipliers };
+                                        if (valStr === '') {
+                                          delete updated[multKey];
+                                        } else {
+                                          const val = parseFloat(valStr) || 1.1;
+                                          updated[multKey] = val;
+                                        }
+                                        setSubMultipliers(updated);
+                                        saveSubcategoryMultipliers(updated);
+                                      }}
+                                      className="w-16 px-1 border border-neutral-800 rounded text-[9.5px] font-mono text-center bg-[#1A1A1A] text-[#F3E5AB] font-extrabold focus:outline-none focus:border-[#D4AF37]"
+                                    />
+                                    <span className="text-neutral-400 text-[8.5px]">{subMultipliers[multKey] ? `已啟用 (${subMultipliers[multKey]}x)` : '繼承大類'}</span>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1">
+                                  {/* Reorder up */}
+                                  <button
+                                    type="button"
+                                    disabled={sidx === 0}
+                                    onClick={() => {
+                                      const currentList = [...(subcategories[activeConfigCategory] || [])];
+                                      if (sidx === 0) return;
+                                      const temp = currentList[sidx];
+                                      currentList[sidx] = currentList[sidx - 1];
+                                      currentList[sidx - 1] = temp;
+                                      const updatedAll = { ...subcategories, [activeConfigCategory]: currentList };
+                                      setSubcategories(updatedAll);
+                                      saveSubcategories(updatedAll);
+                                      onSaveToast('↕️ 已調整次細分類排序！');
+                                    }}
+                                    className={`p-0.5 text-neutral-500 hover:text-[#D4AF37] ${sidx === 0 ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer'}`}
+                                  >
+                                    <ChevronUp size={12} />
+                                  </button>
+
+                                  {/* Reorder down */}
+                                  <button
+                                    type="button"
+                                    disabled={sidx === (subcategories[activeConfigCategory] || []).length - 1}
+                                    onClick={() => {
+                                      const currentList = [...(subcategories[activeConfigCategory] || [])];
+                                      if (sidx === currentList.length - 1) return;
+                                      const temp = currentList[sidx];
+                                      currentList[sidx] = currentList[sidx + 1];
+                                      currentList[sidx + 1] = temp;
+                                      const updatedAll = { ...subcategories, [activeConfigCategory]: currentList };
+                                      setSubcategories(updatedAll);
+                                      saveSubcategories(updatedAll);
+                                      onSaveToast('↕️ 已調整次細分類排序！');
+                                    }}
+                                    className={`p-0.5 text-neutral-500 hover:text-[#D4AF37] ${sidx === (subcategories[activeConfigCategory] || []).length - 1 ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer'}`}
+                                  >
+                                    <ChevronDown size={12} />
+                                  </button>
+
+                                  {/* Delete */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const currentList = (subcategories[activeConfigCategory] || []).filter(item => item !== sub);
+                                      const updatedAll = { ...subcategories, [activeConfigCategory]: currentList };
+                                      setSubcategories(updatedAll);
+                                      saveSubcategories(updatedAll);
+                                      
+                                      // Also delete multiplier
+                                      const updatedMults = { ...subMultipliers };
+                                      delete updatedMults[multKey];
+                                      setSubMultipliers(updatedMults);
+                                      saveSubcategoryMultipliers(updatedMults);
+
+                                      onSaveToast(`🗑️ 已刪除次級細分類：【${sub}】。`);
+                                    }}
+                                    className="p-1 text-neutral-500 hover:text-red-400 hover:bg-neutral-800 rounded transition cursor-pointer"
+                                  >
+                                    <Trash2 size={11} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -927,6 +1852,33 @@ export default function MaterialsPanel({
                 );
               })}
             </div>
+            
+            {settingsMatCategoryFilter !== '全部' && (
+              <div className="space-y-1.5 border-t border-[#D4AF37]/10 pt-2.5 mt-2 animate-fadeIn bg-[#1A1A1A]/60 p-2.5 rounded-xl">
+                <label className="block text-[10px] !text-amber-200 font-extrabold flex items-center gap-1">
+                  <span>📂 依細分二層分類 (次分類) 進階篩選：</span>
+                </label>
+                <div className="flex flex-wrap gap-1">
+                  {['全部', ...(subcategories[settingsMatCategoryFilter] || [])].map(sub => {
+                    const isSelected = settingsMatSubcategoryFilter === sub;
+                    return (
+                      <button
+                        key={sub}
+                        type="button"
+                        onClick={() => setSettingsMatSubcategoryFilter(sub)}
+                        className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#D4AF37] text-[#0D0D0D] font-extrabold shadow-sm'
+                            : 'bg-[#121212] text-neutral-400 hover:text-white border border-neutral-800/85 hover:border-neutral-700'
+                        }`}
+                      >
+                        {sub === '全部' ? '🔍 全部次細部' : sub}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Supplier Filter */}
@@ -968,6 +1920,7 @@ export default function MaterialsPanel({
         {(() => {
           const filteredMaterials = materials
             .filter(m => settingsMatCategoryFilter === '全部' || m.category === settingsMatCategoryFilter)
+            .filter(m => settingsMatSubcategoryFilter === '全部' || m.subcategory === settingsMatSubcategoryFilter)
             .filter(m => {
               if (settingsMatSupplierFilter === '全部') return true;
               const options = ensureUnitOptions(m);
@@ -1056,7 +2009,12 @@ export default function MaterialsPanel({
                           <label className="block text-[9px] text-neutral-400 mb-0.5">品項分類</label>
                           <select
                             value={editMatCategory}
-                            onChange={(e) => setEditMatCategory(e.target.value)}
+                            onChange={(e) => {
+                              const cat = e.target.value;
+                              setEditMatCategory(cat);
+                              const suggested = subcategories[cat] || [];
+                              setEditMatSubcategory(suggested[0] || '');
+                            }}
                             className="w-full px-2 py-1.5 border border-[#D4AF37]/20 rounded text-xs !bg-[var(--bg-input)] !text-[var(--text-secondary)] font-bold outline-none focus:border-[#D4AF37]"
                           >
                             {categories.map(cat => (
@@ -1064,6 +2022,41 @@ export default function MaterialsPanel({
                             ))}
                           </select>
                         </div>
+
+                        {/* Subcategory Edit */}
+                        <div className="sm:col-span-12 grid grid-cols-12 gap-2 border-t pt-2 border-[var(--color-accent)]/20">
+                          <div className="col-span-12">
+                            <label className="block text-[9px] text-neutral-400 mb-0.5">次細分類 (二層二級分類)</label>
+                            <div className="flex gap-2">
+                              <select
+                                value={subcategories[editMatCategory]?.includes(editMatSubcategory) ? editMatSubcategory : (editMatSubcategory ? 'custom' : '')}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === 'custom') {
+                                    setEditMatSubcategory('');
+                                  } else {
+                                    setEditMatSubcategory(val);
+                                  }
+                                }}
+                                className="w-1/2 px-2 py-1.5 border border-[#D4AF37]/20 rounded text-xs !bg-[var(--bg-input)] !text-[var(--text-secondary)] font-bold outline-none focus:border-[#D4AF37]"
+                              >
+                                <option value="">-- 無特定次分類 --</option>
+                                {(subcategories[editMatCategory] || []).map(sub => (
+                                  <option key={sub} value={sub}>{sub}</option>
+                                ))}
+                                <option value="custom">➕ 自行手動輸入...</option>
+                              </select>
+                              <input
+                                type="text"
+                                placeholder="自行手動輸入或自訂次分類"
+                                value={editMatSubcategory}
+                                onChange={(e) => setEditMatSubcategory(e.target.value)}
+                                className="w-1/2 px-2.5 py-1.5 border border-[#D4AF37]/20 rounded text-xs !bg-[var(--bg-input)] !text-[var(--text-secondary)] font-bold outline-none focus:border-[#D4AF37]"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
                         <div className="flex gap-1 justify-end items-end sm:col-span-12 border-t pt-2 border-[var(--color-accent)]/20 mt-1">
                           <button
                             type="button"
@@ -1096,6 +2089,11 @@ export default function MaterialsPanel({
                                 {m.category === '工具與雜耗' && '🛠️ '}
                                 {m.category || '水路管材類'}
                               </span>
+                              {m.subcategory && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold rounded bg-amber-500/10 border border-amber-500/20 text-[#D4AF37] font-mono">
+                                  📂 {m.subcategory}
+                                </span>
+                              )}
                             </div>
                             <p className="text-[10px] text-neutral-400">目前設有 {options.length} 個單位計價對照規格</p>
                           </div>

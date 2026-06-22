@@ -101,6 +101,7 @@ export interface MaterialPreset {
   defaultCostPrice?: number; // 預設成本 (可選)
   suppliers?: MaterialSupplier[]; // 可自訂多個材料行的牌價及進價成本
   category?: string; // 材料品項分類 (電材、水材、廚衛等)
+  subcategory?: string; // 材料品項次分類 / 二層分類 (例如: 電線, 水管)
   unitOptions?: MaterialUnitOption[]; // 同一品項可能對應不同單位，各自擁有其牌成本即特定材料行商報價
 }
 
@@ -169,6 +170,7 @@ export interface DailyRecord {
   notes: string; // 每日注意事項與進程
   markAsCompleted: boolean; // 今日是否完工
   collectedAmount?: number; // 現場當下直接收款金額 (自選)
+  internalCostOnly?: boolean; // 僅登錄內部工工資/車馬費，不對業主產生計價費用（純查勘/零施作）
   createdAt: string;
 }
 

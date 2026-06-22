@@ -680,6 +680,7 @@ return (
 
             // Cost for analytics / comparison
             const totalRecordCostForDisplay = projectRecords.reduce((total, r) => {
+              if (r.internalCostOnly) return total; // SKIP internalCostOnly logs for customer-side display pricing
               const matSum = r.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
               const laborSum = r.workers.reduce((sum, w) => {
                 const rate = w.billingHourlyRate ?? w.hourlyRate;
@@ -1077,6 +1078,7 @@ return (
         let workerTotal = 0;
         let expenseTotal = 0;
         projRecords.forEach(r => {
+          if (r.internalCostOnly) return; // SKIP internalCostOnly values for client-billable display totals inside project details modal
           materialTotal += r.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
           workerTotal += r.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
           expenseTotal += r.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
@@ -1175,9 +1177,9 @@ return (
                 ) : (
                   <div className="space-y-6 relative border-l-2 border-neutral-150 pl-4 sm:pl-6 ml-2 animate-fadeIn">
                     {projRecords.map((rec, index) => {
-                      const recMatCost = rec.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
-                      const recLaborCost = rec.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
-                      const recExpCost = rec.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
+                      const recMatCost = rec.internalCostOnly ? 0 : rec.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+                      const recLaborCost = rec.internalCostOnly ? 0 : rec.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
+                      const recExpCost = rec.internalCostOnly ? 0 : rec.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
                       const recTotal = recMatCost + recLaborCost + recExpCost;
 
                       const isDeleting = deleteConfirmRecordId === rec.id;
@@ -1194,7 +1196,7 @@ return (
                             {/* Card Header */}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-neutral-100">
                               <div className="space-y-1">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <span className="font-mono text-xs font-black bg-neutral-150 text-neutral-800 px-2.5 py-0.5 rounded flex items-center gap-1">
                                     <Calendar size={11} className="text-amber-600" />
                                     {rec.date}
@@ -1206,6 +1208,11 @@ return (
                                   ) : (
                                     <span className="text-[9px] bg-amber-100/80 text-amber-800 font-bold px-2 py-0.5 rounded-full">
                                       施工階段日誌
+                                    </span>
+                                  )}
+                                  {rec.internalCostOnly && (
+                                    <span className="text-[9px] bg-rose-100 text-rose-800 font-extrabold px-2.5 py-0.5 rounded-full border border-rose-200 animate-pulse">
+                                      🛡️ 僅計公司內部成本
                                     </span>
                                   )}
                                 </div>

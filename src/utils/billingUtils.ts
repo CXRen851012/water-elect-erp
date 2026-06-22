@@ -91,11 +91,56 @@ export function saveCategoryMaterialConfigs(configs: CategoryMaterialConfig[]): 
 }
 
 // 計算特定消耗材料的建議對客牌價
-export function calculateMaterialListPrice(category: string | undefined, costPrice: number): number {
-  const configs = getCategoryMaterialConfigs();
+export function getSubcategoryMultipliers(): Record<string, number> {
+  try {
+    const stored = localStorage.getItem('engineering_subcategory_multipliers');
+    if (stored) return JSON.parse(stored);
+  } catch (e) {
+    console.error('Failed to parse subcategory multipliers:', e);
+  }
+  return {};
+}
+
+export function saveSubcategoryMultipliers(multipliers: Record<string, number>): void {
+  localStorage.setItem('engineering_subcategory_multipliers', JSON.stringify(multipliers));
+}
+
+export function getSubcategories(): Record<string, string[]> {
+  try {
+    const stored = localStorage.getItem('engineering_material_subcategories');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {}
+  // 預設二級次細分類
+  return {
+    '水路管材類': ['PVC管/另件', '不銹鋼管/接頭', '壓接另件', '配管閥門', '止洩帶/膠水', '冷熱水龍頭', '給排水管件'],
+    '電路電材類': ['電線單線', '絞線電纜', '電工膠帶', '插座開關', '配電箱/斷路器', '線槽軟管', '絕緣套管/端子'],
+    '廚衛設備類': ['衛生馬桶', '面盆面鏡', '花灑淋浴', '排風機/暖風機', '廚房水槽/龍頭', '衛浴五金掛件'],
+    '五金緊固類': ['木工牙螺絲', '水泥壁虎/膨脹螺栓', '鋼牙螺母', '吊架固定環', '矽利康/結構膠'],
+    '工具與雜耗': ['手工具類', '電動工具', '測量計量', '保護雜耗', '清潔打掃/手套']
+  };
+}
+
+export function saveSubcategories(subcats: Record<string, string[]>): void {
+  localStorage.setItem('engineering_material_subcategories', JSON.stringify(subcats));
+}
+
+export function calculateMaterialListPrice(category: string | undefined, costPrice: number, subcategory?: string): number {
   const catName = category || '水路管材類';
+  
+  if (subcategory) {
+    const subMults = getSubcategoryMultipliers();
+    const key = `${catName}:${subcategory}`;
+    if (subMults[key] !== undefined) {
+      return Math.round(costPrice * subMults[key]);
+    }
+  }
+
+  const configs = getCategoryMaterialConfigs();
   const config = configs.find(c => c.category === catName);
   
-  const mult = config && config.multiplier > 0 ? config.multiplier : 1.1;
+  // If multiplier is defined (even 0), we use it. Otherwise default to 1.10
+  const mult = config && config.multiplier !== undefined ? config.multiplier : 1.1;
   return Math.round(costPrice * mult);
 }

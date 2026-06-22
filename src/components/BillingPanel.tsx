@@ -43,6 +43,7 @@ interface BillingPanelProps {
   onDeleteRecord?: (recordId: string) => void;
   onSaveToast: (msg: string) => void;
   triggerAddPayment?: number;
+  setProjects?: React.Dispatch<React.SetStateAction<Project[]>>;
 }
 
 export default function BillingPanel({
@@ -60,12 +61,18 @@ export default function BillingPanel({
   onEditRecord,
   onDeleteRecord,
   onSaveToast,
-  triggerAddPayment = 0
+  triggerAddPayment = 0,
+  setProjects
 }: BillingPanelProps) {
   // Navigation internal Unified tabs
   const [activeSubTab, setActiveSubTab] = useState<'billing_records' | 'operating_analytics' | 'worker_attendance' | 'worker_advances' | 'petty_cash'>('billing_records');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('all');
   const [showAddPaymentModal, setShowAddPaymentModal] = useState<boolean>(false);
+
+  // States for hiding actual construction cost and adjusting/editing external quote amount
+  const [showActualCost, setShowActualCost] = useState<boolean>(false);
+  const [editingQuoteProjId, setEditingQuoteProjId] = useState<string | null>(null);
+  const [editingQuoteInput, setEditingQuoteInput] = useState<string>('');
 
   // Custom Elegant Confirm Modal State
   const [confirmModal, setConfirmModal] = useState<{
@@ -291,19 +298,25 @@ export default function BillingPanel({
       let journalCollectedSum = 0;
       
       projectRecords.forEach(r => {
+        const isClientBilled = !r.internalCostOnly;
+
         // Material Billing and Cost
-        materialsBilledSum += r.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
-        materialsCostSum += r.materials.reduce((sum, m) => sum + ((m.costPrice !== undefined && m.costPrice > 0 ? m.costPrice : m.unitPrice) * m.quantity), 0);
+        if (isClientBilled) {
+          materialsBilledSum += r.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+        }
+        materialsCostSum += r.materials.reduce((sum, m) => sum + ((m.costPrice !== undefined ? m.costPrice : m.unitPrice) * m.quantity), 0);
         
         // Labor Billing
-        laborBilledSum += r.workers.reduce((sum, w) => {
-          const rate = w.billingHourlyRate ?? w.hourlyRate;
-          const reg = Math.min(w.hoursWork, 8);
-          const ot1 = Math.min(Math.max(w.hoursWork - 8, 0), 2);
-          const ot2 = Math.max(w.hoursWork - 10, 0);
-          const wages = (reg * rate) + (ot1 * rate * 1.34) + (ot2 * rate * 1.34);
-          return sum + Math.round(wages);
-        }, 0);
+        if (isClientBilled) {
+          laborBilledSum += r.workers.reduce((sum, w) => {
+            const rate = w.billingHourlyRate ?? w.hourlyRate;
+            const reg = Math.min(w.hoursWork, 8);
+            const ot1 = Math.min(Math.max(w.hoursWork - 8, 0), 2);
+            const ot2 = Math.max(w.hoursWork - 10, 0);
+            const wages = (reg * rate) + (ot1 * rate * 1.34) + (ot2 * rate * 1.34);
+            return sum + Math.round(wages);
+          }, 0);
+        }
 
         // Labor Cost
         laborCostSum += r.workers.reduce((sum, w) => {
@@ -315,8 +328,10 @@ export default function BillingPanel({
           return sum + Math.round(wages);
         }, 0);
 
-        expensesSum += r.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
-        journalCollectedSum += (r.collectedAmount || 0); // 加總現場現場追加特收款
+        if (isClientBilled) {
+          expensesSum += r.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
+          journalCollectedSum += (r.collectedAmount || 0); // 加總現場現場追加特收款
+        }
       });
       
       const actualCalculated = materialsBilledSum + laborBilledSum + expensesSum;
@@ -357,6 +372,7 @@ export default function BillingPanel({
 
     // 2. Add payments from daily journals records (當下直接收款 collectedAmount)
     records.forEach(r => {
+      if (r.internalCostOnly) return;
       if (r.collectedAmount && r.collectedAmount > 0 && summaryMap[r.projectId]) {
         summaryMap[r.projectId].receivedPayment += r.collectedAmount;
       }
@@ -885,11 +901,16 @@ export default function BillingPanel({
     let totalHours = 0;
     
     filteredRecords.forEach(r => {
-      materialsCost += r.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+      const isClientBilled = !r.internalCostOnly;
+      if (isClientBilled) {
+        materialsCost += r.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+      }
       materialsActualCost += r.materials.reduce((sum, m) => sum + ((m.costPrice !== undefined ? m.costPrice : m.unitPrice) * m.quantity), 0);
       laborCost += r.workers.reduce((sum, w) => sum + (w.hourlyRate * w.hoursWork), 0);
       expensesSumCheck(r);
-      expensesCost += r.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
+      if (isClientBilled) {
+        expensesCost += r.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
+      }
       totalHours += r.workers.reduce((sum, w) => sum + w.hoursWork, 0);
     });
 
@@ -1467,11 +1488,11 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
       {activeSubTab === 'billing_records' && (
         <div className="space-y-6">
 
-          <div className="bg-[#1E1E1E] p-4 rounded-xl border border-[#2C2C2C] shadow-3xs flex items-center justify-between gap-4">
-            <span className="text-xs font-bold text-neutral-400">
-              篩選及速覽客戶應收未收：
-            </span>
-            <div className="flex items-center gap-2">
+          <div className="bg-[#1E1E1E] p-4 rounded-xl border border-[#2C2C2C] shadow-3xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <span className="text-xs font-bold text-neutral-400">
+                篩選及速覽客戶應收未收：
+              </span>
               <select
                 value={selectedCustomerId}
                 onChange={(e) => setSelectedCustomerId(e.target.value)}
@@ -1483,6 +1504,26 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                 ))}
               </select>
             </div>
+
+            {/* Practical cost visibility toggle button */}
+            <button
+              type="button"
+              onClick={() => {
+                const nextVal = !showActualCost;
+                setShowActualCost(nextVal);
+                onSaveToast(nextVal 
+                  ? "🔓 已經解除鎖定，於對帳單列中顯示實際施工成本與隱私利潤。" 
+                  : "🔒 已經成功隱藏對帳單中的實際施工成本，防止顧客直接看見。");
+              }}
+              className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                showActualCost
+                  ? 'bg-emerald-950/40 text-emerald-400 border-emerald-900 hover:bg-emerald-900/30'
+                  : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-400 border-neutral-800'
+              }`}
+              title={showActualCost ? "外部展示時，點選可立即隱藏施工進價成本" : "點選可於此頁解鎖，核對真實成本獲利"}
+            >
+              {showActualCost ? "👁️ 顯示實際成本" : "🙈 隱藏實際成本"}
+            </button>
           </div>
 
           <div className="space-y-6">
@@ -1617,15 +1658,99 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                   </td>
 
                                   <td className="py-3 px-3 font-mono font-bold text-neutral-200">
-                                    ${proj.selectedBilledBasis.toLocaleString()}
-                                    <span className="text-[9px] text-neutral-400 font-normal block mt-0.5">
-                                      {isCompleted 
-                                        ? (curMode === 'quote' ? `已完工結案：$${proj.contractQuote.toLocaleString()}` : `已完工結案: $${proj.actualCalculated.toLocaleString()}`) 
-                                        : `施工進行中累積: $${proj.actualCalculated.toLocaleString()}`}
-                                    </span>
-                                    <span className="text-[10px] text-emerald-400 font-bold block mt-1 hover:underline decoration-emerald-600 cursor-help" title="依據工務日誌（標準工時成本底價＋材料進貨進價＋現場雜支）計算之公司實際施工成本">
-                                      🪵 實際施工成本: ${proj.actualConstructionCost.toLocaleString()}
-                                    </span>
+                                    {editingQuoteProjId === proj.id ? (
+                                      <div className="flex flex-col items-center justify-center gap-1.5 p-1 bg-[#1a1a1a] rounded border border-[#D4AF37]/30 animate-fadeIn min-w-[130px]">
+                                        <span className="text-[8px] font-bold text-amber-500 uppercase">修改總報價金額</span>
+                                        <div className="flex items-center gap-1">
+                                          <input
+                                            type="number"
+                                            value={editingQuoteInput}
+                                            onChange={(e) => setEditingQuoteInput(e.target.value)}
+                                            className="w-20 px-1 py-0.5 text-xs bg-[#0f0f0f] border border-neutral-800 text-[#D4AF37] font-bold text-center rounded outline-none focus:border-[#D4AF37]"
+                                            placeholder="請輸入金額"
+                                            autoFocus
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') {
+                                                // trigger click
+                                                const btn = document.getElementById(`save-quote-${proj.id}`);
+                                                if (btn) btn.click();
+                                              } else if (e.key === 'Escape') {
+                                                setEditingQuoteProjId(null);
+                                              }
+                                            }}
+                                          />
+                                          <button
+                                            id={`save-quote-${proj.id}`}
+                                            type="button"
+                                            onClick={() => {
+                                              const newAmt = parseFloat(editingQuoteInput) || 0;
+                                              const originalProj = projects.find(p => p.id === proj.id);
+                                              
+                                              // 1. Create updated projects list
+                                              const updatedProjects = projects.map(p => {
+                                                if (p.id === proj.id) {
+                                                  return {
+                                                    ...p,
+                                                    estimationQuoteAmount: newAmt
+                                                  };
+                                                }
+                                                return p;
+                                              });
+
+                                              // 2. Feed to props dispatcher if present
+                                              if (setProjects) {
+                                                setProjects(updatedProjects);
+                                              }
+
+                                              // 3. Keep in local storage as reliable fallback
+                                              localStorage.setItem('engineering_projects', JSON.stringify(updatedProjects));
+                                              
+                                              setEditingQuoteProjId(null);
+                                              onSaveToast(`📝 案場【${originalProj?.generatedName || '指定案場'}】總體對外報價已變更為 NT$ ${newAmt.toLocaleString()} 元！`);
+                                            }}
+                                            className="px-1.5 py-0.5 bg-emerald-950 text-emerald-400 border border-emerald-850 hover:bg-emerald-900 rounded font-bold text-[10px] cursor-pointer"
+                                            title="儲存對外報價"
+                                          >
+                                            ✔️
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => setEditingQuoteProjId(null)}
+                                            className="px-1.5 py-0.5 bg-neutral-900 text-neutral-400 border border-neutral-850 hover:bg-neutral-850 rounded font-bold text-[10px] cursor-pointer"
+                                            title="取消"
+                                          >
+                                            ✕
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="flex flex-col items-center justify-center">
+                                        <div className="flex items-center gap-1 hover:text-[#D4AF37] transition group cursor-pointer"
+                                          onClick={() => {
+                                            setEditingQuoteProjId(proj.id);
+                                            setEditingQuoteInput(String(proj.contractQuote || proj.selectedBilledBasis));
+                                          }}
+                                          title="點擊變更或設定此案場總體對外報價金額"
+                                        >
+                                          <span>NT$ {proj.selectedBilledBasis.toLocaleString()}</span>
+                                          <span className="opacity-0 group-hover:opacity-100 text-[#D4AF37] text-[10px] ml-1 p-0.5 bg-neutral-850 hover:bg-neutral-800 rounded">
+                                            ✏️ 調整報價
+                                          </span>
+                                        </div>
+                                        <span className="text-[9px] text-neutral-400 font-normal block mt-1">
+                                          {proj.contractQuote > 0 
+                                            ? `對外契約報價金額: $${proj.contractQuote.toLocaleString()}` 
+                                            : `工料實報實銷累計: $${proj.actualCalculated.toLocaleString()}`}
+                                        </span>
+                                      </div>
+                                    )}
+
+                                    {/* 🪵 實際施工成本隱藏/顯示邏輯 */}
+                                    {showActualCost && (
+                                      <span className="text-[10px] text-emerald-400 font-bold block mt-1.5 hover:underline decoration-emerald-600 cursor-help" title="依據工務日誌（標準工時成本底價＋材料進貨進價＋現場雜支）計算之公司實際施工成本">
+                                        🪵 實際施工成本: ${proj.actualConstructionCost.toLocaleString()}
+                                      </span>
+                                    )}
                                   </td>
 
                                   <td className="py-3 px-3 font-mono text-emerald-400 font-extrabold bg-[#252525]">
@@ -2285,11 +2410,11 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                 const isExpanded = reportExpandedId === record.id;
                 
                 // Calculate record individual costs
-                const totalMat = record.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+                const totalMat = record.internalCostOnly ? 0 : record.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
                 const totalMatCost = record.materials.reduce((sum, m) => sum + ((m.costPrice !== undefined ? m.costPrice : m.unitPrice) * m.quantity), 0);
-                const totalLabor = record.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
+                const totalLabor = record.internalCostOnly ? 0 : record.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
                 const totalLaborCost = record.workers.reduce((sum, w) => sum + (w.hourlyRate * w.hoursWork), 0);
-                const totalExp = record.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
+                const totalExp = record.internalCostOnly ? 0 : record.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
                 
                 const recBill = totalMat + totalLabor + totalExp;
                 const recCost = totalMatCost + totalLaborCost + totalExp;
@@ -2316,6 +2441,11 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                             }`}>
                               {record.markAsCompleted ? '🎉 案已辦結完工' : '施工持續中'}
                             </span>
+                            {record.internalCostOnly && (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-rose-50 border border-rose-200 text-rose-700 animate-pulse">
+                                🛡️ 僅計公司內部成本
+                              </span>
+                            )}
                           </div>
                           
                           <h4 className="text-xs sm:text-sm font-black text-neutral-800 mt-1 select-all break-all">{record.projectName}</h4>

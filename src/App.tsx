@@ -1104,6 +1104,7 @@ export default function App() {
                           
                           const todayWorkersCount = todayRecords.reduce((sum, r) => sum + (r.workers?.length || 0), 0);
                           const todayEstimatedCost = todayRecords.reduce((sum, r) => {
+                            if (r.internalCostOnly) return sum;
                             const matSum = r.materials.reduce((s, m) => s + (m.unitPrice * m.quantity), 0);
                             const laborSum = r.workers.reduce((s, w) => s + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
                             const expSum = r.expenses.filter(e => e.isProjectExpense !== false).reduce((s, e) => s + e.amount, 0);
@@ -1186,9 +1187,9 @@ export default function App() {
                               <div className="space-y-4">
                                 <div className="space-y-4">
                                   {todayRecords.map(record => {
-                                    const matSum = record.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
-                                    const laborSum = record.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
-                                    const expSum = record.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
+                                    const matSum = record.internalCostOnly ? 0 : record.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+                                    const laborSum = record.internalCostOnly ? 0 : record.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
+                                    const expSum = record.internalCostOnly ? 0 : record.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
                                     const recordTotalCost = matSum + laborSum + expSum;
 
                                     const matchedProj = projects.find(p => p.id === record.projectId);
@@ -1197,7 +1198,7 @@ export default function App() {
                                     return (
                                       <div key={record.id} className="p-4.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#1E1E1E] border-[#D4AF37]/20 shadow-xs">
                                         <div className="space-y-1.5">
-                                          <div className="flex items-center gap-2">
+                                          <div className="flex items-center gap-2 flex-wrap">
                                             <span className="font-mono text-[10px] font-black bg-[#D4AF37]/10 text-[#F3E5AB] border border-[#D4AF37]/20 px-2 py-0.5 rounded">
                                               {record.date} 🔥 本日施工
                                             </span>
@@ -1205,6 +1206,11 @@ export default function App() {
                                               <span className="text-[10px] px-2 py-0.5 bg-emerald-950/80 text-[#10B981] font-bold border border-emerald-900/40 rounded-full">已宣告結案</span>
                                             ) : (
                                               <span className="text-[10px] px-2 py-0.5 bg-[#D4AF37]/5 text-[#D4AF37] font-bold border border-[#D4AF37]/20 rounded-full">持續施作中</span>
+                                            )}
+                                            {record.internalCostOnly && (
+                                              <span className="text-[10px] px-2 py-0.5 bg-rose-955/80 text-[#EF4444] font-extrabold border border-rose-900/40 rounded-full animate-pulse">
+                                                🛡️ 僅計公司內部成本
+                                              </span>
                                             )}
                                           </div>
                                           <h4 className="text-xs sm:text-sm font-extrabold text-[#F3E5AB]">
@@ -1439,9 +1445,9 @@ export default function App() {
 
                           // Map with computed costs to perform sorting
                           const recordWithCosts = filteredHistoryRecords.map(record => {
-                            const matSum = record.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
-                            const laborSum = record.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
-                            const expSum = record.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
+                            const matSum = record.internalCostOnly ? 0 : record.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+                            const laborSum = record.internalCostOnly ? 0 : record.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
+                            const expSum = record.internalCostOnly ? 0 : record.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
                             const recordTotalCost = matSum + laborSum + expSum;
                             return { record, recordTotalCost };
                           });
@@ -1487,7 +1493,7 @@ export default function App() {
                                 return (
                                   <div key={record.id} className="p-4 bg-white hover:bg-neutral-50 border border-neutral-200 hover:border-neutral-300 rounded-xl transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                     <div className="space-y-1">
-                                      <div className="flex items-center gap-2 mb-1">
+                                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                                         <span className="font-mono text-xs font-semibold bg-neutral-100 text-neutral-500 px-2 py-0.5 rounded">
                                           {record.date}
                                         </span>
@@ -1495,6 +1501,11 @@ export default function App() {
                                           <span className="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded-full">已宣告結案</span>
                                         ) : (
                                           <span className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-850 font-bold rounded-full">持續施作中</span>
+                                        )}
+                                        {record.internalCostOnly && (
+                                          <span className="text-[10px] px-2 py-0.5 bg-rose-100 text-rose-800 font-extrabold border border-rose-200 rounded-full animate-pulse">
+                                            🛡️ 僅計公司內部成本
+                                          </span>
                                         )}
                                       </div>
                                       <h4 className="text-xs sm:text-sm font-extrabold text-neutral-800">
@@ -1598,6 +1609,7 @@ export default function App() {
                     <BillingPanel
                       customers={customers}
                       projects={projects}
+                      setProjects={setProjects}
                       records={records}
                       transactions={transactions}
                       setTransactions={setTransactions}

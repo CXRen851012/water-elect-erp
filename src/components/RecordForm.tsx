@@ -19,6 +19,14 @@ interface RecordFormProps {
   onCancel: () => void;
 }
 
+const DEFAULT_SUBCATEGORIES: Record<string, string[]> = {
+  '電路電材類': ['開關面板', '插座插頭', 'PVC電線捲', '斷路器開關', '燈具照明', '明盒與暗盒', '絕緣膠帶/端子', '電線配管架/線槽'],
+  '水路管材類': ['PVC水管及配件', '不銹鋼壓接管件', '高壓軟管/三角凡而', '生膠帶膠水', '排水防臭配件', '止水閥活接頭'],
+  '廚衛設備類': ['臉盆龍頭', '淋浴套件組合', '馬桶及配件', '抽風機/排風馬達', '落水頭/落水管', '廚房冷熱龍頭', '熱水器管件配件'],
+  '五金緊固類': ['膨脹螺栓/壁虎', '自攻螺絲釘', '不銹鋼管卡支架', '矽利康膠/槍', '防水防霉填縫劑', '免釘膠/萬能膠'],
+  '工具與雜耗': ['鑽頭與鑽置螺絲', '安全防護帽面罩', '砂輪切割片', '絕緣工具手套', '清潔刷與抹布', '垃圾袋保鮮膜', '潤滑油防銹劑']
+};
+
 export default function RecordForm({
   projects,
   setProjects,
@@ -48,6 +56,16 @@ export default function RecordForm({
   }, []);
 
   // Sort materialsPreset by Category order, then by Name ascending (localeCompare zh-TW)
+  const subcategoriesConfig = React.useMemo(() => {
+    try {
+      const stored = localStorage.getItem('engineering_material_subcategories');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {}
+    return DEFAULT_SUBCATEGORIES;
+  }, []);
+
   const sortedMaterialsPreset = React.useMemo(() => {
     return [...(materialsPreset || [])].sort((a, b) => {
       const catA = a.category || '水路管材類';
@@ -76,13 +94,19 @@ export default function RecordForm({
   const [notes, setNotes] = useState<string>('');
   const [markAsCompleted, setMarkAsCompleted] = useState<boolean>(false);
   const [collectedAmount, setCollectedAmount] = useState<number>(0);
+  const [internalCostOnly, setInternalCostOnly] = useState<boolean>(false);
 
   // 2. Materials log (No visible prices inside logger!)
   const [materials, setMaterials] = useState<RecordMaterial[]>([]);
   const [overridePricingMode, setOverridePricingMode] = useState<boolean>(false);
   const [selectedAddCategory, setSelectedAddCategory] = useState<string>('全部');
+  const [selectedAddSubcategory, setSelectedAddSubcategory] = useState<string>('全部');
   const [selectedAddSupplier, setSelectedAddSupplier] = useState<string>('全部');
   const [addSearchQuery, setAddSearchQuery] = useState<string>('');
+
+  useEffect(() => {
+    setSelectedAddSubcategory('全部');
+  }, [selectedAddCategory]);
 
   // 3. Common Expenses directly loaded in UI blocks, plus optional blanks
   const [mealAmount, setMealAmount] = useState<number>(0);
@@ -125,6 +149,7 @@ export default function RecordForm({
       setNotes(initialRecordToEdit.notes);
       setMarkAsCompleted(initialRecordToEdit.markAsCompleted);
       setCollectedAmount(initialRecordToEdit.collectedAmount || 0);
+      setInternalCostOnly(initialRecordToEdit.internalCostOnly || false);
       
       // Load materials (without caring about pricing display) and assign a unique ID if it doesn't exist
       setMaterials((initialRecordToEdit.materials || []).map((m, idx) => ({
@@ -210,6 +235,7 @@ export default function RecordForm({
       setMaterials([]);
       setWorkers([]);
       setCollectedAmount(0);
+      setInternalCostOnly(false);
     }
 
     isInitializedRef.current = currentInitKey;
@@ -661,7 +687,8 @@ export default function RecordForm({
       workers,
       notes: notes.trim(),
       markAsCompleted,
-      collectedAmount: collectedAmount > 0 ? collectedAmount : undefined
+      collectedAmount: collectedAmount > 0 ? collectedAmount : undefined,
+      internalCostOnly: internalCostOnly
     });
   };
 
@@ -813,8 +840,9 @@ export default function RecordForm({
               )}
             </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
             {/* Complete marker */}
-            <div className="p-3.5 bg-amber-50/20 hover:bg-amber-50/40 transition-colors rounded-xl border border-dashed border-amber-200 flex flex-col justify-center w-full">
+            <div className="p-3.5 bg-amber-50/20 hover:bg-amber-50/40 transition-colors rounded-xl border border-dashed border-amber-200 flex flex-col justify-center">
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -825,9 +853,28 @@ export default function RecordForm({
                 <span className="text-xs font-extrabold text-neutral-800">案場今日完工結案</span>
               </label>
               <span className="text-[10px] text-neutral-400 mt-1 leading-tight">
-                打勾送出後，該案場會被標記為「已完工」並移入歸檔列表，與其它的快捷鍵或 "+新開案場" 互不影響、絕不重疊。
+                打勾送出後，該案場會被標記為「已完工」並移入歸檔列表，與其它的快捷鍵或 "+新開案場" 互不影響。
               </span>
             </div>
+
+            {/* Internal Cost Only flag */}
+            <div className="p-3.5 bg-rose-50/30 hover:bg-rose-50/50 transition-colors rounded-xl border border-dashed border-[#D4AF37]/30 flex flex-col justify-center">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={internalCostOnly}
+                  onChange={(e) => setInternalCostOnly(e.target.checked)}
+                  className="w-4 h-4 text-rose-600 focus:ring-rose-500 border-neutral-300 rounded cursor-pointer"
+                />
+                <span className="text-xs font-extrabold text-rose-900 flex items-center gap-1.5">
+                  🛡️ 僅計內部薪資與耗材 (不跟業主收款)
+                </span>
+              </label>
+              <span className="text-[10px] text-rose-600/80 mt-1 leading-tight">
+                勾選後，此趟日誌將<strong>不計入業主請款/估價單金額</strong>。適合去現場看估價、到了現場已修好無施作，但員工薪資照付的純内部成本專案。
+              </span>
+            </div>
+          </div>
           </div>
         </section>
 
@@ -906,6 +953,34 @@ export default function RecordForm({
               ))}
             </div>
 
+            {/* Subcategory Dynamic Filter */}
+            {selectedAddCategory !== '全部' && (
+              <div className="space-y-1 mt-2.5 p-2 bg-amber-500/5 rounded-xl border border-dashed border-[#D4AF37]/20">
+                <span className="text-[10px] font-extrabold text-amber-600 block flex items-center gap-1">
+                  <span>📂 依次細分類 (二層細項) 進階過濾：</span>
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {['全部', ...(subcategoriesConfig[selectedAddCategory] || [])].map(sub => {
+                    const isSelected = selectedAddSubcategory === sub;
+                    return (
+                      <button
+                        key={sub}
+                        type="button"
+                        onClick={() => setSelectedAddSubcategory(sub)}
+                        className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#D4AF37] text-neutral-900 font-extrabold shadow-3xs'
+                            : 'bg-white hover:bg-neutral-100 border border-neutral-200 text-neutral-500'
+                        }`}
+                      >
+                        {sub === '全部' ? '🔍 全部次分類' : sub}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Supplier Filter Buttons inside Jobsite Log Entry Quick Add Panel */}
             <div className="space-y-1.5 border-t border-neutral-200/60 pt-2.5">
               <span className="text-[10px] font-extrabold text-neutral-500 block flex items-center gap-1">
@@ -929,6 +1004,8 @@ export default function RecordForm({
                     .filter(p => {
                       const matchesCategory = selectedAddCategory === '全部' || p.category === selectedAddCategory;
                       if (!matchesCategory) return false;
+                      const matchesSubcategory = selectedAddSubcategory === '全部' || p.subcategory === selectedAddSubcategory;
+                      if (!matchesSubcategory) return false;
                       
                       const matchesSearch = !addSearchQuery.trim() || (() => {
                         const kw = addSearchQuery.trim().toLowerCase();
@@ -967,6 +1044,7 @@ export default function RecordForm({
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 max-h-[170px] overflow-y-auto pr-1 border-t border-neutral-200/60 pt-2.5">
               {sortedMaterialsPreset
                 .filter(p => selectedAddCategory === '全部' || p.category === selectedAddCategory)
+                .filter(p => selectedAddSubcategory === '全部' || p.subcategory === selectedAddSubcategory)
                 .filter(p => {
                   if (selectedAddSupplier === '全部') return true;
                   const unitOpts = p.unitOptions || [];
@@ -1002,6 +1080,7 @@ export default function RecordForm({
                 })}
               {sortedMaterialsPreset
                 .filter(p => selectedAddCategory === '全部' || p.category === selectedAddCategory)
+                .filter(p => selectedAddSubcategory === '全部' || p.subcategory === selectedAddSubcategory)
                 .filter(p => {
                   if (selectedAddSupplier === '全部') return true;
                   const unitOpts = p.unitOptions || [];
