@@ -103,6 +103,7 @@ export interface MaterialPreset {
   category?: string; // 材料品項分類 (電材、水材、廚衛等)
   subcategory?: string; // 材料品項次分類 / 二層分類 (例如: 電線, 水管)
   unitOptions?: MaterialUnitOption[]; // 同一品項可能對應不同單位，各自擁有其牌成本即特定材料行商報價
+  isRealPrice?: boolean; // 是否為「實價」品項 (無固定成本牌價)
 }
 
 export interface Project {

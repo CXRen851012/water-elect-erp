@@ -722,10 +722,15 @@ return (
               p.estimationMaterials.forEach(m => {
                 const up = m.unitPrice ?? 0;
                 const cp = m.costPrice ?? 0;
-                if (up < cp) {
-                  priceWarningsList.push(`材料 [${m.name}] 估算牌價($${up})小於進口成本($${cp})`);
-                } else if (cp === 0) {
-                  priceWarningsList.push(`材料 [${m.name}] 估算成本為 0 元`);
+                const matPreset = materialsPreset?.find(pMat => pMat.id === m.materialId || pMat.name === m.name);
+                if (matPreset && matPreset.isRealPrice) {
+                  priceWarningsList.push(`⚖️ 估算耗材 [${m.name}] 屬「實價」品項 (無固定價格，請對帳前確認)`);
+                } else {
+                  if (up < cp) {
+                    priceWarningsList.push(`材料 [${m.name}] 估算牌價($${up})小於進口成本($${cp})`);
+                  } else if (cp === 0) {
+                    priceWarningsList.push(`材料 [${m.name}] 估算成本為 0 元`);
+                  }
                 }
               });
             }
@@ -736,10 +741,15 @@ return (
                 r.materials.forEach(m => {
                   const up = m.unitPrice ?? 0;
                   const cp = m.costPrice ?? 0;
-                  if (up < cp) {
-                    priceWarningsList.push(`施工日誌 (${r.date}) [${m.name}] 申報牌價($${up})小於成本($${cp})`);
-                  } else if (cp === 0) {
-                    priceWarningsList.push(`施工日誌 (${r.date}) [${m.name}] 採購成本為 0 元`);
+                  const matPreset = materialsPreset?.find(pMat => pMat.id === m.materialId || pMat.name === m.name);
+                  if (matPreset && matPreset.isRealPrice) {
+                    priceWarningsList.push(`⚖️ 施工日誌 (${r.date}) [${m.name}] 屬「實價」品項 (價格浮動大，請務必於對帳前與廠商核實實際進貨進價與對客申報價)`);
+                  } else {
+                    if (up < cp) {
+                      priceWarningsList.push(`施工日誌 (${r.date}) [${m.name}] 申報牌價($${up})小於成本($${cp})`);
+                    } else if (cp === 0) {
+                      priceWarningsList.push(`施工日誌 (${r.date}) [${m.name}] 採購成本為 0 元`);
+                    }
                   }
                 });
               }

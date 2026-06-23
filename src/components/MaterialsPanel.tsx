@@ -76,7 +76,9 @@ export default function MaterialsPanel({
   const [newMatName, setNewMatName] = useState('');
   const [newMatCategory, setNewMatCategory] = useState(categories[0] || '水路管材類');
   const [newMatSubcategory, setNewMatSubcategory] = useState('');
+  const [newMatIsRealPrice, setNewMatIsRealPrice] = useState(false);
   const [editMatSubcategory, setEditMatSubcategory] = useState('');
+  const [editMatIsRealPrice, setEditMatIsRealPrice] = useState(false);
   const [settingsMatSubcategoryFilter, setSettingsMatSubcategoryFilter] = useState('全部');
   const [excelImportReport, setExcelImportReport] = useState<{
     show: boolean;
@@ -600,6 +602,7 @@ export default function MaterialsPanel({
       category: newMatCategory,
       subcategory: newMatSubcategory.trim() || undefined,
       suppliers: [],
+      isRealPrice: newMatIsRealPrice,
       unitOptions: [
         {
           id: defaultUnitId,
@@ -641,6 +644,7 @@ export default function MaterialsPanel({
       setMaterials([...materials, item]);
       setNewMatName('');
       setNewMatSubcategory('');
+      setNewMatIsRealPrice(false);
       onSaveToast(`✅ 材料品項【${item.name}】已成功建檔！可於下方直接追加不同包裝單位，或編輯配合廠商牌價與進價。`);
     }
   };
@@ -653,6 +657,7 @@ export default function MaterialsPanel({
     setDupConflictMaterials([]);
     setNewMatName('');
     setNewMatSubcategory('');
+    setNewMatIsRealPrice(false);
     onSaveToast(`✅ 已忽略重複警告，材料品項【${addedName}】已成功強制建檔！`);
   };
 
@@ -666,24 +671,64 @@ export default function MaterialsPanel({
     setEditMatName(m.name);
     setEditMatCategory(m.category || '水路管材類');
     setEditMatSubcategory(m.subcategory || '');
+    setEditMatIsRealPrice(!!m.isRealPrice);
   };
 
   const handleSaveEditMat = () => {
     if (!editMatName.trim()) return;
     setMaterials(materials.map(m => {
       if (m.id === editingMatId) {
-        return {
+        const updated: MaterialPreset = {
           ...m,
           name: editMatName.trim(),
           category: editMatCategory,
-          subcategory: editMatSubcategory.trim() || undefined
+          subcategory: editMatSubcategory.trim() || undefined,
+          isRealPrice: editMatIsRealPrice,
+          defaultUnitPrice: editMatIsRealPrice ? 0 : m.defaultUnitPrice,
+          defaultCostPrice: editMatIsRealPrice ? 0 : m.defaultCostPrice
         };
+        if (editMatIsRealPrice && updated.unitOptions) {
+          updated.unitOptions = updated.unitOptions.map(uo => ({
+            ...uo,
+            defaultUnitPrice: 0,
+            defaultCostPrice: 0,
+            suppliers: uo.suppliers ? uo.suppliers.map(s => ({ ...s, listPrice: 0, costPrice: 0 })) : []
+          }));
+        }
+        return updated;
       }
       return m;
     }));
     setEditingMatId(null);
     setEditMatSubcategory('');
-    onSaveToast('✅ 材料名稱與分類更新成功！');
+    onSaveToast('✅ 材料名稱、分類與實價設定更新成功！');
+  };
+
+  const handleToggleRealPrice = (id: string, currentVal: boolean) => {
+    const updatedMats = materials.map(m => {
+      if (m.id === id) {
+        const nextVal = !currentVal;
+        const updated: MaterialPreset = {
+          ...m,
+          isRealPrice: nextVal,
+          defaultUnitPrice: nextVal ? 0 : m.defaultUnitPrice,
+          defaultCostPrice: nextVal ? 0 : m.defaultCostPrice
+        };
+        if (nextVal && updated.unitOptions) {
+          updated.unitOptions = updated.unitOptions.map(uo => ({
+            ...uo,
+            defaultUnitPrice: 0,
+            defaultCostPrice: 0,
+            suppliers: uo.suppliers ? uo.suppliers.map(s => ({ ...s, listPrice: 0, costPrice: 0 })) : []
+          }));
+        }
+        return updated;
+      }
+      return m;
+    });
+    setMaterials(updatedMats);
+    const targetName = materials.find(m => m.id === id)?.name || '';
+    onSaveToast(`⚖️ 已將【${targetName}】快速切換為 ${!currentVal ? '「實價」品項' : '「標準定價」品項'}！`);
   };
 
   const handleDeleteMat = (id: string, name: string) => {
@@ -1410,6 +1455,23 @@ export default function MaterialsPanel({
             </div>
           </div>
 
+          {/* Real Price Option Selection */}
+          <div className="col-span-12 flex items-center gap-2.5 bg-[#D4AF37]/5 border border-[#D4AF37]/15 rounded-xl p-3.5 select-none text-left">
+            <input
+              id="new-mat-is-real-price"
+              type="checkbox"
+              checked={newMatIsRealPrice}
+              onChange={(e) => setNewMatIsRealPrice(e.target.checked)}
+              className="w-4 h-4 text-[#D4AF37] border-[#D4AF37]/30 bg-[var(--bg-input)] rounded focus:ring-0 accent-[#D4AF37] cursor-pointer"
+            />
+            <label htmlFor="new-mat-is-real-price" className="cursor-pointer flex flex-col sm:flex-row sm:items-center gap-1.5 min-w-0">
+              <span className="text-xs font-extrabold text-[#F3E5AB] flex-shrink-0">⚖️ 設為「實價」品項</span>
+              <span className="text-[10px] text-neutral-400 font-normal leading-relaxed truncate md:whitespace-normal">
+                (勾選後表示此材料無固定價格。系統牌價、進價與特約合約報價均由實價浮動，不輸入固定牌成本，並將在日誌與案場中提供缺失追蹤)
+              </span>
+            </label>
+          </div>
+
           <div className="col-span-12 flex justify-end">
             <button
               type="submit"
@@ -2057,6 +2119,23 @@ export default function MaterialsPanel({
                           </div>
                         </div>
 
+                        {/* Real Price Option Checkbox under Edit */}
+                        <div className="sm:col-span-12 flex items-center gap-2.5 bg-amber-500/5 border border-amber-500/15 rounded-xl p-3 select-none text-left w-full">
+                          <input
+                            id="edit-mat-is-real-price"
+                            type="checkbox"
+                            checked={editMatIsRealPrice}
+                            onChange={(e) => setEditMatIsRealPrice(e.target.checked)}
+                            className="w-4 h-4 text-amber-500 border-amber-500/30 bg-[var(--bg-input)] rounded focus:ring-0 accent-amber-500 cursor-pointer"
+                          />
+                          <label htmlFor="edit-mat-is-real-price" className="cursor-pointer flex flex-col sm:flex-row sm:items-center gap-1.5 min-w-0">
+                            <span className="text-[11px] font-extrabold text-[#F3E5AB] flex-shrink-0">⚖️ 設為「實價」品項</span>
+                            <span className="text-[10px] text-neutral-400 font-normal leading-relaxed">
+                              (啟用後，此材料之規格牌價與進料成本將固定歸 0，並且日誌或對帳將追蹤警示)
+                            </span>
+                          </label>
+                        </div>
+
                         <div className="flex gap-1 justify-end items-end sm:col-span-12 border-t pt-2 border-[var(--color-accent)]/20 mt-1">
                           <button
                             type="button"
@@ -2099,6 +2178,18 @@ export default function MaterialsPanel({
                           </div>
 
                           <div className="flex items-center gap-1.5 font-mono">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleRealPrice(m.id, !!m.isRealPrice)}
+                              className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer border ${
+                                m.isRealPrice
+                                  ? 'bg-amber-500/15 text-amber-500 border-amber-500/30 hover:bg-amber-500/25'
+                                  : 'bg-white text-neutral-500 hover:text-amber-500 border-neutral-200 hover:border-amber-300 hover:bg-amber-50'
+                              }`}
+                              title={m.isRealPrice ? '此為「實價」品項（無固定牌成本，全額浮動）。點擊切換為「標準定價」品項' : '此為並非實價的「標準定價」品項。點擊切換為「實價」品項'}
+                            >
+                              <span>⚖️ {m.isRealPrice ? '當前：實價' : '設定為實價'}</span>
+                            </button>
                             <button
                               type="button"
                               onClick={() => handleStartEditMat(m)}
@@ -2282,56 +2373,64 @@ export default function MaterialsPanel({
                                   </div>
 
                                   <div className="flex items-center gap-2">
-                                    {/* Unit Base Price Custom inputs (If no supplier special prices are entered yet or locked by auto conversion) */}
-                                    <div className="flex items-center gap-3 text-[10px] sm:text-xs">
-                                      <div className="flex items-center gap-1">
-                                        <span className="text-neutral-400">{uo.useConversionPricing ? '🔄對照牌價' : '系統牌價'}</span>
-                                        <div className="flex items-center gap-0.5 font-mono">
-                                          <span className="text-neutral-500 font-bold">$</span>
-                                          <input
-                                            type="number"
-                                            value={uo.defaultUnitPrice}
-                                            onChange={(e) => handleUpdateUnitBasePrices(m.id, uo.id, 'defaultUnitPrice', parseInt(e.target.value, 10) || 0)}
-                                            disabled={hasActiveSuppliers || uo.useConversionPricing}
-                                            className={`w-14 text-center border font-bold rounded text-[11px] py-0.5 px-1 font-mono outline-none ${
-                                              (hasActiveSuppliers || uo.useConversionPricing)
-                                                ? '!bg-[rgba(255,255,255,0.05)] !text-neutral-500 border-neutral-800 cursor-not-allowed' 
-                                                : '!bg-[var(--bg-input)] !text-[var(--text-primary)] border-[#D4AF37]/25 hover:border-[#D4AF37]/60 focus:border-[#D4AF37]'
-                                            }`}
-                                            title={uo.useConversionPricing ? '此價格由單位換算比與基準牌價自動乘算鎖定。取消勾選「自動換算計價」解鎖手動輸入。' : ''}
-                                          />
-                                        </div>
+                                    {m.isRealPrice ? (
+                                      <div className="text-[11px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/15 px-2.5 py-1 rounded-lg inline-flex items-center gap-1 shadow-3xs select-none">
+                                        ⚖️ 實價品項 (價格浮動大，無固定牌價/成本)
                                       </div>
+                                    ) : (
+                                      <>
+                                        {/* Unit Base Price Custom inputs (If no supplier special prices are entered yet or locked by auto conversion) */}
+                                        <div className="flex items-center gap-3 text-[10px] sm:text-xs">
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-neutral-400">{uo.useConversionPricing ? '🔄對照牌價' : '系統牌價'}</span>
+                                            <div className="flex items-center gap-0.5 font-mono">
+                                              <span className="text-neutral-500 font-bold">$</span>
+                                              <input
+                                                type="number"
+                                                value={uo.defaultUnitPrice}
+                                                onChange={(e) => handleUpdateUnitBasePrices(m.id, uo.id, 'defaultUnitPrice', parseInt(e.target.value, 10) || 0)}
+                                                disabled={hasActiveSuppliers || uo.useConversionPricing}
+                                                className={`w-14 text-center border font-bold rounded text-[11px] py-0.5 px-1 font-mono outline-none ${
+                                                  (hasActiveSuppliers || uo.useConversionPricing)
+                                                    ? '!bg-[rgba(255,255,255,0.05)] !text-neutral-500 border-neutral-800 cursor-not-allowed' 
+                                                    : '!bg-[var(--bg-input)] !text-[var(--text-primary)] border-[#D4AF37]/25 hover:border-[#D4AF37]/60 focus:border-[#D4AF37]'
+                                                }`}
+                                                title={uo.useConversionPricing ? '此價格由單位換算比與基準牌價自動乘算鎖定。取消勾選「自動換算計價」解鎖手動輸入。' : ''}
+                                              />
+                                            </div>
+                                          </div>
 
-                                      <div className="flex items-center gap-1">
-                                        <span className="text-neutral-400">{uo.useConversionPricing ? '🔄對照成本' : '系統進價'}</span>
-                                        <div className="flex items-center gap-0.5 font-mono">
-                                          <span className="text-neutral-500 font-bold">$</span>
-                                          <input
-                                            type="number"
-                                            value={uo.defaultCostPrice}
-                                            onChange={(e) => handleUpdateUnitBasePrices(m.id, uo.id, 'defaultCostPrice', parseInt(e.target.value, 10) || 0)}
-                                            disabled={hasActiveSuppliers || uo.useConversionPricing}
-                                            className={`w-14 text-center border font-bold rounded text-[11px] py-0.5 px-1 font-mono outline-none ${
-                                              (hasActiveSuppliers || uo.useConversionPricing)
-                                                ? '!bg-[rgba(255,255,255,0.05)] !text-neutral-500 border-neutral-800 cursor-not-allowed' 
-                                                : '!bg-[var(--bg-input)] !text-[var(--text-primary)] border-[#D4AF37]/25 hover:border-[#D4AF37]/60 focus:border-[#D4AF37]'
-                                            }`}
-                                            title={uo.useConversionPricing ? '此進法由單位換算比與基準進價自動乘算鎖定。取消勾選「自動換算計價」解鎖手動輸入。' : ''}
-                                          />
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-neutral-400">{uo.useConversionPricing ? '🔄對照成本' : '系統進價'}</span>
+                                            <div className="flex items-center gap-0.5 font-mono">
+                                              <span className="text-neutral-500 font-bold">$</span>
+                                              <input
+                                                type="number"
+                                                value={uo.defaultCostPrice}
+                                                onChange={(e) => handleUpdateUnitBasePrices(m.id, uo.id, 'defaultCostPrice', parseInt(e.target.value, 10) || 0)}
+                                                disabled={hasActiveSuppliers || uo.useConversionPricing}
+                                                className={`w-14 text-center border font-bold rounded text-[11px] py-0.5 px-1 font-mono outline-none ${
+                                                  (hasActiveSuppliers || uo.useConversionPricing)
+                                                    ? '!bg-[rgba(255,255,255,0.05)] !text-neutral-500 border-neutral-800 cursor-not-allowed' 
+                                                    : '!bg-[var(--bg-input)] !text-[var(--text-primary)] border-[#D4AF37]/25 hover:border-[#D4AF37]/60 focus:border-[#D4AF37]'
+                                                }`}
+                                                title={uo.useConversionPricing ? '此進法由單位換算比與基準進價自動乘算鎖定。取消勾選「自動換算計價」解鎖手動輸入。' : ''}
+                                              />
+                                            </div>
+                                          </div>
                                         </div>
-                                      </div>
-                                    </div>
 
-                                    {uo.useConversionPricing ? (
-                                      <span className="text-[9px] !bg-[#D4AF37]/10 !text-[var(--text-primary)] font-black px-1.5 py-0.5 rounded border border-[#D4AF37]/25 hidden md:inline-block">
-                                        ⚡ 換算鎖定
-                                      </span>
-                                    ) : hasActiveSuppliers ? (
-                                      <span className="text-[9px] !bg-[#D4AF37]/10 !text-[var(--text-primary)] font-bold px-2 py-0.5 rounded border border-[#D4AF37]/25 hidden md:inline-block">
-                                        📈 已採特約最高值
-                                      </span>
-                                    ) : null}
+                                        {uo.useConversionPricing ? (
+                                          <span className="text-[9px] !bg-[#D4AF37]/10 !text-[var(--text-primary)] font-black px-1.5 py-0.5 rounded border border-[#D4AF37]/25 hidden md:inline-block">
+                                            ⚡ 換算鎖定
+                                          </span>
+                                        ) : hasActiveSuppliers ? (
+                                          <span className="text-[9px] !bg-[#D4AF37]/10 !text-[var(--text-primary)] font-bold px-2 py-0.5 rounded border border-[#D4AF37]/25 hidden md:inline-block">
+                                            📈 已採特約最高值
+                                          </span>
+                                        ) : null}
+                                      </>
+                                    )}
 
                                     {options.length > 1 && (
                                       <div className="flex items-center gap-1 border-r border-[#D4AF37]/20 pr-2 mr-1">
@@ -2398,6 +2497,7 @@ export default function MaterialsPanel({
                                 {/* Supplier prices grid for this unit option */}
                                 <div className="space-y-1.5 border-t border-[var(--color-accent)]/15 pt-3 mt-2">
                                   {(() => {
+                                    if (m.isRealPrice) return null;
                                     const isSupExpanded = expandedSuppliers[uo.id] || false;
                                     return (
                                       <>

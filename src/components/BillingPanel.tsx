@@ -25,6 +25,7 @@ interface ProjectSummaryItem {
   outstandingBalance: number;
   isCompleted: boolean;
   isEstimation: boolean;
+  priceWarnings?: string[]; // 牌成本、實價或缺失警示清單
 }
 
 interface BillingPanelProps {
@@ -67,6 +68,8 @@ export default function BillingPanel({
   // Navigation internal Unified tabs
   const [activeSubTab, setActiveSubTab] = useState<'billing_records' | 'operating_analytics' | 'worker_attendance' | 'worker_advances' | 'petty_cash'>('billing_records');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('all');
+  const [billingSearchQuery, setBillingSearchQuery] = useState<string>('');
+  const [hideCompletedAndPaid, setHideCompletedAndPaid] = useState<boolean>(false);
   const [showAddPaymentModal, setShowAddPaymentModal] = useState<boolean>(false);
 
   // States for hiding actual construction cost and adjusting/editing external quote amount
@@ -352,6 +355,66 @@ export default function BillingPanel({
           : actualCalculated;
       }
 
+      // Calculate project price warnings (including real prices and cost info)
+      const priceWarnings: string[] = [];
+      
+      // 1. Check estimation materials
+      if (p.estimationMaterials && p.estimationMaterials.length > 0) {
+        p.estimationMaterials.forEach(m => {
+          const up = m.unitPrice ?? 0;
+          const cp = m.costPrice ?? 0;
+          const matPreset = materialsPreset?.find(pMat => pMat.id === m.materialId || pMat.name === m.name);
+          if (matPreset && matPreset.isRealPrice) {
+            priceWarnings.push(`⚖️ 估定此材料 [${m.name}] 屬「實價」品項 (起伏波動大無固定基準價)`);
+          } else {
+            if (up < cp) {
+              priceWarnings.push(`估算材料 [${m.name}] 估定牌價($${up})小於成本價($${cp})`);
+            } else if (cp === 0) {
+              priceWarnings.push(`估算材料 [${m.name}] 成本配置為 0 元 (缺失成本)`);
+            }
+          }
+        });
+      }
+
+      // 2. Check actual record materials
+      projectRecords.forEach(r => {
+        if (r.materials && r.materials.length > 0) {
+          r.materials.forEach(m => {
+            const up = m.unitPrice ?? 0;
+            const cp = m.costPrice ?? 0;
+            const matPreset = materialsPreset?.find(pMat => pMat.id === m.materialId || pMat.name === m.name);
+            if (matPreset && matPreset.isRealPrice) {
+              priceWarnings.push(`⚖️ 施工用料日誌 (${r.date}) [${m.name}] 屬浮動「實價」品項 (無固定售價與進價，對帳前應核實當期成本)`);
+            } else {
+              if (up < cp) {
+                priceWarnings.push(`施工作業日誌 (${r.date}) 材料 [${m.name}] 請款牌價($${up})低於成本進價($${cp})`);
+              } else if (cp === 0) {
+                priceWarnings.push(`施工作業日誌 (${r.date}) 材料 [${m.name}] 成本配置為 0 元 (缺失成本)`);
+              }
+            }
+          });
+        }
+      });
+
+      // 3. Check labor wages
+      if (p.estimationLabor && p.estimationLabor.length > 0) {
+        p.estimationLabor.forEach(w => {
+          if ((w.estimationSalary ?? 0) === 0 && (w.hourlyRate ?? 0) === 0) {
+            priceWarnings.push(`估工種項目 [${w.name}] 時薪或日薪配置為 0 元 (缺失薪資)`);
+          }
+        });
+      }
+
+      projectRecords.forEach(r => {
+        if (r.workers && r.workers.length > 0) {
+          r.workers.forEach(w => {
+            if ((w.hourlyRate ?? 0) === 0) {
+              priceWarnings.push(`施工日誌 (${r.date}) 工人 [${w.name}] 實領薪資為 0 元 (缺失時薪)`);
+            }
+          });
+        }
+      });
+
       summaryMap[pId] = {
         id: pId,
         serialNumber: p.serialNumber,
@@ -366,7 +429,8 @@ export default function BillingPanel({
         roundingPaid: 0,
         outstandingBalance: selectedBilledBasis,
         isCompleted: p.isCompleted,
-        isEstimation: (p.isEstimation || p.generatedName?.startsWith('[估]')) ? true : false
+        isEstimation: (p.isEstimation || p.generatedName?.startsWith('[估]')) ? true : false,
+        priceWarnings
       };
     });
 
@@ -500,14 +564,103 @@ export default function BillingPanel({
       });
     });
 
+    // Also group projects that have no matching customer id
+    const unassociatedProjects = projectSummariesList.filter(p => !p.clientId || !customers.some(c => c.id === p.clientId));
+    if (unassociatedProjects.length > 0) {
+      let totalBilled = 0;
+      let totalReceived = 0;
+      let totalRounding = 0;
+      let totalOutstanding = 0;
+
+      let activeProjectsBilled = 0;
+      let activeProjectsReceived = 0;
+      let activeProjectsOutstanding = 0;
+
+      unassociatedProjects.forEach(p => {
+        if (p.isCompleted) {
+          totalBilled += p.selectedBilledBasis;
+          totalReceived += p.receivedPayment;
+          totalRounding += p.roundingPaid;
+          totalOutstanding += p.outstandingBalance;
+        } else {
+          activeProjectsBilled += p.selectedBilledBasis;
+          activeProjectsReceived += p.receivedPayment;
+          activeProjectsOutstanding += p.outstandingBalance;
+        }
+      });
+
+      list.push({
+        customerId: '__unassigned__',
+        customerName: '🏢 散客與未指派客戶案場',
+        contactPerson: '不限',
+        phone: '無',
+        totalProjectsCount: unassociatedProjects.length,
+        activeProjectsCount: unassociatedProjects.filter(p => !p.isCompleted).length,
+        totalBilled,
+        totalReceived,
+        totalRounding,
+        totalOutstanding,
+        activeProjectsBilled,
+        activeProjectsReceived,
+        activeProjectsOutstanding,
+        prepaidBalance: 0
+      });
+    }
+
     return list;
   }, [customers, projectSummariesList, customerCredits]);
 
-  // Filter customers based on select selector
+  // Filter customers based on select selector, search query, and completed/paid hide flag
   const filteredAggregateLedger = useMemo(() => {
-    if (selectedCustomerId === 'all') return customerAggregateLedger;
-    return customerAggregateLedger.filter(c => c.customerId === selectedCustomerId);
-  }, [customerAggregateLedger, selectedCustomerId]);
+    let list = customerAggregateLedger;
+    if (selectedCustomerId !== 'all') {
+      list = list.filter(c => c.customerId === selectedCustomerId);
+    }
+    
+    // Dynamically query projects matching query filters to update count and sums
+    return list.map(c => {
+      const clientProjects = projectSummariesList.filter(p => {
+        const isMatched = p.clientId === c.customerId || (c.customerId === '__unassigned__' && (!p.clientId || !customers.some(cust => cust.id === p.clientId)));
+        if (!isMatched) return false;
+
+        // Hide completed and fully paid projects optionally
+        if (hideCompletedAndPaid && p.isCompleted && p.outstandingBalance <= 0) {
+          return false;
+        }
+
+        // Apply search queries
+        if (billingSearchQuery.trim()) {
+          const q = billingSearchQuery.toLowerCase();
+          const pNameResult = p.name ? p.name.toLowerCase().includes(q) : false;
+          const pSerialResult = p.serialNumber ? p.serialNumber.toLowerCase().includes(q) : false;
+          const clientNameResult = p.clientName ? p.clientName.toLowerCase().includes(q) : false;
+          return pNameResult || pSerialResult || clientNameResult;
+        }
+
+        return true;
+      });
+
+      return {
+        ...c,
+        totalProjectsCount: clientProjects.length,
+        activeProjectsCount: clientProjects.filter(p => !p.isCompleted).length,
+        totalBilled: clientProjects.filter(p => p.isCompleted).reduce((sum, p) => sum + p.selectedBilledBasis, 0),
+        totalReceived: clientProjects.filter(p => p.isCompleted).reduce((sum, p) => sum + p.receivedPayment, 0),
+        totalRounding: clientProjects.filter(p => p.isCompleted).reduce((sum, p) => sum + p.roundingPaid, 0),
+        totalOutstanding: clientProjects.filter(p => p.isCompleted).reduce((sum, p) => sum + p.outstandingBalance, 0),
+        
+        activeProjectsBilled: clientProjects.filter(p => !p.isCompleted).reduce((sum, p) => sum + p.selectedBilledBasis, 0),
+        activeProjectsReceived: clientProjects.filter(p => !p.isCompleted).reduce((sum, p) => sum + p.receivedPayment, 0),
+        activeProjectsOutstanding: clientProjects.filter(p => !p.isCompleted).reduce((sum, p) => sum + p.outstandingBalance, 0),
+      };
+    }).filter(c => {
+      // If we are searching, or hide completed & paid is set, filter out customers who have 0 projects showing
+      if (billingSearchQuery.trim() || hideCompletedAndPaid) {
+        return c.totalProjectsCount > 0;
+      }
+      return true;
+    });
+  }, [customerAggregateLedger, selectedCustomerId, billingSearchQuery, hideCompletedAndPaid, projectSummariesList, customers]);
 
   // Filter transaction log history
   const filteredTransactionsLog = useMemo(() => {
@@ -1488,47 +1641,109 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
       {activeSubTab === 'billing_records' && (
         <div className="space-y-6">
 
-          <div className="bg-[#1E1E1E] p-4 rounded-xl border border-[#2C2C2C] shadow-3xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <span className="text-xs font-bold text-neutral-400">
-                篩選及速覽客戶應收未收：
-              </span>
-              <select
-                value={selectedCustomerId}
-                onChange={(e) => setSelectedCustomerId(e.target.value)}
-                className="px-3 py-1.5 border border-[#3A3A3A] rounded-lg text-xs font-bold bg-[#252525] text-white focus:outline-none focus:border-[#D4AF37]"
-              >
-                <option value="all" className="bg-[#1E1E1E]">🔍 顯示所有配合中客戶 ({customers.length} 家)</option>
-                {customers.map(c => (
-                  <option key={c.id} value={c.id} className="bg-[#1E1E1E]">👤 {c.name}</option>
-                ))}
-              </select>
-            </div>
+          <div className="bg-[#1E1E1E] p-4 rounded-xl border border-[#2C2C2C] shadow-3xs space-y-3">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-neutral-400 shrink-0">
+                    篩選對象：
+                  </span>
+                  <select
+                    value={selectedCustomerId}
+                    onChange={(e) => setSelectedCustomerId(e.target.value)}
+                    className="px-3 py-1.5 border border-[#3A3A3A] rounded-lg text-xs font-bold bg-[#252525] text-white focus:outline-none focus:border-[#D4AF37]"
+                  >
+                    <option value="all" className="bg-[#1E1E1E]">🔍 顯示所有配合中客戶 ({customers.length} 家)</option>
+                    {customers.map(c => (
+                      <option key={c.id} value={c.id} className="bg-[#1E1E1E]">👤 {c.name}</option>
+                    ))}
+                    <option value="__unassigned__" className="bg-[#1E1E1E]">🏢 散客與未指派客戶案場</option>
+                  </select>
+                </div>
 
-            {/* Practical cost visibility toggle button */}
-            <button
-              type="button"
-              onClick={() => {
-                const nextVal = !showActualCost;
-                setShowActualCost(nextVal);
-                onSaveToast(nextVal 
-                  ? "🔓 已經解除鎖定，於對帳單列中顯示實際施工成本與隱私利潤。" 
-                  : "🔒 已經成功隱藏對帳單中的實際施工成本，防止顧客直接看見。");
-              }}
-              className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                showActualCost
-                  ? 'bg-emerald-950/40 text-emerald-400 border-emerald-900 hover:bg-emerald-900/30'
-                  : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-400 border-neutral-800'
-              }`}
-              title={showActualCost ? "外部展示時，點選可立即隱藏施工進價成本" : "點選可於此頁解鎖，核對真實成本獲利"}
-            >
-              {showActualCost ? "👁️ 顯示實際成本" : "🙈 隱藏實際成本"}
-            </button>
+                {/* 搜尋關鍵字輸入框 */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-neutral-400 shrink-0">
+                    搜尋專案/客戶：
+                  </span>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="輸入關鍵字、細部案名或代號..."
+                      value={billingSearchQuery}
+                      onChange={(e) => setBillingSearchQuery(e.target.value)}
+                      className="w-56 pl-3 pr-8 py-1.5 bg-[#252525] border border-[#3A3A3A] text-white text-xs font-bold rounded-lg outline-none focus:border-[#D4AF37] placeholder-neutral-500"
+                    />
+                    {billingSearchQuery && (
+                      <button
+                        onClick={() => setBillingSearchQuery('')}
+                        className="absolute right-2 top-1.5 text-neutral-400 hover:text-white text-xs font-bold"
+                        title="清除"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 隱藏完工收款完成之選項 */}
+                <label className="flex items-center gap-2 cursor-pointer select-none group">
+                  <input
+                    type="checkbox"
+                    checked={hideCompletedAndPaid}
+                    onChange={(e) => setHideCompletedAndPaid(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-[#3A3A3A] bg-[#252525] accent-[#D4AF37] focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                  />
+                  <span className="text-xs font-bold text-neutral-300 group-hover:text-white transition-colors">
+                    🚫 隱藏「已完工且收款完畢」之專案
+                  </span>
+                </label>
+              </div>
+
+              {/* Practical cost visibility toggle button */}
+              <button
+                type="button"
+                onClick={() => {
+                  const nextVal = !showActualCost;
+                  setShowActualCost(nextVal);
+                  onSaveToast(nextVal 
+                    ? "🔓 已經解除鎖定，於對帳單列中顯示實際施工成本與隱私利潤。" 
+                    : "🔒 已經成功隱藏對帳單中的實際施工成本，防止顧客直接看見。");
+                }}
+                className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
+                  showActualCost
+                    ? 'bg-emerald-950/40 text-emerald-400 border-emerald-900 hover:bg-emerald-900/30'
+                    : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-400 border-neutral-800'
+                }`}
+                title={showActualCost ? "外部展示時，點選可立即隱藏施工進價成本" : "點選可於此頁解鎖，核對真實成本獲利"}
+              >
+                {showActualCost ? "👁️ 顯示實際成本" : "🙈 隱藏實際成本"}
+              </button>
+            </div>
           </div>
 
           <div className="space-y-6">
             {filteredAggregateLedger.map(ledger => {
-              const clientProjs = projectSummariesList.filter(p => p.clientId === ledger.customerId);
+              const clientProjs = projectSummariesList.filter(p => {
+                const isMatched = p.clientId === ledger.customerId || (ledger.customerId === '__unassigned__' && (!p.clientId || !customers.some(c => c.id === p.clientId)));
+                if (!isMatched) return false;
+
+                // Hide completed and fully paid projects
+                if (hideCompletedAndPaid && p.isCompleted && p.outstandingBalance <= 0) {
+                  return false;
+                }
+
+                // Apply search keyword
+                if (billingSearchQuery.trim()) {
+                  const q = billingSearchQuery.toLowerCase();
+                  const pNameResult = p.name ? p.name.toLowerCase().includes(q) : false;
+                  const pSerialResult = p.serialNumber ? p.serialNumber.toLowerCase().includes(q) : false;
+                  const clientNameResult = p.clientName ? p.clientName.toLowerCase().includes(q) : false;
+                  return pNameResult || pSerialResult || clientNameResult;
+                }
+
+                return true;
+              });
               
               return (
                 <div key={ledger.customerId} className="bg-[#1E1E1E] rounded-2xl border border-[#2C2C2C] shadow-3xs overflow-hidden text-neutral-300">
@@ -1937,16 +2152,25 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
             </div>
             
             <div className="p-4 sm:p-5 space-y-4 bg-neutral-50/20">
-              {filteredAggregateLedger.filter(l => projectSummariesList.some(p => p.clientId === l.customerId && p.outstandingBalance > 0)).length === 0 ? (
+              {filteredAggregateLedger.filter(l => {
+                const clientProjs = projectSummariesList.filter(p => p.clientId === l.customerId || (l.customerId === '__unassigned__' && (!p.clientId || !customers.some(c => c.id === p.clientId))));
+                return clientProjs.some(p => p.outstandingBalance > 0);
+              }).length === 0 ? (
                 <div className="text-center py-8 text-neutral-400 italic text-xs">
                   🎉 太棒了！目前所有客戶的完工與施工案場皆已結完清帳，無應收未收餘額。
                 </div>
               ) : (
                 <div className="space-y-4">
                   {filteredAggregateLedger
-                    .filter(l => projectSummariesList.some(p => p.clientId === l.customerId && p.outstandingBalance > 0))
+                    .filter(l => {
+                      const clientProjs = projectSummariesList.filter(p => p.clientId === l.customerId || (l.customerId === '__unassigned__' && (!p.clientId || !customers.some(c => c.id === p.clientId))));
+                      return clientProjs.some(p => p.outstandingBalance > 0);
+                    })
                     .map(l => {
-                      const unpaidProjects = projectSummariesList.filter(p => p.clientId === l.customerId && p.outstandingBalance > 0);
+                      const unpaidProjects = projectSummariesList.filter(p => {
+                        const isMatched = p.clientId === l.customerId || (l.customerId === '__unassigned__' && (!p.clientId || !customers.some(c => c.id === p.clientId)));
+                        return isMatched && p.outstandingBalance > 0;
+                      });
                       const totalOutstandingSum = unpaidProjects.reduce((sum, p) => sum + p.outstandingBalance, 0);
 
                       return (
@@ -2000,8 +2224,22 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                   return (
                                     <tr key={up.id} className="border-b border-neutral-50 hover:bg-neutral-50/50 text-[11px]">
                                       <td className="py-2.5 px-3 text-left font-mono font-bold text-neutral-850 select-all max-w-[320px] break-all leading-normal" title={up.name}>
-                                        <div className="bg-neutral-50 border border-neutral-100 p-1 rounded hover:bg-neutral-100 transition-colors">
-                                          {up.name}
+                                        <div className="bg-neutral-50 border border-neutral-100 p-1 rounded hover:bg-neutral-100 transition-colors space-y-1">
+                                          <div className="font-black text-neutral-800">{up.name}</div>
+                                          {up.priceWarnings && up.priceWarnings.length > 0 && (
+                                            <div className="mt-1 bg-rose-50 border border-rose-200/65 p-1.5 rounded-lg text-[9px] text-rose-800 font-extrabold flex flex-col gap-0.5 animate-fadeIn leading-relaxed">
+                                              <div className="text-rose-950 font-black flex items-center gap-0.5 select-none">
+                                                <span>⚠️ 牌價成本與實價預警 ({up.priceWarnings.length} 處缺失)：</span>
+                                              </div>
+                                              <div className="space-y-0.5 mt-0.5 text-rose-900 font-medium">
+                                                {up.priceWarnings.map((err, errIdx) => (
+                                                  <div key={errIdx} className="pl-1.5 border-l border-rose-300">
+                                                    • {err}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
                                         </div>
                                       </td>
                                       <td className="py-2.5 px-3">
@@ -2011,7 +2249,91 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                           {curMode === 'quote' ? '合約報價計費' : '實報實銷計費'}
                                         </span>
                                       </td>
-                                      <td className="py-2.5 px-3 font-mono text-neutral-600">${up.selectedBilledBasis.toLocaleString()}</td>
+                                      <td className="py-2.5 px-3 font-mono text-neutral-700">
+                                        {editingQuoteProjId === up.id ? (
+                                          <div className="flex items-center justify-center gap-1.5 p-1 bg-white border border-[#D4AF37] rounded shadow-3xs animate-fadeIn inline-flex">
+                                            <input
+                                              type="number"
+                                              value={editingQuoteInput}
+                                              onChange={(e) => setEditingQuoteInput(e.target.value)}
+                                              className="w-20 px-1 py-0.5 text-xs bg-neutral-50 border border-neutral-300 text-neutral-800 font-bold text-center rounded outline-none focus:border-[#D4AF37]"
+                                              placeholder="報價金額"
+                                              autoFocus
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                  const newAmt = parseFloat(editingQuoteInput) || 0;
+                                                  const updatedProjects = projects.map(p => {
+                                                    if (p.id === up.id) {
+                                                      return {
+                                                        ...p,
+                                                        estimationQuoteAmount: newAmt
+                                                      };
+                                                    }
+                                                    return p;
+                                                  });
+                                                  if (setProjects) {
+                                                    setProjects(updatedProjects);
+                                                  }
+                                                  localStorage.setItem('engineering_projects', JSON.stringify(updatedProjects));
+                                                  setEditingQuoteProjId(null);
+                                                  onSaveToast(`📝 案場【${up.name}】總體對外報價已變更為 NT$ ${newAmt.toLocaleString()} 元！`);
+                                                } else if (e.key === 'Escape') {
+                                                  setEditingQuoteProjId(null);
+                                                }
+                                              }}
+                                            />
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const newAmt = parseFloat(editingQuoteInput) || 0;
+                                                const updatedProjects = projects.map(p => {
+                                                  if (p.id === up.id) {
+                                                    return {
+                                                      ...p,
+                                                      estimationQuoteAmount: newAmt
+                                                    };
+                                                  }
+                                                  return p;
+                                                });
+                                                if (setProjects) {
+                                                  setProjects(updatedProjects);
+                                                }
+                                                localStorage.setItem('engineering_projects', JSON.stringify(updatedProjects));
+                                                setEditingQuoteProjId(null);
+                                                onSaveToast(`📝 案場【${up.name}】總體對外報價已變更為 NT$ ${newAmt.toLocaleString()} 元！`);
+                                              }}
+                                              className="px-1.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded font-bold text-[10px] cursor-pointer"
+                                              title="儲存對外報價"
+                                            >
+                                              ✔️
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => setEditingQuoteProjId(null)}
+                                              className="px-1.5 py-0.5 bg-neutral-50 hover:bg-neutral-100 text-neutral-600 border border-neutral-200 rounded font-bold text-[10px] cursor-pointer"
+                                              title="取消"
+                                            >
+                                              ✕
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <div 
+                                            className="flex items-center justify-center gap-1.5 hover:text-[#D4AF37] cursor-pointer group select-none"
+                                            onClick={() => {
+                                              setEditingQuoteProjId(up.id);
+                                              setEditingQuoteInput(String(up.contractQuote || up.selectedBilledBasis));
+                                            }}
+                                            title="點擊調整或設定此案場總體對外報價金額"
+                                          >
+                                            <span className="font-bold underline decoration-dashed decoration-neutral-300 hover:decoration-[#D4AF37]">
+                                              ${up.selectedBilledBasis.toLocaleString()}
+                                            </span>
+                                            <span className="opacity-0 group-hover:opacity-100 text-[#D4AF37] text-[10px] ml-0.5 p-0.5 bg-neutral-150 hover:bg-neutral-200 rounded transition-all text-[8px] font-bold">
+                                              ✏️ 調整報價
+                                            </span>
+                                          </div>
+                                        )}
+                                      </td>
                                       <td className="py-2.5 px-3 font-mono text-emerald-600 font-bold bg-emerald-550/5">${up.receivedPayment.toLocaleString()}</td>
                                       <td className="py-2.5 px-3 font-mono text-amber-600 font-bold bg-amber-550/5">${up.roundingPaid.toLocaleString()}</td>
                                       <td className="py-2.5 px-3 font-mono font-black text-rose-600 bg-rose-550/5">${up.outstandingBalance.toLocaleString()} 元</td>
