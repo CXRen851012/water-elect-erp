@@ -191,6 +191,83 @@ export default function MaterialsPanel({
     }
   };
 
+  const handleDownloadTemplateExcel = () => {
+    try {
+      const templateData = [
+        {
+          '系統防重複ID(請勿更動，空白視為全新增)': '',
+          '名稱(必填)': '南亞 15ml PVC塑膠膠水 (單罐小包裝)',
+          '大分類(必填)': '水路管材類',
+          '次細分類二層(選填)': '給水配件/膠水',
+          '計量單位(必填)': '罐',
+          '建議對外牌價(元)': 40,
+          '進料實際成本(元)': 25,
+          '是否為實價(填: 是/否，亦可空白)': '否'
+        },
+        {
+          '系統防重複ID(請勿更動，空白視為全新增)': '',
+          '名稱(必填)': '南亞 15ml PVC塑膠膠水 (單罐小包裝)',
+          '大分類(必填)': '水路管材類',
+          '次細分類二層(選填)': '給水配件/膠水',
+          '計量單位(必填)': '箱 (12罐)',
+          '建議對外牌價(元)': 420,
+          '進料實際成本(元)': 260,
+          '是否為實價(填: 是/否，亦可空白)': '否'
+        },
+        {
+          '系統防重複ID(請勿更動，空白視為全新增)': '',
+          '名稱(必填)': '太平洋 2.0 單線紅 100米',
+          '大分類(必填)': '電路電材類',
+          '次細分類二層(選填)': '電線單線',
+          '計量單位(必填)': '捲',
+          '建議對外牌價(元)': 1800,
+          '進料實際成本(元)': 1350,
+          '是否為實價(填: 是/否，亦可空白)': '否'
+        },
+        {
+          '系統防重複ID(請勿更動，空白視為全新增)': '',
+          '名稱(必填)': '白水泥 (實價浮動測試品項)',
+          '大分類(必填)': '泥作五金類',
+          '次細分類二層(選填)': '泥作建材',
+          '計量單位(必填)': '包',
+          '建議對外牌價(元)': 0,
+          '進料實際成本(元)': 0,
+          '是否為實價(填: 是/否，亦可空白)': '是'
+        },
+        {
+          '系統防重複ID(請勿更動，空白視為全新增)': '說明列 (本行不會被匯入)',
+          '名稱(必填)': '★多單位輸入指南★：若欲在一個材料品項下建立多個計量包裝單位 (例如:罐、箱)，只需像上方範例一樣，在 Excel 內寫多行，並讓「品項名稱」和「大分類」保持完全一致。系統匯入時就會自動合併在同一個品項名下！',
+          '大分類(必填)': '水路管材類',
+          '次細分類二層(選填)': '',
+          '計量單位(必填)': '',
+          '建議對外牌價(元)': 0,
+          '進料實際成本(元)': 0,
+          '是否為實價(填: 是/否，亦可空白)': ''
+        }
+      ];
+
+      const worksheet = XLSX.utils.json_to_sheet(templateData);
+      worksheet['!cols'] = [
+        { wch: 36 }, // ID
+        { wch: 45 }, // 名稱
+        { wch: 15 }, // 大分類
+        { wch: 20 }, // 次分類
+        { wch: 12 }, // 單位
+        { wch: 18 }, // 建議對外牌價
+        { wch: 18 }, // 進料實際成本
+        { wch: 22 }  // 是否為實價
+      ];
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, '資材大庫匯入標準範本');
+      XLSX.writeFile(workbook, `常備資材儲備大庫_批次匯入範本.xlsx`);
+      onSaveToast('📋 成功取得「多單位/實價」專用 Excel 匯入規範範本！請參考範本內容進行填寫。');
+    } catch (err) {
+      console.error(err);
+      alert('產生 Excel 範本失敗：' + (err instanceof Error ? err.message : String(err)));
+    }
+  };
+
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -220,6 +297,7 @@ export default function MaterialsPanel({
           const unitKey = Object.keys(row).find(k => k.includes('計量單位') || k.includes('單位') || k.toLowerCase().includes('unit'));
           const priceKey = Object.keys(row).find(k => k.includes('牌價') || k.includes('單價') || k.toLowerCase().includes('price') || k.includes('定價'));
           const costKey = Object.keys(row).find(k => k.includes('成本') || k.includes('進價') || k.toLowerCase().includes('cost'));
+          const isRealPriceKey = Object.keys(row).find(k => k.includes('是否為實價') || k.includes('實價') || k.includes('浮動'));
 
           if (!nameKey || !row[nameKey]) return; // Skip blank lines
 
@@ -230,29 +308,70 @@ export default function MaterialsPanel({
           const catVal = catKey && row[catKey] ? String(row[catKey]).trim() : '水路管材類';
           const subcatVal = subcatKey && row[subcatKey] ? String(row[subcatKey]).trim() : '';
           const unitVal = unitKey && row[unitKey] ? String(row[unitKey]).trim() : '個';
-          const priceVal = priceKey && row[priceKey] ? Math.max(0, parseFloat(row[priceKey]) || 0) : 0;
-          const costVal = costKey && row[costKey] ? Math.max(0, parseFloat(row[costKey]) || 0) : 0;
+          let priceVal = priceKey && row[priceKey] !== undefined ? Math.max(0, parseFloat(row[priceKey]) || 0) : 0;
+          let costVal = costKey && row[costKey] !== undefined ? Math.max(0, parseFloat(row[costKey]) || 0) : 0;
 
-          // Deduce unique ID or generate new
-          const cleanId = rawId && rawId.length > 3 ? rawId : `m-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-          imported.push({
-            id: cleanId,
-            name: nameVal,
-            category: catVal,
-            subcategory: subcatVal || undefined,
-            unit: unitVal,
-            defaultUnitPrice: priceVal,
-            defaultCostPrice: costVal,
-            unitOptions: [
-              {
+          // 偵測是否設定為實價 (是/1/true 變為 true)
+          const isRealPriceRaw = isRealPriceKey && row[isRealPriceKey] !== undefined ? String(row[isRealPriceKey]).trim() : '';
+          const isRealPriceVal = isRealPriceRaw === '是' || isRealPriceRaw === '1' || isRealPriceRaw.toLowerCase() === 'true';
+
+          if (isRealPriceVal) {
+            priceVal = 0;
+            costVal = 0;
+          }
+
+          // 檢查之前在本次匯入清單中是否已經讀取過同名同分類品項
+          const existingImported = imported.find(m => 
+            m.name.toLowerCase().replace(/\s+/g, '') === nameVal.toLowerCase().replace(/\s+/g, '') &&
+            m.category === catVal
+          );
+
+          if (existingImported) {
+            // 目前專案已在大庫暫存中，追加新的包裝單位選項到 unitOptions 裡面
+            if (!existingImported.unitOptions) {
+              existingImported.unitOptions = [
+                {
+                  id: `uo-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+                  unit: existingImported.unit,
+                  defaultUnitPrice: existingImported.defaultUnitPrice,
+                  defaultCostPrice: existingImported.defaultCostPrice,
+                  suppliers: []
+                }
+              ];
+            }
+            // 檢查重複單位防呆
+            const hasUnit = existingImported.unitOptions.some(uo => uo.unit === unitVal);
+            if (!hasUnit) {
+              existingImported.unitOptions.push({
                 id: `uo-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
                 unit: unitVal,
                 defaultUnitPrice: priceVal,
                 defaultCostPrice: costVal,
                 suppliers: []
-              }
-            ]
-          });
+              });
+            }
+          } else {
+            const cleanId = rawId && rawId.length > 3 ? rawId : `m-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+            imported.push({
+              id: cleanId,
+              name: nameVal,
+              category: catVal,
+              subcategory: subcatVal || undefined,
+              unit: unitVal,
+              defaultUnitPrice: priceVal,
+              defaultCostPrice: costVal,
+              isRealPrice: isRealPriceVal,
+              unitOptions: [
+                {
+                  id: `uo-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+                  unit: unitVal,
+                  defaultUnitPrice: priceVal,
+                  defaultCostPrice: costVal,
+                  suppliers: []
+                }
+              ]
+            });
+          }
         });
 
         if (imported.length === 0) {
@@ -1369,6 +1488,15 @@ export default function MaterialsPanel({
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadTemplateExcel}
+              className="px-3 py-1.5 bg-[#1E1E1E] text-amber-300 border border-amber-500/30 hover:bg-amber-500/15 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-3xs cursor-pointer transition"
+              title="下載具有同品項多單位、實價格式說明的匯入 Excel 規範範本"
+            >
+              <FileSpreadsheet size={13} />
+              📋 下載匯入範本
+            </button>
             <button
               type="button"
               onClick={handleExportExcel}
