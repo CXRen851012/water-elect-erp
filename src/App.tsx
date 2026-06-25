@@ -452,8 +452,25 @@ export default function App() {
     setHistoryVisibleLimit(30);
   }, [historySearch, historyStatusFilter, historyProjectFilter, historySortBy]);
   const [showRecordForm, setShowRecordForm] = useState<boolean>(false);
+  const [recordFormAnimDone, setRecordFormAnimDone] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!showRecordForm) {
+      setRecordFormAnimDone(false);
+    }
+  }, [showRecordForm]);
   const [recordToEdit, setRecordToEdit] = useState<DailyRecord | undefined>(undefined);
+  const [collapsedRecordDetails, setCollapsedRecordDetails] = useState<Record<string, boolean>>({});
   const [showProjectModal, setShowProjectModal] = useState<boolean>(false);
+
+  const handleJumpToProjectLogs = (projectId: string) => {
+    setActiveTab('construction');
+    setRecordsSubTab('history');
+    setHistoryProjectFilter(projectId);
+    setHistorySearch('');
+    setHistoryStatusFilter('all');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
 
   // 計算並取得本地 LocalStorage 使用率 (警報機制)
@@ -959,9 +976,9 @@ export default function App() {
             {showRecordForm ? (
               <motion.div
                 key="record-form"
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -15 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
                 transition={{ duration: 0.15 }}
               >
                 <RecordForm
@@ -1183,7 +1200,7 @@ export default function App() {
                               );
                             }
 
-                            return (
+                             return (
                               <div className="space-y-4">
                                 <div className="space-y-4">
                                   {todayRecords.map(record => {
@@ -1194,90 +1211,126 @@ export default function App() {
 
                                     const matchedProj = projects.find(p => p.id === record.projectId);
                                     const formattedProjName = matchedProj ? getProjectDisplayName(matchedProj) : record.projectName;
+                                    const isExpanded = !!collapsedRecordDetails[record.id];
 
                                     return (
-                                      <div key={record.id} className="p-4.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#1E1E1E] border-[#D4AF37]/20 shadow-xs">
-                                        <div className="space-y-1.5">
-                                          <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="font-mono text-[10px] font-black bg-[#D4AF37]/10 text-[#F3E5AB] border border-[#D4AF37]/20 px-2 py-0.5 rounded">
-                                              {record.date} 🔥 本日施工
-                                            </span>
-                                            {record.markAsCompleted ? (
-                                              <span className="text-[10px] px-2 py-0.5 bg-emerald-950/80 text-[#10B981] font-bold border border-emerald-900/40 rounded-full">已宣告結案</span>
-                                            ) : (
-                                              <span className="text-[10px] px-2 py-0.5 bg-[#D4AF37]/5 text-[#D4AF37] font-bold border border-[#D4AF37]/20 rounded-full">持續施作中</span>
-                                            )}
-                                            {record.internalCostOnly && (
-                                              <span className="text-[10px] px-2 py-0.5 bg-rose-955/80 text-[#EF4444] font-extrabold border border-rose-900/40 rounded-full animate-pulse">
-                                                🛡️ 僅計公司內部成本
+                                      <div key={record.id} className="p-4.5 rounded-xl border transition-all bg-[#1E1E1E] border-[#D4AF37]/20 shadow-xs space-y-3">
+                                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                                          <div className="space-y-1.5 flex-1">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <span className="font-mono text-[10px] font-black bg-[#D4AF37]/10 text-[#F3E5AB] border border-[#D4AF37]/20 px-2 py-0.5 rounded">
+                                                {record.date} 🔥 本日施工
                                               </span>
-                                            )}
+                                              {record.markAsCompleted ? (
+                                                <span className="text-[10px] px-2 py-0.5 bg-emerald-950/80 text-[#10B981] font-bold border border-emerald-900/40 rounded-full">已宣告結案</span>
+                                              ) : (
+                                                <span className="text-[10px] px-2 py-0.5 bg-[#D4AF37]/5 text-[#D4AF37] font-bold border border-[#D4AF37]/20 rounded-full">持續施作中</span>
+                                              )}
+                                              {record.internalCostOnly && (
+                                                <span className="text-[10px] px-2 py-0.5 bg-rose-955/80 text-[#EF4444] font-extrabold border border-rose-900/40 rounded-full animate-pulse">
+                                                  🛡️ 僅計公司內部成本
+                                                </span>
+                                              )}
+                                            </div>
+                                            <h4 className="text-xs sm:text-sm font-extrabold text-[#F3E5AB]">
+                                              {formattedProjName}
+                                            </h4>
+                                            <p className="text-xs text-neutral-300 font-medium leading-relaxed font-sans">
+                                              📌 施工說明：{record.notes ? record.notes : '工作正常，無特殊狀況。'}
+                                            </p>
+
+                                            {/* Show Worker Hours */}
+                                            <div className="flex flex-wrap items-center gap-1.5 pt-1 text-neutral-300">
+                                              <span className="font-extrabold text-[#D4AF37] text-[11px]">👥 出勤人員與時數：</span>
+                                              {record.workers && record.workers.length > 0 ? (
+                                                record.workers.map((w, idx) => (
+                                                  <span key={idx} className="bg-[#2a2a2a] px-2 py-0.5 rounded border border-neutral-800 font-mono text-xs font-semibold text-neutral-200">
+                                                    {w.name} ({w.hoursWork}h)
+                                                  </span>
+                                                ))
+                                              ) : (
+                                                <span className="italic text-neutral-500 text-xs">無派遣人員</span>
+                                              )}
+                                            </div>
                                           </div>
-                                          <h4 className="text-xs sm:text-sm font-extrabold text-[#F3E5AB]">
-                                            {formattedProjName}
-                                          </h4>
-                                          <p className="text-xs text-neutral-400 font-medium">
-                                            {record.notes ? `施工說明/進度備份：${record.notes}` : '工作正常，無特殊狀況。'}
-                                          </p>
+
+                                          <div className="flex sm:flex-col items-start sm:items-end justify-between sm:justify-start gap-3 shrink-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-[#D4AF37]/15">
+                                            <div className="text-left sm:text-right">
+                                              <span className="text-[10px] text-neutral-400 font-bold block leading-relaxed">日誌工料估算費用</span>
+                                              <span className="text-xs sm:text-sm font-black text-[#F3E5AB] font-mono">
+                                                ${recordTotalCost.toLocaleString()} 元
+                                              </span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <button
+                                                onClick={() => handleEditRecordTrigger(record)}
+                                                className="px-3.5 py-1.5 bg-[#121212] hover:bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/25 font-bold text-xs rounded-xl transition-all cursor-pointer shadow-3xs"
+                                              >
+                                                詳細與修改
+                                              </button>
+                                            </div>
+                                          </div>
                                         </div>
 
-                                        <div className="flex items-center justify-between sm:justify-end gap-5 pt-3 sm:pt-0 border-t sm:border-t-0 border-[#D4AF37]/15">
-                                          <div className="text-left sm:text-right">
-                                            <span className="text-[10px] text-neutral-400 font-bold block leading-relaxed">日誌工料估算費用</span>
-                                            <span className="text-xs sm:text-sm font-black text-[#F3E5AB] font-mono">
-                                              ${recordTotalCost.toLocaleString()} 元
+                                        {/* Collapsible Materials and Expenses Section */}
+                                        <div className="pt-2.5 border-t border-[#2c2c2c] bg-neutral-950/20 rounded-lg p-2.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setCollapsedRecordDetails(prev => ({
+                                                ...prev,
+                                                [record.id]: !prev[record.id]
+                                              }));
+                                            }}
+                                            className="text-[11.5px] font-bold text-neutral-400 hover:text-[#D4AF37] transition-colors flex items-center gap-1.5 cursor-pointer select-none"
+                                          >
+                                            📋 {isExpanded ? '🔼 收合耗材與費用詳情' : '🔽 展開耗材與費用詳情'} 
+                                            <span className="text-[10.5px] text-neutral-500">
+                                              ({record.materials?.length || 0} 品項材料, {record.expenses?.length || 0} 雜項費用)
                                             </span>
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                            <button
-                                              onClick={() => handleEditRecordTrigger(record)}
-                                              className="px-3.5 py-1.5 bg-[#121212] hover:bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/25 font-bold text-xs rounded-xl transition-all cursor-pointer shadow-3xs"
-                                            >
-                                              詳細與修改
-                                            </button>
-                                          </div>
+                                          </button>
+
+                                          {isExpanded && (
+                                            <div className="mt-2.5 space-y-2.5 pl-2 border-l-2 border-[#D4AF37]/30 animate-fadeIn text-[11px] text-neutral-400 font-sans leading-relaxed">
+                                              {/* Materials List */}
+                                              <div>
+                                                <span className="font-bold text-[#F3E5AB] block mb-1">🛠️ 耗用材料明細：</span>
+                                                {record.materials && record.materials.length > 0 ? (
+                                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                                    {record.materials.map((m, idx) => (
+                                                      <div key={idx} className="bg-[#252525] p-1.5 rounded border border-[#333] flex justify-between items-center text-neutral-300">
+                                                        <span>{m.materialName} ({m.quantity} {m.unit})</span>
+                                                        <span className="text-[10.5px] font-mono text-[#D4AF37]">${(m.unitPrice * m.quantity).toLocaleString()} 元</span>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                ) : (
+                                                  <span className="text-neutral-500 italic">無使用材料紀錄</span>
+                                                )}
+                                              </div>
+
+                                              {/* Expenses List */}
+                                              <div>
+                                                <span className="font-bold text-emerald-400 block mb-1">💰 當日雜項與工程支出費用：</span>
+                                                {record.expenses && record.expenses.length > 0 ? (
+                                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                                    {record.expenses.map((e, idx) => (
+                                                      <div key={idx} className="bg-[#252525] p-1.5 rounded border border-[#333] flex justify-between items-center text-neutral-300">
+                                                        <span>{e.expenseName} ({e.isProjectExpense ? '案場雜項' : '內部費用'})</span>
+                                                        <span className="text-[10.5px] font-mono text-emerald-400">${e.amount.toLocaleString()} 元</span>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                ) : (
+                                                  <span className="text-neutral-500 italic">無雜項支出紀錄</span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
                                     );
                                   })}
-                                </div>
-
-                                {/* Active projects suggestion anyway for quick add */}
-                                <div className="mt-6 bg-[#1A1A1A] p-5 rounded-2xl border border-[#D4AF37]/10">
-                                  <h4 className="text-xs font-black uppercase tracking-widest text-[#D4AF37] mb-3 flex items-center gap-1.5">
-                                    <span>🏗️ 其他施作中案場 (快速登錄)</span>
-                                  </h4>
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                    {activeProjects.map(p => (
-                                      <button
-                                        key={p.id}
-                                        onClick={() => {
-                                          setRecordToEdit({
-                                            id: '',
-                                            projectId: p.id,
-                                            date: todayStr,
-                                            projectName: getProjectDisplayName(p),
-                                            materials: [],
-                                            expenses: [],
-                                            workers: [],
-                                            notes: '',
-                                            markAsCompleted: false,
-                                            createdAt: new Date().toISOString()
-                                              });
-                                              setShowRecordForm(true);
-                                            }}
-                                        className="text-left p-3 bg-[#121212] hover:bg-[#D4AF37]/5 hover:border-[#D4AF37]/45 transition-all border border-[#D4AF37]/15 rounded-xl cursor-pointer group"
-                                      >
-                                        <div className="text-[10px] font-mono font-bold text-[#D4AF37] mb-1 flex items-center justify-between">
-                                          <span>{p.serialNumber}</span>
-                                          <span className="text-neutral-450 group-hover:text-[#D4AF37] transition-colors">快速登錄 →</span>
-                                        </div>
-                                        <div className="text-xs font-bold text-[#E0E0E0] line-clamp-1">
-                                          {getProjectDisplayName(p)}
-                                        </div>
-                                      </button>
-                                    ))}
-                                  </div>
                                 </div>
                               </div>
                             );
@@ -1489,48 +1542,122 @@ export default function App() {
                               {slicedRecords.map(({ record, recordTotalCost }) => {
                                 const matchedProj = projects.find(p => p.id === record.projectId);
                                 const formattedProjName = matchedProj ? getProjectDisplayName(matchedProj) : record.projectName;
+                                const isExpanded = !!collapsedRecordDetails[record.id];
 
                                 return (
-                                  <div key={record.id} className="p-4 bg-white hover:bg-neutral-50 border border-neutral-200 hover:border-neutral-300 rounded-xl transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                    <div className="space-y-1">
-                                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                        <span className="font-mono text-xs font-semibold bg-neutral-100 text-neutral-500 px-2 py-0.5 rounded">
-                                          {record.date}
-                                        </span>
-                                        {record.markAsCompleted ? (
-                                          <span className="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded-full">已宣告結案</span>
-                                        ) : (
-                                          <span className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-850 font-bold rounded-full">持續施作中</span>
-                                        )}
-                                        {record.internalCostOnly && (
-                                          <span className="text-[10px] px-2 py-0.5 bg-rose-100 text-rose-800 font-extrabold border border-rose-200 rounded-full animate-pulse">
-                                            🛡️ 僅計公司內部成本
+                                  <div key={record.id} className="p-4 bg-white hover:bg-neutral-50 border border-neutral-200 hover:border-neutral-300 rounded-xl transition-all space-y-3 shadow-3xs">
+                                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                                      <div className="space-y-1.5 flex-1">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="font-mono text-xs font-semibold bg-neutral-100 text-neutral-500 px-2 py-0.5 rounded">
+                                            {record.date}
                                           </span>
-                                        )}
+                                          {record.markAsCompleted ? (
+                                            <span className="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded-full">已宣告結案</span>
+                                          ) : (
+                                            <span className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-850 font-bold rounded-full">持續施作中</span>
+                                          )}
+                                          {record.internalCostOnly && (
+                                            <span className="text-[10px] px-2 py-0.5 bg-rose-100 text-rose-800 font-extrabold border border-rose-200 rounded-full animate-pulse">
+                                              🛡️ 僅計公司內部成本
+                                            </span>
+                                          )}
+                                        </div>
+                                        <h4 className="text-xs sm:text-sm font-extrabold text-neutral-800">
+                                          {formattedProjName}
+                                        </h4>
+                                        <p className="text-xs text-neutral-600 font-semibold font-sans leading-relaxed">
+                                          📌 施工說明：{record.notes ? record.notes : '工作正常，無特殊狀況。'}
+                                        </p>
+
+                                        {/* Show Worker Hours */}
+                                        <div className="flex flex-wrap items-center gap-1.5 pt-1 text-neutral-600">
+                                          <span className="font-extrabold text-amber-800 text-[11px]">👥 出勤人員與時數：</span>
+                                          {record.workers && record.workers.length > 0 ? (
+                                            record.workers.map((w, idx) => (
+                                              <span key={idx} className="bg-neutral-100 px-2 py-0.5 rounded border border-neutral-200 font-mono text-xs font-bold text-neutral-800">
+                                                {w.name} ({w.hoursWork}h)
+                                              </span>
+                                            ))
+                                          ) : (
+                                            <span className="italic text-neutral-450 text-xs">無派遣人員</span>
+                                          )}
+                                        </div>
                                       </div>
-                                      <h4 className="text-xs sm:text-sm font-extrabold text-neutral-800">
-                                        {formattedProjName}
-                                      </h4>
-                                      <p className="text-xs text-neutral-400 font-medium font-sans">
-                                        {record.notes ? `施工說明：${record.notes}` : '工作正常，無特殊狀況。'}
-                                      </p>
+
+                                      <div className="flex sm:flex-col items-start sm:items-end justify-between sm:justify-start gap-3 shrink-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-neutral-150">
+                                        <div className="text-left sm:text-right">
+                                          <span className="text-[10px] text-neutral-400 font-bold block leading-relaxed">日誌估算費用</span>
+                                          <span className="text-xs sm:text-sm font-black text-neutral-800 font-mono">
+                                            ${recordTotalCost.toLocaleString()} 元
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                            onClick={() => handleEditRecordTrigger(record)}
+                                            className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-250 text-neutral-800 font-bold text-xs rounded-xl transition-all cursor-pointer shadow-3xs border border-neutral-250"
+                                          >
+                                            詳細與修改
+                                          </button>
+                                        </div>
+                                      </div>
                                     </div>
 
-                                    <div className="flex items-center justify-between sm:justify-end gap-5 pt-2 sm:pt-0 border-t sm:border-t-0 border-neutral-100">
-                                      <div className="text-left sm:text-right">
-                                        <span className="text-[10px] text-neutral-400 font-bold block leading-relaxed">日誌估算費用</span>
-                                        <span className="text-xs sm:text-sm font-black text-neutral-800 font-mono">
-                                          ${recordTotalCost.toLocaleString()} 元
+                                    {/* Collapsible Materials and Expenses Section */}
+                                    <div className="pt-2.5 border-t border-neutral-150 bg-neutral-50/50 rounded-lg p-2.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setCollapsedRecordDetails(prev => ({
+                                            ...prev,
+                                            [record.id]: !prev[record.id]
+                                          }));
+                                        }}
+                                        className="text-[11.5px] font-bold text-neutral-500 hover:text-neutral-900 transition-colors flex items-center gap-1.5 cursor-pointer select-none"
+                                      >
+                                        📋 {isExpanded ? '🔼 收合耗材與費用詳情' : '🔽 展開耗材與費用詳情'} 
+                                        <span className="text-[10.5px] text-neutral-400">
+                                          ({record.materials?.length || 0} 品項材料, {record.expenses?.length || 0} 雜項費用)
                                         </span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <button
-                                          onClick={() => handleEditRecordTrigger(record)}
-                                          className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold text-xs rounded-xl transition-all cursor-pointer shadow-3xs"
-                                        >
-                                          詳細與修改
-                                        </button>
-                                      </div>
+                                      </button>
+
+                                      {isExpanded && (
+                                        <div className="mt-2.5 space-y-2.5 pl-2 border-l-2 border-amber-500/40 animate-fadeIn text-[11px] text-neutral-600 font-sans leading-relaxed">
+                                          {/* Materials List */}
+                                          <div>
+                                            <span className="font-extrabold text-neutral-800 block mb-1">🛠️ 耗用材料明細：</span>
+                                            {record.materials && record.materials.length > 0 ? (
+                                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                                {record.materials.map((m, idx) => (
+                                                  <div key={idx} className="bg-white p-1.5 rounded border border-neutral-200 flex justify-between items-center text-neutral-700">
+                                                    <span>{m.materialName} ({m.quantity} {m.unit})</span>
+                                                    <span className="text-[10.5px] font-mono text-amber-800 font-black">${(m.unitPrice * m.quantity).toLocaleString()} 元</span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            ) : (
+                                              <span className="text-neutral-400 italic">無使用材料紀錄</span>
+                                            )}
+                                          </div>
+
+                                          {/* Expenses List */}
+                                          <div>
+                                            <span className="font-extrabold text-emerald-800 block mb-1">💰 當日雜項與工程支出費用：</span>
+                                            {record.expenses && record.expenses.length > 0 ? (
+                                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                                {record.expenses.map((e, idx) => (
+                                                  <div key={idx} className="bg-white p-1.5 rounded border border-neutral-200 flex justify-between items-center text-neutral-700">
+                                                    <span>{e.expenseName} ({e.isProjectExpense ? '案場雜項' : '內部費用'})</span>
+                                                    <span className="text-[10.5px] font-mono text-emerald-700 font-black">${e.amount.toLocaleString()} 元</span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            ) : (
+                                              <span className="text-neutral-400 italic">無雜項支出紀錄</span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 );
@@ -1611,6 +1738,7 @@ export default function App() {
                       projects={projects}
                       setProjects={setProjects}
                       records={records}
+                      setRecords={setRecords}
                       transactions={transactions}
                       setTransactions={setTransactions}
                       workersPreset={workers}
@@ -1623,6 +1751,7 @@ export default function App() {
                       onDeleteRecord={handleDeleteRecord}
                       onSaveToast={triggerToast}
                       triggerAddPayment={billingTriggerStamp}
+                      onJumpToProjectLogs={handleJumpToProjectLogs}
                     />
                   </div>
                 )}

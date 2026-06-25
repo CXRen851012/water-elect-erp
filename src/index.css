@@ -14,10 +14,11 @@
    👑 全域黑金暴力覆寫系統 (無死角覆寫)
    ========================================= */
 
-/* 1. 強制重設全站所有 HTML 與大容器背景 */
+/* 1. 強制重設全站所有 HTML 與大容器背景並加大字體 */
 body, html {
   background-color: var(--bg-main) !important;
   color: var(--text-secondary) !important;
+  font-size: 106% !important; /* 全域等比例加大所有字體，保持極佳清晰度與排版 */
 }
 
 /* 2. 暴力清除全站所有卡片、彈出視窗(Modal/Dialog)與大庫面板的白色底 */
@@ -660,5 +661,10 @@ svg .recharts-cartesian-grid-vertical line {
 /* 🎯 AIS Studio Focus Mode Target Element */
 div#root:nth-of-type(1) > div#app-root-container:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(4) > div:nth-of-type(1) > span:nth-of-type(1) {
   background-color: #441515 !important;
+}
+
+/* 🚀 Fix containing block transform issue to allow RecordForm bottom action row to float relative to the viewport correctly */
+#record-form-container {
+  transform: none !important;
 }
 

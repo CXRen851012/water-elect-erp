@@ -379,18 +379,15 @@ export default function RecordForm({
   };
 
   const handleAddMaterialRow = () => {
-    const defaultPreset = sortedMaterialsPreset[0];
-    const defaultUnit = defaultPreset?.unit || '個';
-    const prices = defaultPreset ? getUnitAndSupplierPrices(defaultPreset, defaultUnit) : { unitPrice: 0, costPrice: 0 };
     const item: RecordMaterial = {
       id: `mat-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      materialId: defaultPreset?.id || 'custom',
-      name: defaultPreset?.name || '請輸入材料名稱',
+      materialId: undefined,
+      name: '',
       quantity: 1,
-      unit: defaultUnit,
-      unitPrice: prices.unitPrice,
-      costPrice: prices.costPrice,
-      isNearbyPurchased: false
+      unit: '個',
+      unitPrice: 0,
+      costPrice: 0,
+      isNearbyPurchased: true
     };
     setMaterials([...materials, item]);
   };
@@ -498,16 +495,31 @@ export default function RecordForm({
   const handleAddWorkerRow = () => {
     const activeStaffIds = workers.map(w => w.workerId);
     const activeOnlyPresets = workersPreset.filter(wp => wp.status !== '離職');
-    const availableStaff = activeOnlyPresets.find(wp => !activeStaffIds.includes(wp.id)) || activeOnlyPresets[0];
+    const availableStaff = activeOnlyPresets.find(wp => !activeStaffIds.includes(wp.id));
+
+    if (!availableStaff) {
+      // All fixed crew are already dispatched, add a custom temp support row automatically to prevent duplicate selection!
+      const item: RecordWorker = {
+        id: `crew-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        workerId: 'support_temp',
+        name: '',
+        hoursWork: 8,
+        hourlyRate: 250,
+        billingHourlyRate: 250,
+        isSupport: true
+      };
+      setWorkers([...workers, item]);
+      return;
+    }
 
     const item: RecordWorker = {
       id: `crew-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      workerId: availableStaff?.id || 'support_temp',
-      name: availableStaff?.name || '',
+      workerId: availableStaff.id,
+      name: availableStaff.name,
       hoursWork: 8, // Standard shifts
-      hourlyRate: availableStaff?.defaultHourlyRate || 250, // silent backend value for analytics
-      billingHourlyRate: availableStaff ? (availableStaff.billingHourlyRate ?? availableStaff.defaultHourlyRate) : 250,
-      isSupport: availableStaff ? false : true
+      hourlyRate: availableStaff.defaultHourlyRate || 250, // silent backend value for analytics
+      billingHourlyRate: availableStaff.billingHourlyRate ?? availableStaff.defaultHourlyRate ?? 250,
+      isSupport: false
     };
     setWorkers([...workers, item]);
   };
@@ -693,7 +705,8 @@ export default function RecordForm({
   };
 
   return (
-    <div id="record-form-container" className="bg-white rounded-2xl border border-neutral-200/80 shadow-sm overflow-hidden font-sans">
+    <>
+      <div id="record-form-container" className="bg-white rounded-2xl border border-neutral-200/80 shadow-sm overflow-hidden font-sans">
       {/* Upper Dark bar */}
       <div className="bg-neutral-900 px-6 py-5 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
@@ -711,7 +724,7 @@ export default function RecordForm({
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-6 space-y-6">
+      <form id="daily-record-form" onSubmit={handleSubmit} className="p-6 space-y-6">
         {/* Administrator Pricing Override Toggle (Discrete hidden-style button) */}
         <div className="flex justify-end">
           <button
@@ -1446,11 +1459,14 @@ export default function RecordForm({
                           className="w-full p-2 border border-neutral-200 rounded text-xs bg-white text-neutral-800 font-extrabold focus:border-amber-400 focus:ring-1 focus:ring-amber-200"
                         >
                           <optgroup label="固定在職人員名單 (快速點選)">
-                            {workersPreset.filter(wp => wp.status !== '離職').map(wp => (
-                              <option key={wp.id} value={wp.id}>
-                                👷 {wp.name} ({wp.role || '在職'})
-                              </option>
-                            ))}
+                            {workersPreset.filter(wp => wp.status !== '離職').map(wp => {
+                              const isAlreadySelected = workers.some(currW => currW.workerId === wp.id && currW.id !== w.id);
+                              return (
+                                <option key={wp.id} value={wp.id} disabled={isAlreadySelected}>
+                                  👷 {wp.name} ({wp.role || '在職'}) {isAlreadySelected ? '(已派遣)' : ''}
+                                </option>
+                              );
+                            })}
                           </optgroup>
                           <optgroup label="外部派工臨時支援 (不留常備底名)">
                             <option value="support_temp">
@@ -1480,7 +1496,7 @@ export default function RecordForm({
                           </div>
                           {/* 快速派工時數選取鈕 */}
                           <div className="flex gap-1">
-                            {[4, 8, 10, 12].map(h => (
+                            {[1, 2, 4, 8].map(h => (
                               <button
                                 key={h}
                                 type="button"
@@ -1975,33 +1991,29 @@ export default function RecordForm({
           </div>
         </section>
 
-        {/* BOTTOM SUBMISSION ROW - NO EXPENSIVE FINANCIAL PREVIEW ON WORKERS LOGGING SIDE */}
-        <div className="p-4 bg-neutral-900 border border-neutral-950 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 text-white">
-          <div className="flex items-center gap-2">
-            <Sparkles size={16} className="text-amber-400 animate-pulse flex-shrink-0" />
-            <p className="text-xs text-neutral-300">
-              請檢查以上填報專案材料、人员時數完全正確，確認無誤後即可點按按鈕存檔。
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="w-1/2 sm:w-auto px-5 py-2 text-xs font-bold text-neutral-400 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-xl transition"
-            >
-              取消返回
-            </button>
-            <button
-              type="submit"
-              className="w-1/2 sm:w-auto px-6 py-2 text-xs font-bold text-neutral-900 bg-amber-400 hover:bg-amber-500 rounded-xl shadow-md transition flex items-center justify-center gap-1"
-            >
-              <Check size={14} className="stroke-[2.5]" />
-              {initialRecordToEdit ? '儲存修改日誌' : '送出施工日誌'}
-            </button>
-          </div>
-        </div>
+        {/* 佔位空間，防止最下方欄位被 Fixed 提交底欄遮擋 */}
+        <div className="h-28"></div>
       </form>
     </div>
-  );
+
+    {/* BOTTOM SUBMISSION ROW - FIXED FLOATING AT VIEWPORT BOTTOM */}
+    <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-8 z-[100] flex items-center justify-end gap-3 p-3 bg-[#0a0a0af5] backdrop-blur-md border border-neutral-800 rounded-2xl shadow-[0_10px_35px_rgba(0,0,0,0.8)]">
+      <button
+        type="button"
+        onClick={onCancel}
+        className="flex-1 sm:flex-initial px-5 py-2.5 text-xs font-bold text-neutral-450 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800/80 rounded-xl transition cursor-pointer text-center"
+      >
+        取消返回
+      </button>
+      <button
+        type="submit"
+        form="daily-record-form"
+        className="flex-1 sm:flex-initial px-6 py-2.5 text-xs font-bold text-neutral-950 bg-amber-400 hover:bg-amber-500 rounded-xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer font-black whitespace-nowrap animate-pulse hover:animate-none"
+      >
+        <Check size={14} className="stroke-[2.5]" />
+        {initialRecordToEdit ? '儲存修改日誌' : '送出施工日誌'}
+      </button>
+    </div>
+  </>
+);
 }

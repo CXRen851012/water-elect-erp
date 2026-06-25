@@ -16,6 +16,7 @@ interface ProjectSummaryItem {
   name: string;
   clientId: string;
   clientName: string;
+  companyOrOwner?: string;
   contractQuote: number;
   actualCalculated: number; // 工料實報實銷 (業主牌價請款計費)
   actualConstructionCost: number; // 實際施工成本 (工時成本底價+進貨成本)
@@ -45,6 +46,8 @@ interface BillingPanelProps {
   onSaveToast: (msg: string) => void;
   triggerAddPayment?: number;
   setProjects?: React.Dispatch<React.SetStateAction<Project[]>>;
+  setRecords?: React.Dispatch<React.SetStateAction<DailyRecord[]>>;
+  onJumpToProjectLogs?: (projectId: string) => void;
 }
 
 export default function BillingPanel({
@@ -63,7 +66,9 @@ export default function BillingPanel({
   onDeleteRecord,
   onSaveToast,
   triggerAddPayment = 0,
-  setProjects
+  setProjects,
+  setRecords,
+  onJumpToProjectLogs
 }: BillingPanelProps) {
   // Navigation internal Unified tabs
   const [activeSubTab, setActiveSubTab] = useState<'billing_records' | 'operating_analytics' | 'worker_attendance' | 'worker_advances' | 'petty_cash'>('billing_records');
@@ -88,6 +93,19 @@ export default function BillingPanel({
     title: '',
     message: '',
     onConfirm: () => {}
+  });
+
+  // State for Prepaid Pool Refund Custom Prompt Modal
+  const [refundModal, setRefundModal] = useState<{
+    isOpen: boolean;
+    customerId: string;
+    maxAmount: number;
+    amountInput: string;
+  }>({
+    isOpen: false,
+    customerId: '',
+    maxAmount: 0,
+    amountInput: ''
   });
 
   const triggerConfirm = (title: string, message: string, onConfirm: () => void) => {
@@ -159,6 +177,25 @@ export default function BillingPanel({
   const [tableScrollTop, setTableScrollTop] = useState<number>(0);
   const tableContainerHeight = 520; // 固定的可視高度 520px
   const rowHeight = 72; // 預估平均每列高度 72px
+
+  // Collapsible daily groups state
+  const [collapsedAttendanceDays, setCollapsedAttendanceDays] = useState<Record<string, boolean>>({});
+  // Collapsible billing alerts state
+  const [isAlertsCollapsed, setIsAlertsCollapsed] = useState<boolean>(true);
+
+  // Collapsible project details state for inline audit/edit
+  const [expandedProjDetails, setExpandedProjDetails] = useState<Record<string, boolean>>({});
+  // Form edit states for inline project editing inside collapsed area
+  const [inlineEditingProjId, setInlineEditingProjId] = useState<string | null>(null);
+  const [inlineQuoteInput, setInlineQuoteInput] = useState<string>('');
+  const [inlineIsEstimation, setInlineIsEstimation] = useState<boolean>(false);
+  const [inlineIsCompleted, setInlineIsCompleted] = useState<boolean>(false);
+  const [inlineSerialNumber, setInlineSerialNumber] = useState<string>('');
+  const [inlineCompanyOrOwner, setInlineCompanyOrOwner] = useState<string>('');
+
+  // Local state to hold temporary edits for materials
+  // Key format: `estimation-${projId}-${matIdx}-unitPrice` or `record-${recordId}-${matIdx}-unitPrice`
+  const [tempMaterialPrices, setTempMaterialPrices] = useState<Record<string, string>>({});
 
   // 快速切換考勤月份 Helper 函數
   const handlePrevMonth = () => {
@@ -271,8 +308,13 @@ export default function BillingPanel({
   // Get active and completed projects for a selected customer in form
   const targetCustomerProjects = useMemo(() => {
     if (!payCustId) return [];
+    if (payCustId.startsWith('__unassigned__:') || payCustId.startsWith('__unassigned__ :')) {
+      const parts = payCustId.split(':');
+      const owner = parts.slice(1).join(':');
+      return projects.filter(p => (p.companyOrOwner || '未指派案場/散客') === owner && (!p.clientId || !customers.some(c => c.id === p.clientId)));
+    }
     return projects.filter(p => p.clientId === payCustId);
-  }, [payCustId, projects]);
+  }, [payCustId, projects, customers]);
 
   // Handle calculation of a single project's total billed amount and actual payments
   const projectSummaries = useMemo<Record<string, ProjectSummaryItem>>(() => {
@@ -421,6 +463,7 @@ export default function BillingPanel({
         name: p.generatedName,
         clientId: p.clientId || '',
         clientName,
+        companyOrOwner: p.companyOrOwner || '',
         contractQuote,
         actualCalculated,
         actualConstructionCost,
@@ -479,7 +522,10 @@ export default function BillingPanel({
     // Add pool transactions
     transactions.forEach(t => {
       const cId = t.customerId;
-      if (!poolMap[cId]) return;
+      if (!cId) return;
+      if (!poolMap[cId]) {
+        poolMap[cId] = { totalGained: 0, totalAssignedToProjects: 0, netPoolBalance: 0 };
+      }
       
       if (t.allocationType === 'client_pool' || t.allocationType === 'advance') {
         poolMap[cId].totalGained += t.amount;
@@ -518,6 +564,7 @@ export default function BillingPanel({
       prepaidBalance: number; 
     }> = [];
 
+    // 1. Registered Customers
     customers.forEach(c => {
       const clientProjects = projectSummariesList.filter(p => p.clientId === c.id);
       
@@ -564,9 +611,19 @@ export default function BillingPanel({
       });
     });
 
-    // Also group projects that have no matching customer id
+    // 2. Unassociated Projects (grouped by companyOrOwner)
     const unassociatedProjects = projectSummariesList.filter(p => !p.clientId || !customers.some(c => c.id === p.clientId));
-    if (unassociatedProjects.length > 0) {
+    
+    const unassociatedGroups: Record<string, typeof projectSummariesList> = {};
+    unassociatedProjects.forEach(p => {
+      const ownerName = p.companyOrOwner || '未指派案場/散客';
+      if (!unassociatedGroups[ownerName]) {
+        unassociatedGroups[ownerName] = [];
+      }
+      unassociatedGroups[ownerName].push(p);
+    });
+
+    Object.entries(unassociatedGroups).forEach(([ownerName, projs]) => {
       let totalBilled = 0;
       let totalReceived = 0;
       let totalRounding = 0;
@@ -576,7 +633,7 @@ export default function BillingPanel({
       let activeProjectsReceived = 0;
       let activeProjectsOutstanding = 0;
 
-      unassociatedProjects.forEach(p => {
+      projs.forEach(p => {
         if (p.isCompleted) {
           totalBilled += p.selectedBilledBasis;
           totalReceived += p.receivedPayment;
@@ -589,13 +646,16 @@ export default function BillingPanel({
         }
       });
 
+      const prepaidId = `__unassigned__:${ownerName}`;
+      const prepaid = customerCredits[prepaidId]?.netPoolBalance || 0;
+
       list.push({
-        customerId: '__unassigned__',
-        customerName: '🏢 散客與未指派客戶案場',
-        contactPerson: '不限',
+        customerId: prepaidId,
+        customerName: `🏢 ${ownerName}`,
+        contactPerson: '個別聯絡',
         phone: '無',
-        totalProjectsCount: unassociatedProjects.length,
-        activeProjectsCount: unassociatedProjects.filter(p => !p.isCompleted).length,
+        totalProjectsCount: projs.length,
+        activeProjectsCount: projs.filter(p => !p.isCompleted).length,
         totalBilled,
         totalReceived,
         totalRounding,
@@ -603,9 +663,9 @@ export default function BillingPanel({
         activeProjectsBilled,
         activeProjectsReceived,
         activeProjectsOutstanding,
-        prepaidBalance: 0
+        prepaidBalance: prepaid
       });
-    }
+    });
 
     return list;
   }, [customers, projectSummariesList, customerCredits]);
@@ -620,7 +680,9 @@ export default function BillingPanel({
     // Dynamically query projects matching query filters to update count and sums
     return list.map(c => {
       const clientProjects = projectSummariesList.filter(p => {
-        const isMatched = p.clientId === c.customerId || (c.customerId === '__unassigned__' && (!p.clientId || !customers.some(cust => cust.id === p.clientId)));
+        const isMatched = c.customerId.startsWith('__unassigned__:')
+          ? ((p.companyOrOwner || '未指派案場/散客') === c.customerId.substring('__unassigned__:'.length) && (!p.clientId || !customers.some(cust => cust.id === p.clientId)))
+          : p.clientId === c.customerId;
         if (!isMatched) return false;
 
         // Hide completed and fully paid projects optionally
@@ -848,7 +910,12 @@ export default function BillingPanel({
       if (poolAllocSubMode === 'old_debt_auto') {
         // Option 2B: System auto-allocates to old debts first (優先沖銷舊案)
         const customerUnpaidProjects = projectSummariesList
-          .filter(p => p.clientId === payCustId && p.outstandingBalance > 0)
+          .filter(p => {
+            const isMatched = payCustId.startsWith('__unassigned__:')
+              ? ((p.companyOrOwner || '未指派案場/散客') === payCustId.substring('__unassigned__:'.length) && (!p.clientId || !customers.some(c => c.id === p.clientId)))
+              : p.clientId === payCustId;
+            return isMatched && p.outstandingBalance > 0;
+          })
           .sort((a, b) => a.serialNumber.localeCompare(b.serialNumber)); // Sort oldest serial first
 
         if (customerUnpaidProjects.length === 0) {
@@ -1005,6 +1072,59 @@ export default function BillingPanel({
 
     setTransactions(prev => [newTx, ...prev]);
     onSaveToast(`🔄 生態抵扣成功！自預收帳戶中劃撥 NT$ ${applyAmt.toLocaleString()} 元內扣此工程！`);
+  };
+
+  // Transfer overpaid amount back to client pool (專案溢收款轉入客戶預收池)
+  const handleRefundOverpaymentToPool = (custId: string, projId: string, amount: number) => {
+    if (amount <= 0) return;
+
+    triggerConfirm(
+      '確認專案溢收轉回預收池',
+      `是否確定將此案場之溢收/多收工程款 NT$ ${amount.toLocaleString()} 元，轉回至該客戶的「預收溢領沖抵池」？\n\n此操作將會在對帳歷史流水中新增兩筆沖銷分錄（專案收款扣減、預收池存入）。`,
+      () => {
+        const timestamp = Date.now();
+        const dateStr = new Date().toISOString().substring(0, 10);
+        
+        // 1. Negative project transaction (to reduce its receivedPayment)
+        const newTxProj: PaymentTransaction = {
+          id: `tx-refund-proj-${timestamp}`,
+          customerId: custId,
+          projectNameOrId: projId,
+          date: dateStr,
+          amount: -amount, // Negative amount on specific project
+          method: '溢收款轉移',
+          allocationType: 'specific_project',
+          description: `[溢收轉回] 請款金額輸入錯誤，轉出溢付至預收池`,
+          createdAt: new Date().toISOString()
+        };
+
+        // 2. Positive client pool transaction (to increase client pool totalGained)
+        const newTxPool: PaymentTransaction = {
+          id: `tx-refund-pool-${timestamp}`,
+          customerId: custId,
+          date: dateStr,
+          amount: amount, // Positive amount to store in client pool
+          method: '溢收款轉移',
+          allocationType: 'client_pool',
+          description: `[溢收轉回] 接收從工程專案轉回之溢付款`,
+          createdAt: new Date().toISOString()
+        };
+
+        setTransactions(prev => [newTxProj, newTxPool, ...prev]);
+        onSaveToast(`🔄 轉回預收池成功！已將該案場溢收的 NT$ ${amount.toLocaleString()} 元沖轉至客戶預收帳戶中。`);
+      }
+    );
+  };
+
+  // Customer withdraws/refunds their prepaid pool credits (領回/退還預收款給客戶)
+  const handleRefundPrepaidPool = (custId: string, maxAmount: number) => {
+    if (maxAmount <= 0) return;
+    setRefundModal({
+      isOpen: true,
+      customerId: custId,
+      maxAmount: maxAmount,
+      amountInput: String(maxAmount)
+    });
   };
 
   // Remove billing logic record
@@ -1433,6 +1553,26 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
   const paddingTopHeight = startIndex * rowHeight;
   const paddingBottomHeight = (tableAttendanceList.length - endIndex) * rowHeight;
 
+  // Group attendance records by date for daily folding and summarization
+  const groupedAttendanceByDate = useMemo(() => {
+    const groups: Record<string, typeof tableAttendanceList> = {};
+    tableAttendanceList.forEach(item => {
+      if (!groups[item.date]) {
+        groups[item.date] = [];
+      }
+      groups[item.date].push(item);
+    });
+
+    const sortedDates = Object.keys(groups).sort((a, b) => {
+      if (attendanceSortBy === 'dateAsc') {
+        return a.localeCompare(b);
+      }
+      return b.localeCompare(a);
+    });
+
+    return { groups, sortedDates };
+  }, [tableAttendanceList, attendanceSortBy]);
+
   // 計算每個工班同仁的預支、借支與還款餘額彙整
   const workerAdvancesSummary = useMemo(() => {
     const summary: Record<string, { totalBorrowed: number; totalRepaid: number; balance: number }> = {};
@@ -1657,7 +1797,19 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     {customers.map(c => (
                       <option key={c.id} value={c.id} className="bg-[#1E1E1E]">👤 {c.name}</option>
                     ))}
-                    <option value="__unassigned__" className="bg-[#1E1E1E]">🏢 散客與未指派客戶案場</option>
+                    {Object.keys(
+                      projectSummariesList
+                        .filter(p => !p.clientId || !customers.some(cust => cust.id === p.clientId))
+                        .reduce((acc, p) => {
+                          const owner = p.companyOrOwner || '未指派案場/散客';
+                          acc[owner] = true;
+                          return acc;
+                        }, {} as Record<string, boolean>)
+                    ).map(owner => (
+                      <option key={`__unassigned__:${owner}`} value={`__unassigned__:${owner}`} className="bg-[#1E1E1E]">
+                        🏢 {owner}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -1723,9 +1875,12 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
           </div>
 
           <div className="space-y-6">
+
             {filteredAggregateLedger.map(ledger => {
               const clientProjs = projectSummariesList.filter(p => {
-                const isMatched = p.clientId === ledger.customerId || (ledger.customerId === '__unassigned__' && (!p.clientId || !customers.some(c => c.id === p.clientId)));
+                const isMatched = ledger.customerId.startsWith('__unassigned__:')
+                  ? ((p.companyOrOwner || '未指派案場/散客') === ledger.customerId.substring('__unassigned__:'.length) && (!p.clientId || !customers.some(c => c.id === p.clientId)))
+                  : p.clientId === ledger.customerId;
                 if (!isMatched) return false;
 
                 // Hide completed and fully paid projects
@@ -1768,11 +1923,23 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
 
                     <div className="flex flex-wrap items-center gap-3">
                       {/* Customer prepayment balance */}
-                      <div className="bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-lg text-right">
-                        <span className="block text-[9px] font-black text-emerald-400 uppercase leading-none">預收溢領沖抵池餘額</span>
-                        <span className="text-xs sm:text-sm font-bold text-emerald-400 font-mono">
-                          NT$ {ledger.prepaidBalance.toLocaleString()} 元
-                        </span>
+                      <div className="bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-lg text-right flex flex-col justify-center min-h-[52px]">
+                        <div>
+                          <span className="block text-[9px] font-black text-emerald-450 uppercase leading-none">預收溢領沖抵池餘額</span>
+                          <span className="text-xs sm:text-sm font-bold text-emerald-400 font-mono block">
+                            NT$ {ledger.prepaidBalance.toLocaleString()} 元
+                          </span>
+                        </div>
+                        {ledger.prepaidBalance > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRefundPrepaidPool(ledger.customerId, ledger.prepaidBalance)}
+                            className="mt-1 px-1.5 py-0.5 bg-rose-950/60 hover:bg-rose-900 border border-rose-800/40 text-rose-300 hover:text-white font-extrabold text-[9px] rounded-md transition-all cursor-pointer block mx-auto whitespace-nowrap"
+                            title="將此客戶的預收溢領餘額領回並退還給客戶"
+                          >
+                            💸 領回/退還客戶
+                          </button>
+                        )}
                       </div>
 
                       {/* Cumulative finalized completed projects outstanding */}
@@ -1823,133 +1990,102 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                               const isCompletedButNoDirectReceipt = isCompleted && 
                                 records.some(r => r.projectId === proj.id && r.markAsCompleted && (!r.collectedAmount || r.collectedAmount <= 0));
 
+                              const hasWarnings = proj.priceWarnings && proj.priceWarnings.length > 0;
+
                               return (
-                                <tr key={proj.id} className="border-b border-[#2C2C2C] hover:bg-[#252525] text-xs text-center text-neutral-300">
-                                  <td className="py-3 px-3 text-left font-mono text-[11px] font-bold text-white select-all max-w-[325px] break-all leading-normal" title={proj.name}>
-                                    <div className="bg-[#252525] border border-[#2C2C2C] p-1.5 rounded hover:bg-[#2C2C2C] transition-colors text-[#D4AF37]">
-                                      {proj.name}
-                                    </div>
+                                <React.Fragment key={proj.id}>
+                                  <tr className="border-b border-[#2C2C2C] hover:bg-[#252525] text-xs text-center text-neutral-300">
+                                    <td className="py-3 px-3 text-left font-mono text-[11px] font-bold text-white max-w-[325px] break-all leading-normal" title={proj.name}>
+                                      <div 
+                                        onClick={() => {
+                                          if (onJumpToProjectLogs) {
+                                            onJumpToProjectLogs(proj.id);
+                                          }
+                                        }}
+                                        className="bg-[#252525] border border-[#2C2C2C] p-2 rounded-xl transition-all cursor-pointer hover:border-amber-500 hover:bg-[#2d2d2d] hover:shadow-[0_0_12px_rgba(212,175,55,0.2)] group"
+                                      >
+                                        <div className="text-[#D4AF37] font-black group-hover:text-amber-300 flex items-center gap-1">
+                                          <span>{proj.name}</span>
+                                          <span className="text-[9px] text-neutral-500 font-normal group-hover:text-amber-400/80 transition-colors">🔗 查看日誌</span>
+                                        </div>
+                                        <div className="text-[10px] text-neutral-400 mt-1 font-mono">案號: {proj.serialNumber || '無序號'}</div>
+                                      </div>
 
-                                    {/* 📈 收款軌跡記錄 (Stage Payments Audit Trail) */}
-                                    {(() => {
-                                      const projTxs = transactions.filter(t => t.projectNameOrId === proj.id);
-                                      if (projTxs.length > 0) {
-                                        return (
-                                          <div className="mt-2 p-1.5 bg-[#212121] border border-[#2C2C2C] rounded-lg space-y-1">
-                                            <div className="text-[9px] font-black tracking-tight text-neutral-400 uppercase border-b border-[#2C2C2C] pb-0.5 flex justify-between items-center">
-                                              <span>📈 收款分期歷史軌跡:</span>
-                                              <span className="text-indigo-400 bg-indigo-950/40 px-1.5 py-0.2 rounded-full text-[8px]">{projTxs.length} 次</span>
-                                            </div>
-                                            <div className="space-y-0.5 max-h-[1100px] overflow-y-auto">
-                                              {projTxs.map(t => (
-                                                <div key={t.id} className="text-[8.5px] text-neutral-300 flex items-center justify-between font-bold gap-1 bg-[#252525] p-1 px-1.5 border border-[#2C2C2C] rounded shadow-4xs">
-                                                  <span className="text-neutral-500 shrink-0 font-mono font-normal">{t.date}</span>
-                                                  <span className="text-indigo-400 bg-indigo-950/40 border border-[#3A3A3A] px-1.5 py-0.2 rounded-full text-[8px] font-black truncate max-w-[130px]" title={t.paymentStage || '一般收款'}>
-                                                    {t.paymentStage || '一般收款'}
-                                                  </span>
-                                                  <span className="font-mono text-emerald-400 ml-auto shrink-0 font-extrabold">${t.amount.toLocaleString()}</span>
-                                                </div>
-                                              ))}
-                                            </div>
+                                      {/* 警示按鈕與展開詳情控制 */}
+                                      <div className="mt-2 flex flex-wrap gap-1.5">
+                                        {hasWarnings && (
+                                          <div className="px-2 py-0.5 bg-rose-500/10 border border-rose-500/30 text-rose-450 rounded text-[9px] font-black flex items-center gap-1 animate-pulse">
+                                            ⚠️ 報價/成本警示 ({proj.priceWarnings.length})
                                           </div>
-                                        );
-                                      }
-                                      return null;
-                                    })()}
-                                  </td>
-                                  
-                                  <td className="py-3 px-3">
-                                    <div className="flex items-center justify-center gap-1">
-                                      {proj.isEstimation ? (
-                                        <span className="px-2.5 py-1 rounded-lg text-[9px] font-extrabold bg-indigo-950 text-indigo-300 border border-indigo-900 shadow-3xs" title="估價計價案場">
-                                          📊 工料估價
-                                        </span>
-                                      ) : (
-                                        <span className="px-2.5 py-1 rounded-lg text-[9px] font-extrabold bg-amber-950 text-[#D4AF37] border border-[#D4AF37]/30 shadow-3xs" title="實報實銷案場">
-                                          💧 工料實報實銷
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-
-                                  <td className="py-3 px-3 font-mono font-bold text-neutral-200">
-                                    {editingQuoteProjId === proj.id ? (
-                                      <div className="flex flex-col items-center justify-center gap-1.5 p-1 bg-[#1a1a1a] rounded border border-[#D4AF37]/30 animate-fadeIn min-w-[130px]">
-                                        <span className="text-[8px] font-bold text-amber-500 uppercase">修改總報價金額</span>
-                                        <div className="flex items-center gap-1">
-                                          <input
-                                            type="number"
-                                            value={editingQuoteInput}
-                                            onChange={(e) => setEditingQuoteInput(e.target.value)}
-                                            className="w-20 px-1 py-0.5 text-xs bg-[#0f0f0f] border border-neutral-800 text-[#D4AF37] font-bold text-center rounded outline-none focus:border-[#D4AF37]"
-                                            placeholder="請輸入金額"
-                                            autoFocus
-                                            onKeyDown={(e) => {
-                                              if (e.key === 'Enter') {
-                                                // trigger click
-                                                const btn = document.getElementById(`save-quote-${proj.id}`);
-                                                if (btn) btn.click();
-                                              } else if (e.key === 'Escape') {
-                                                setEditingQuoteProjId(null);
-                                              }
-                                            }}
-                                          />
+                                        )}
+                                        
+                                        {(hasWarnings || expandedProjDetails[proj.id]) && (
                                           <button
-                                            id={`save-quote-${proj.id}`}
                                             type="button"
                                             onClick={() => {
-                                              const newAmt = parseFloat(editingQuoteInput) || 0;
-                                              const originalProj = projects.find(p => p.id === proj.id);
+                                              const pId = proj.id;
+                                              const isExpanding = !expandedProjDetails[pId];
+                                              setExpandedProjDetails(prev => ({ ...prev, [pId]: isExpanding }));
                                               
-                                              // 1. Create updated projects list
-                                              const updatedProjects = projects.map(p => {
-                                                if (p.id === proj.id) {
-                                                  return {
-                                                    ...p,
-                                                    estimationQuoteAmount: newAmt
-                                                  };
+                                              if (isExpanding) {
+                                                const originalProj = projects.find(item => item.id === pId);
+                                                if (originalProj) {
+                                                  setInlineEditingProjId(pId);
+                                                  setInlineQuoteInput(String(originalProj.estimationQuoteAmount || 0));
+                                                  setInlineIsEstimation(!!originalProj.isEstimation);
+                                                  setInlineIsCompleted(!!originalProj.isCompleted);
+                                                  setInlineSerialNumber(originalProj.serialNumber || '');
+                                                  setInlineCompanyOrOwner(originalProj.companyOrOwner || '');
                                                 }
-                                                return p;
-                                              });
-
-                                              // 2. Feed to props dispatcher if present
-                                              if (setProjects) {
-                                                setProjects(updatedProjects);
                                               }
-
-                                              // 3. Keep in local storage as reliable fallback
-                                              localStorage.setItem('engineering_projects', JSON.stringify(updatedProjects));
-                                              
-                                              setEditingQuoteProjId(null);
-                                              onSaveToast(`📝 案場【${originalProj?.generatedName || '指定案場'}】總體對外報價已變更為 NT$ ${newAmt.toLocaleString()} 元！`);
                                             }}
-                                            className="px-1.5 py-0.5 bg-emerald-950 text-emerald-400 border border-emerald-850 hover:bg-emerald-900 rounded font-bold text-[10px] cursor-pointer"
-                                            title="儲存對外報價"
+                                            className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border cursor-pointer transition-all flex items-center gap-1 ${
+                                              expandedProjDetails[proj.id]
+                                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                                : 'bg-rose-950/40 text-rose-300 border-rose-500/30 hover:bg-rose-900/30 animate-pulse'
+                                            }`}
                                           >
-                                            ✔️
+                                            <span>{expandedProjDetails[proj.id] ? '🔼 摺疊詳情' : '🔽 展開對帳/修改'}</span>
                                           </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => setEditingQuoteProjId(null)}
-                                            className="px-1.5 py-0.5 bg-neutral-900 text-neutral-400 border border-neutral-850 hover:bg-neutral-850 rounded font-bold text-[10px] cursor-pointer"
-                                            title="取消"
-                                          >
-                                            ✕
-                                          </button>
-                                        </div>
+                                        )}
                                       </div>
-                                    ) : (
+                                    </td>
+                                    
+                                    <td className="py-3 px-3">
+                                      <div className="flex items-center justify-center gap-1">
+                                        {proj.isEstimation ? (
+                                          <span className="px-2.5 py-1 rounded-lg text-[9px] font-extrabold bg-indigo-950 text-indigo-300 border border-indigo-900 shadow-3xs" title="估價計價案場">
+                                            📊 工料估價
+                                          </span>
+                                        ) : (
+                                          <span className="px-2.5 py-1 rounded-lg text-[9px] font-extrabold bg-amber-950 text-[#D4AF37] border border-[#D4AF37]/30 shadow-3xs" title="實報實銷案場">
+                                            💧 工料實報實銷
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+
+                                    <td className="py-3 px-3 font-mono font-bold text-neutral-200">
                                       <div className="flex flex-col items-center justify-center">
                                         <div className="flex items-center gap-1 hover:text-[#D4AF37] transition group cursor-pointer"
                                           onClick={() => {
-                                            setEditingQuoteProjId(proj.id);
-                                            setEditingQuoteInput(String(proj.contractQuote || proj.selectedBilledBasis));
+                                            const pId = proj.id;
+                                            setExpandedProjDetails(prev => ({ ...prev, [pId]: true }));
+                                            const originalProj = projects.find(item => item.id === pId);
+                                            if (originalProj) {
+                                              setInlineEditingProjId(pId);
+                                              setInlineQuoteInput(String(originalProj.estimationQuoteAmount || 0));
+                                              setInlineIsEstimation(!!originalProj.isEstimation);
+                                              setInlineIsCompleted(!!originalProj.isCompleted);
+                                              setInlineSerialNumber(originalProj.serialNumber || '');
+                                              setInlineCompanyOrOwner(originalProj.companyOrOwner || '');
+                                            }
                                           }}
                                           title="點擊變更或設定此案場總體對外報價金額"
                                         >
                                           <span>NT$ {proj.selectedBilledBasis.toLocaleString()}</span>
                                           <span className="opacity-0 group-hover:opacity-100 text-[#D4AF37] text-[10px] ml-1 p-0.5 bg-neutral-850 hover:bg-neutral-800 rounded">
-                                            ✏️ 調整報價
+                                            ✏️ 調整
                                           </span>
                                         </div>
                                         <span className="text-[9px] text-neutral-400 font-normal block mt-1">
@@ -1958,86 +2094,593 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                             : `工料實報實銷累計: $${proj.actualCalculated.toLocaleString()}`}
                                         </span>
                                       </div>
-                                    )}
 
-                                    {/* 🪵 實際施工成本隱藏/顯示邏輯 */}
-                                    {showActualCost && (
-                                      <span className="text-[10px] text-emerald-400 font-bold block mt-1.5 hover:underline decoration-emerald-600 cursor-help" title="依據工務日誌（標準工時成本底價＋材料進貨進價＋現場雜支）計算之公司實際施工成本">
-                                        🪵 實際施工成本: ${proj.actualConstructionCost.toLocaleString()}
-                                      </span>
-                                    )}
-                                  </td>
+                                      {/* 🪵 實際施工成本隱藏/顯示邏輯 */}
+                                      {showActualCost && (
+                                        <span className="text-[10px] text-emerald-450 font-bold block mt-1.5 hover:underline decoration-emerald-600 cursor-help" title="依據工務日誌（標準工時成本底價＋材料進貨進價＋現場雜支）計算之公司實際施工成本">
+                                          🪵 實際施工成本: ${proj.actualConstructionCost.toLocaleString()}
+                                        </span>
+                                      )}
+                                    </td>
 
-                                  <td className="py-3 px-3 font-mono text-emerald-400 font-extrabold bg-[#252525]">
-                                    ${proj.receivedPayment.toLocaleString()}
-                                  </td>
+                                    <td className="py-3 px-3 font-mono text-emerald-400 font-extrabold bg-[#252525]">
+                                      ${proj.receivedPayment.toLocaleString()}
+                                    </td>
 
-                                  <td className="py-3 px-3 font-mono text-amber-500 font-extrabold">
-                                    ${proj.roundingPaid.toLocaleString()}
-                                  </td>
+                                    <td className="py-3 px-3 font-mono text-amber-500 font-extrabold">
+                                      ${proj.roundingPaid.toLocaleString()}
+                                    </td>
 
-                                  <td className={`py-3 px-3 font-mono font-black ${isDebted ? 'text-rose-400 bg-rose-950/20' : 'text-neutral-500'}`}>
-                                    ${proj.outstandingBalance.toLocaleString()}
-                                  </td>
+                                    <td className={`py-3 px-3 font-mono font-black ${isDebted ? 'text-rose-450 bg-rose-950/20' : 'text-neutral-500'}`}>
+                                      ${proj.outstandingBalance.toLocaleString()}
+                                    </td>
 
-                                  <td className="py-3 px-3">
-                                    {(() => {
-                                      const isFailed = proj.isEstimation && proj.estimationStatus === '報價未成';
-                                      if (isFailed) {
-                                        return (
-                                          <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-[#252525] text-neutral-500 border border-[#3A3A3A]">
-                                            ❌ 報價未成 (無帳)
-                                          </span>
-                                        );
-                                      }
-                                      if (isCompleted) {
-                                        if (isFullyPaid) {
+                                    <td className="py-3 px-3">
+                                      {(() => {
+                                        const isFailed = proj.isEstimation && proj.estimationStatus === '報價未成';
+                                        if (isFailed) {
                                           return (
-                                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-950 text-emerald-400 border border-emerald-900 flex items-center justify-center gap-0.5">
-                                              ✅ 已完工 (已結收款)
-                                            </span>
-                                          );
-                                        } else {
-                                          return (
-                                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-950 text-rose-450 border border-rose-900 flex flex-col items-center justify-center gap-0.5 animate-pulse" title={`完工待解餘額: $${proj.outstandingBalance}`}>
-                                              <span>⚠️ 已完工 (未收款)</span>
-                                              <span className="text-[8px] font-mono font-bold opacity-80">欠款: ${proj.outstandingBalance.toLocaleString()}</span>
+                                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-[#252525] text-neutral-500 border border-[#3A3A3A]">
+                                              ❌ 報價未成 (無帳)
                                             </span>
                                           );
                                         }
-                                      } else {
-                                        if (isFullyPaid) {
-                                          return (
-                                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-sky-950 text-sky-400 border border-sky-900 flex items-center justify-center gap-0.5">
-                                              👷 施工中 (已付訖)
-                                            </span>
-                                          );
+                                        if (isCompleted) {
+                                          if (isFullyPaid) {
+                                            return (
+                                              <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-950 text-emerald-400 border border-emerald-900 flex items-center justify-center gap-0.5">
+                                                ✅ 已完工 (已結收款)
+                                              </span>
+                                            );
+                                          } else {
+                                            return (
+                                              <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-950 text-rose-450 border border-rose-900 flex flex-col items-center justify-center gap-0.5 animate-pulse" title={`完工待解餘額: $${proj.outstandingBalance}`}>
+                                                <span>⚠️ 已完工 (未收款)</span>
+                                                <span className="text-[8px] font-mono font-bold opacity-80">欠款: ${proj.outstandingBalance.toLocaleString()}</span>
+                                              </span>
+                                            );
+                                          }
                                         } else {
-                                          return (
-                                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-blue-950 text-blue-400 border border-blue-900 flex flex-col items-center justify-center gap-0.5">
-                                              <span>👷 施工中 (未收款)</span>
-                                              <span className="text-[8px] font-mono font-bold opacity-80">尚欠: ${proj.outstandingBalance.toLocaleString()}</span>
-                                            </span>
-                                          );
+                                          if (isFullyPaid) {
+                                            return (
+                                              <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-sky-950 text-sky-400 border border-sky-900 flex items-center justify-center gap-0.5">
+                                                👷 施工中 (已付訖)
+                                              </span>
+                                            );
+                                          } else {
+                                            return (
+                                              <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-blue-950 text-blue-400 border border-blue-900 flex flex-col items-center justify-center gap-0.5">
+                                                <span>👷 施工中 (未收款)</span>
+                                                <span className="text-[8px] font-mono font-bold opacity-80">尚欠: ${proj.outstandingBalance.toLocaleString()}</span>
+                                              </span>
+                                            );
+                                          }
                                         }
-                                      }
-                                    })()}
-                                  </td>
+                                      })()}
+                                    </td>
 
-                                  <td className="py-3 px-3">
-                                    {ledger.prepaidBalance > 0 && isDebted ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleApplyPoolCredits(ledger.customerId, proj.id, proj.outstandingBalance)}
-                                        className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-black font-black text-[10px] rounded-lg transition-all cursor-pointer"
-                                      >
-                                        扣抵餘額 ${Math.min(ledger.prepaidBalance, proj.outstandingBalance).toLocaleString()}
-                                      </button>
-                                    ) : (
-                                      <span className="text-[10px] text-neutral-500 italic font-medium">不須抵扣</span>
-                                    )}
-                                  </td>
-                                </tr>
+                                    <td className="py-3 px-3">
+                                      {proj.outstandingBalance < 0 ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRefundOverpaymentToPool(ledger.customerId, proj.id, -proj.outstandingBalance)}
+                                          className="px-2 py-1.5 bg-[#D4AF37] hover:bg-amber-400 text-neutral-950 font-black text-[10px] rounded-lg transition-all cursor-pointer shadow-3xs animate-pulse"
+                                          title="將此專案之溢收/多收金額轉回至客戶預收溢領沖抵池"
+                                        >
+                                          轉入預收池 (+${(-proj.outstandingBalance).toLocaleString()})
+                                        </button>
+                                      ) : ledger.prepaidBalance > 0 && isDebted ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleApplyPoolCredits(ledger.customerId, proj.id, proj.outstandingBalance)}
+                                          className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-black font-black text-[10px] rounded-lg transition-all cursor-pointer"
+                                        >
+                                          扣抵餘額 ${Math.min(ledger.prepaidBalance, proj.outstandingBalance).toLocaleString()}
+                                        </button>
+                                      ) : (
+                                        <span className="text-[10px] text-neutral-500 italic font-medium">不須抵扣</span>
+                                      )}
+                                    </td>
+                                  </tr>
+
+                                  {/* 🔽 摺疊打開內修改有問題的資料 🔽 */}
+                                  {expandedProjDetails[proj.id] && (
+                                    <tr className="bg-[#151515] border-b border-[#2C2C2C] hover:bg-[#151515]">
+                                      <td colSpan={8} className="p-4 sm:p-5 text-left text-neutral-300 space-y-4">
+                                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                                          
+                                          {/* 左側：對帳預警 & 財務詳細狀況 (5 columns) */}
+                                          <div className="lg:col-span-5 space-y-3">
+                                            <div className="bg-[#212121] p-3.5 rounded-xl border border-neutral-850 space-y-2.5">
+                                              <h5 className="text-[11px] font-black text-[#D4AF37] uppercase tracking-wider flex items-center gap-1.5 pb-1.5 border-b border-neutral-800">
+                                                📊 案場對帳財務彙整
+                                              </h5>
+                                              <div className="grid grid-cols-2 gap-2 text-[10.5px] font-mono">
+                                                <div className="bg-[#1A1A1A] p-2 rounded">
+                                                  <span className="block text-neutral-500 text-[9px] font-sans">工程款請款基數</span>
+                                                  <span className="font-extrabold text-white">${proj.selectedBilledBasis.toLocaleString()}</span>
+                                                </div>
+                                                <div className="bg-[#1A1A1A] p-2 rounded">
+                                                  <span className="block text-emerald-450 text-[9px] font-sans">已實收額</span>
+                                                  <span className="font-extrabold text-emerald-450">${proj.receivedPayment.toLocaleString()}</span>
+                                                </div>
+                                                <div className="bg-[#1A1A1A] p-2 rounded">
+                                                  <span className="block text-amber-500 text-[9px] font-sans">折扣折抵</span>
+                                                  <span className="font-extrabold text-amber-500">${proj.roundingPaid.toLocaleString()}</span>
+                                                </div>
+                                                <div className="bg-[#1A1A1A] p-2 rounded">
+                                                  <span className="block text-rose-400 text-[9px] font-sans">應收未收餘額</span>
+                                                  <span className={`font-extrabold ${proj.outstandingBalance > 0 ? 'text-rose-450 font-black' : proj.outstandingBalance < 0 ? 'text-emerald-400 font-bold' : 'text-neutral-500'}`}>
+                                                    ${proj.outstandingBalance.toLocaleString()}
+                                                  </span>
+                                                  {proj.outstandingBalance < 0 && (
+                                                    <span className="block text-[8.5px] text-emerald-450 font-sans font-bold mt-0.5 animate-pulse">（⭐ 溢付款/可轉回）</span>
+                                                  )}
+                                                </div>
+                                              </div>
+
+                                              {/* ⚙️ 調整總體對外報價總金額 (工程款基數) */}
+                                              <div className="bg-[#1A1A1A] p-2.5 rounded-lg border border-neutral-800/80 mt-2 space-y-1.5">
+                                                <span className="block text-amber-500 text-[10px] font-sans font-bold flex items-center gap-1">
+                                                  ⚙️ 總體對外報價總金額調整 (工程款基數)
+                                                </span>
+                                                <div className="flex gap-2 items-center">
+                                                  <div className="relative flex-1">
+                                                    <span className="absolute left-2.5 top-1 text-[11px] font-bold text-neutral-500">$</span>
+                                                    <input
+                                                      type="number"
+                                                      value={inlineQuoteInput}
+                                                      onChange={(e) => setInlineQuoteInput(e.target.value)}
+                                                      className="w-full pl-6 pr-2 py-1 bg-neutral-900 border border-neutral-750 text-amber-400 font-mono text-xs rounded-md outline-none focus:border-[#D4AF37]"
+                                                      placeholder="0"
+                                                    />
+                                                  </div>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      const nextQuote = parseFloat(inlineQuoteInput) || 0;
+                                                      const nextProjects = projects.map(item => {
+                                                        if (item.id === proj.id) {
+                                                          return {
+                                                            ...item,
+                                                            estimationQuoteAmount: nextQuote
+                                                          };
+                                                        }
+                                                        return item;
+                                                      });
+                                                      if (setProjects) {
+                                                        setProjects(nextProjects);
+                                                      }
+                                                      localStorage.setItem('engineering_projects', JSON.stringify(nextProjects));
+                                                      onSaveToast(`💾 成功將 [${proj.name}] 的總體對外報價金額調整為 NT$ ${nextQuote.toLocaleString()} 元！`);
+                                                    }}
+                                                    className="px-2.5 py-1 bg-[#D4AF37] hover:bg-amber-500 text-neutral-950 font-black text-[10.5px] rounded-md transition cursor-pointer shrink-0"
+                                                  >
+                                                    更新報價
+                                                  </button>
+                                                </div>
+                                                <span className="text-[9px] text-neutral-500 block leading-relaxed">
+                                                  💡 提示：若填入大於 0 的金額，此案場的請款基數將以此報價為準（不論實報實銷或估價）。填 0 則會恢復原本的動態計算。
+                                                </span>
+                                              </div>
+                                              
+                                              {showActualCost && (
+                                                <div className="bg-emerald-950/10 border border-emerald-900/30 p-2.5 rounded-lg text-[10px] space-y-0.5">
+                                                  <div className="flex justify-between">
+                                                    <span className="text-neutral-400">🪵 實際進貨施工成本:</span>
+                                                    <span className="font-mono font-bold text-neutral-300">${proj.actualConstructionCost.toLocaleString()}</span>
+                                                  </div>
+                                                  <div className="flex justify-between">
+                                                    <span className="text-neutral-400">💰 對帳估算公司淨利潤:</span>
+                                                    <span className={`font-mono font-bold ${proj.selectedBilledBasis - proj.actualConstructionCost > 0 ? 'text-emerald-450' : 'text-rose-450'}`}>
+                                                      ${(proj.selectedBilledBasis - proj.actualConstructionCost).toLocaleString()}
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+
+                                            {/* ⚠️ 警示顯示 */}
+                                            {hasWarnings ? (
+                                              <div className="bg-rose-950/20 border border-rose-500/20 p-3.5 rounded-xl space-y-2">
+                                                <div className="font-extrabold text-[11px] text-rose-400 flex items-center gap-1">
+                                                  <span>⚠️ 計價與成本對帳異常預警:</span>
+                                                </div>
+                                                <div className="pl-2 border-l border-rose-500/30 space-y-1.5 text-[10px] text-rose-200">
+                                                  {proj.priceWarnings.map((w, idx) => (
+                                                    <div key={idx} className="flex items-start gap-1">
+                                                      <span className="shrink-0">•</span>
+                                                      <span>{w}</span>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              <div className="bg-emerald-950/10 border border-emerald-900/20 p-3 rounded-xl text-[10.5px] text-emerald-400 font-extrabold">
+                                                🎉 自動稽核完好：此案場無任何計價、成本缺失或異常預警。
+                                              </div>
+                                            )}
+
+                                            {/* 收款分期歷史軌跡 */}
+                                            {(() => {
+                                              const projTxs = transactions.filter(t => t.projectNameOrId === proj.id);
+                                              if (projTxs.length > 0) {
+                                                return (
+                                                  <div className="p-3 bg-[#1e1e1e] border border-[#2C2C2C] rounded-xl space-y-1.5">
+                                                    <div className="text-[10px] font-black tracking-tight text-neutral-400 uppercase border-b border-[#2C2C2C] pb-1 flex justify-between items-center">
+                                                      <span>📈 本案場收款歷史分期軌跡:</span>
+                                                      <span className="text-indigo-400 bg-indigo-950/40 px-1.5 py-0.2 rounded-full text-[9px] font-bold">{projTxs.length} 次</span>
+                                                    </div>
+                                                    <div className="space-y-1 max-h-[140px] overflow-y-auto">
+                                                      {projTxs.map(t => (
+                                                        <div key={t.id} className="text-[10px] text-neutral-300 flex items-center justify-between font-bold gap-1 bg-[#252525] p-1.5 px-2 border border-neutral-850 rounded shadow-4xs">
+                                                          <span className="text-neutral-500 shrink-0 font-mono font-normal">{t.date}</span>
+                                                          <span className="text-indigo-400 bg-indigo-950/40 border border-[#3A3A3A] px-1.5 py-0.2 rounded-full text-[9px] font-black truncate max-w-[150px]" title={t.paymentStage || '一般收款'}>
+                                                            {t.paymentStage || '一般收款'}
+                                                          </span>
+                                                          <span className="font-mono text-emerald-450 ml-auto shrink-0 font-extrabold">${t.amount.toLocaleString()}</span>
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  </div>
+                                                );
+                                              }
+                                              return (
+                                                <div className="text-[10px] text-neutral-500 italic p-3 border border-dashed border-neutral-800 rounded-xl text-center">
+                                                  目前無任何分期收款或沖帳軌跡。
+                                                </div>
+                                              );
+                                            })()}
+                                          </div>
+
+                                          {/* 右側：可直接修改材料價格的即時編輯區 (7 columns) */}
+                                          {(() => {
+                                            const originalProj = projects.find(p => p.id === proj.id);
+                                            const estMaterials = originalProj?.estimationMaterials || [];
+                                            const projRecords = records.filter(r => r.projectId === proj.id);
+
+                                            return (
+                                              <div className="lg:col-span-7 bg-[#1E1E1E] p-4.5 rounded-xl border border-[#2C2C2C] flex flex-col justify-between min-h-[360px]">
+                                                <div className="space-y-4">
+                                                  <div className="flex items-center justify-between border-b border-neutral-800 pb-2">
+                                                    <h5 className="text-[11px] font-black text-[#D4AF37] uppercase tracking-wider flex items-center gap-1.5">
+                                                      🛠️ 案場材料牌價與成本調整 (行內修改)
+                                                    </h5>
+                                                    <span className="text-[9px] font-black text-neutral-400 bg-neutral-850 px-2 py-0.5 rounded border border-neutral-800">
+                                                      就地即時同步
+                                                    </span>
+                                                  </div>
+
+                                                  {/* Section 1: 估價案場材料 (isEstimation) */}
+                                                  {originalProj?.isEstimation && estMaterials.length > 0 && (
+                                                    <div className="space-y-2">
+                                                      <h6 className="text-[10px] font-black text-indigo-400 uppercase tracking-wider flex items-center gap-1">
+                                                        📊 報價單材料估算設定 ({estMaterials.length} 項)
+                                                      </h6>
+                                                      <div className="border border-neutral-800 rounded-lg overflow-hidden bg-[#161616]">
+                                                        <table className="w-full text-left text-[11px] border-collapse">
+                                                          <thead>
+                                                            <tr className="bg-neutral-900 border-b border-neutral-800 text-[10px] text-neutral-405 font-extrabold uppercase">
+                                                              <th className="py-2 px-2.5">品項名稱</th>
+                                                              <th className="py-2 px-2.5 text-center">數量</th>
+                                                              <th className="py-2 px-2.5 w-24">請款牌價</th>
+                                                              <th className="py-2 px-2.5 w-24">進價成本</th>
+                                                              <th className="py-2 px-2.5 text-center">狀態</th>
+                                                            </tr>
+                                                          </thead>
+                                                          <tbody className="divide-y divide-neutral-850">
+                                                            {estMaterials.map((m, mIdx) => {
+                                                              const keyUnit = `estimation-${proj.id}-${mIdx}-unitPrice`;
+                                                              const keyCost = `estimation-${proj.id}-${mIdx}-costPrice`;
+                                                              
+                                                              const up = tempMaterialPrices[keyUnit] !== undefined 
+                                                                ? tempMaterialPrices[keyUnit] 
+                                                                : String(m.unitPrice ?? 0);
+                                                              
+                                                              const cp = tempMaterialPrices[keyCost] !== undefined 
+                                                                ? tempMaterialPrices[keyCost] 
+                                                                : String(m.costPrice ?? m.unitPrice ?? 0);
+
+                                                              const upNum = parseFloat(up) || 0;
+                                                              const cpNum = parseFloat(cp) || 0;
+                                                              const hasError = upNum < cpNum;
+                                                              const isZeroCost = cpNum === 0;
+
+                                                              return (
+                                                                <tr key={mIdx} className="hover:bg-neutral-800/45">
+                                                                  <td className="py-2 px-2.5 font-bold text-white max-w-[120px] truncate" title={m.name}>
+                                                                    {m.name}
+                                                                  </td>
+                                                                  <td className="py-2 px-2.5 text-center font-mono text-neutral-400 text-[10px]">
+                                                                    {m.quantity} {m.unit}
+                                                                  </td>
+                                                                  <td className="py-1 px-1.5">
+                                                                    <div className="relative flex items-center">
+                                                                      <span className="absolute left-1.5 text-[9px] font-bold text-neutral-500">$</span>
+                                                                      <input
+                                                                        type="number"
+                                                                        value={up}
+                                                                        onChange={(e) => {
+                                                                          setTempMaterialPrices(prev => ({
+                                                                            ...prev,
+                                                                            [keyUnit]: e.target.value
+                                                                          }));
+                                                                        }}
+                                                                        className="w-full pl-3.5 pr-1 py-1 bg-neutral-950 border border-neutral-800 text-white font-mono text-xs rounded-md outline-none focus:border-[#D4AF37]"
+                                                                      />
+                                                                    </div>
+                                                                  </td>
+                                                                  <td className="py-1 px-1.5">
+                                                                    <div className="relative flex items-center">
+                                                                      <span className="absolute left-1.5 text-[9px] font-bold text-neutral-500">$</span>
+                                                                      <input
+                                                                        type="number"
+                                                                        value={cp}
+                                                                        onChange={(e) => {
+                                                                          setTempMaterialPrices(prev => ({
+                                                                            ...prev,
+                                                                            [keyCost]: e.target.value
+                                                                          }));
+                                                                        }}
+                                                                        className="w-full pl-3.5 pr-1 py-1 bg-neutral-950 border border-neutral-800 text-white font-mono text-xs rounded-md outline-none focus:border-[#D4AF37]"
+                                                                      />
+                                                                    </div>
+                                                                  </td>
+                                                                  <td className="py-2 px-2.5 text-center">
+                                                                    {hasError ? (
+                                                                      <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-rose-950 text-rose-450 border border-rose-900" title="請款牌價低於成本進價">
+                                                                        虧本
+                                                                      </span>
+                                                                    ) : isZeroCost ? (
+                                                                      <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-amber-950 text-amber-400 border border-amber-900" title="進貨成本為 0 元">
+                                                                        無成本
+                                                                      </span>
+                                                                    ) : (
+                                                                      <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-emerald-950 text-emerald-405 border border-emerald-950">
+                                                                        正常
+                                                                      </span>
+                                                                    )}
+                                                                  </td>
+                                                                </tr>
+                                                              );
+                                                            })}
+                                                          </tbody>
+                                                        </table>
+                                                      </div>
+                                                    </div>
+                                                  )}
+
+                                                  {/* Section 2: 實際施工日誌材料 */}
+                                                  {(() => {
+                                                    const recsWithMaterials = projRecords.filter(r => r.materials && r.materials.length > 0);
+                                                    if (recsWithMaterials.length === 0) {
+                                                      if (originalProj?.isEstimation && estMaterials.length > 0) return null;
+                                                      return (
+                                                        <div className="text-center py-6 text-xs text-neutral-500 italic border border-dashed border-neutral-800 rounded-xl bg-[#161616]">
+                                                          此案場目前尚未登錄任何實際施工用料。
+                                                        </div>
+                                                      );
+                                                    }
+
+                                                    return (
+                                                      <div className="space-y-2">
+                                                        <h6 className="text-[10px] font-black text-amber-500 uppercase tracking-wider flex items-center gap-1">
+                                                          👷 實作施工日誌用料明細 (以日誌載入)
+                                                        </h6>
+                                                        <div className="border border-neutral-800 rounded-lg overflow-hidden bg-[#161616] max-h-[220px] overflow-y-auto">
+                                                          <table className="w-full text-left text-[11px] border-collapse">
+                                                            <thead>
+                                                              <tr className="bg-neutral-900 border-b border-neutral-800 text-[10px] text-neutral-405 font-extrabold uppercase sticky top-0 z-10">
+                                                                <th className="py-2 px-2.5 w-14">日期</th>
+                                                                <th className="py-2 px-2.5">材料品項</th>
+                                                                <th className="py-2 px-2.5 text-center">數量</th>
+                                                                <th className="py-2 px-2.5 w-24">請款牌價</th>
+                                                                <th className="py-2 px-2.5 w-24">進價成本</th>
+                                                                <th className="py-2 px-2.5 text-center">狀態</th>
+                                                              </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-neutral-850">
+                                                              {recsWithMaterials.flatMap(r => 
+                                                                r.materials.map((m, mIdx) => {
+                                                                  const keyUnit = `record-${r.id}-${mIdx}-unitPrice`;
+                                                                  const keyCost = `record-${r.id}-${mIdx}-costPrice`;
+                                                                  
+                                                                  const up = tempMaterialPrices[keyUnit] !== undefined 
+                                                                    ? tempMaterialPrices[keyUnit] 
+                                                                    : String(m.unitPrice ?? 0);
+                                                                  
+                                                                  const cp = tempMaterialPrices[keyCost] !== undefined 
+                                                                    ? tempMaterialPrices[keyCost] 
+                                                                    : String(m.costPrice ?? m.unitPrice ?? 0);
+
+                                                                  const upNum = parseFloat(up) || 0;
+                                                                  const cpNum = parseFloat(cp) || 0;
+                                                                  const hasError = upNum < cpNum;
+                                                                  const isZeroCost = cpNum === 0;
+
+                                                                  const dateStr = r.date.substring(5); // "MM-DD"
+
+                                                                  return (
+                                                                    <tr key={`${r.id}-${mIdx}`} className="hover:bg-neutral-800/45">
+                                                                      <td className="py-2 px-2.5 font-mono text-neutral-400 text-[10px]">
+                                                                        {dateStr}
+                                                                      </td>
+                                                                      <td className="py-2 px-2.5 font-bold text-white max-w-[110px] truncate" title={m.name}>
+                                                                        {m.name}
+                                                                      </td>
+                                                                      <td className="py-2 px-2.5 text-center font-mono text-neutral-400 text-[10px]">
+                                                                        {m.quantity} {m.unit}
+                                                                      </td>
+                                                                      <td className="py-1 px-1.5">
+                                                                        <div className="relative flex items-center">
+                                                                          <span className="absolute left-1.5 text-[9px] font-bold text-neutral-500">$</span>
+                                                                          <input
+                                                                            type="number"
+                                                                            value={up}
+                                                                            onChange={(e) => {
+                                                                              setTempMaterialPrices(prev => ({
+                                                                                ...prev,
+                                                                                [keyUnit]: e.target.value
+                                                                              }));
+                                                                            }}
+                                                                            className="w-full pl-3.5 pr-1 py-1 bg-neutral-950 border border-neutral-800 text-white font-mono text-xs rounded-md outline-none focus:border-[#D4AF37]"
+                                                                          />
+                                                                        </div>
+                                                                      </td>
+                                                                      <td className="py-1 px-1.5">
+                                                                        <div className="relative flex items-center">
+                                                                          <span className="absolute left-1.5 text-[9px] font-bold text-neutral-500">$</span>
+                                                                          <input
+                                                                            type="number"
+                                                                            value={cp}
+                                                                            onChange={(e) => {
+                                                                              setTempMaterialPrices(prev => ({
+                                                                                ...prev,
+                                                                                [keyCost]: e.target.value
+                                                                              }));
+                                                                            }}
+                                                                            className="w-full pl-3.5 pr-1 py-1 bg-neutral-950 border border-neutral-800 text-white font-mono text-xs rounded-md outline-none focus:border-[#D4AF37]"
+                                                                          />
+                                                                        </div>
+                                                                      </td>
+                                                                      <td className="py-2 px-2.5 text-center">
+                                                                        {hasError ? (
+                                                                          <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-rose-950 text-rose-450 border border-rose-900" title="請款牌價低於成本進價">
+                                                                            虧本
+                                                                          </span>
+                                                                        ) : isZeroCost ? (
+                                                                          <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-amber-950 text-amber-400 border border-amber-900" title="進貨成本為 0 元">
+                                                                            無成本
+                                                                          </span>
+                                                                        ) : (
+                                                                          <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-emerald-950 text-emerald-405 border border-emerald-950">
+                                                                            正常
+                                                                          </span>
+                                                                        )}
+                                                                      </td>
+                                                                    </tr>
+                                                                  );
+                                                                })
+                                                              )}
+                                                            </tbody>
+                                                          </table>
+                                                        </div>
+                                                      </div>
+                                                    );
+                                                  })()}
+                                                </div>
+
+                                                <div className="pt-4 border-t border-neutral-800 flex items-center justify-end gap-3.5 mt-4">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      const pId = proj.id;
+                                                      let changeCount = 0;
+
+                                                      // 1. Update project estimation materials if it's an estimation project
+                                                      let nextProjects = [...projects];
+                                                      if (originalProj?.isEstimation) {
+                                                        nextProjects = projects.map(p => {
+                                                          if (p.id === pId) {
+                                                            const updatedEstMaterials = (p.estimationMaterials || []).map((m, mIdx) => {
+                                                              const keyUnit = `estimation-${pId}-${mIdx}-unitPrice`;
+                                                              const keyCost = `estimation-${pId}-${mIdx}-costPrice`;
+                                                              
+                                                              const up = tempMaterialPrices[keyUnit] !== undefined 
+                                                                ? parseFloat(tempMaterialPrices[keyUnit]) 
+                                                                : m.unitPrice;
+                                                                
+                                                              const cp = tempMaterialPrices[keyCost] !== undefined 
+                                                                ? parseFloat(tempMaterialPrices[keyCost]) 
+                                                                : m.costPrice;
+
+                                                              if (up !== m.unitPrice || (cp !== undefined && cp !== m.costPrice)) {
+                                                                changeCount++;
+                                                              }
+
+                                                              return {
+                                                                ...m,
+                                                                unitPrice: isNaN(up) ? m.unitPrice : up,
+                                                                costPrice: isNaN(cp) ? m.costPrice : cp
+                                                              };
+                                                            });
+                                                            return { ...p, estimationMaterials: updatedEstMaterials };
+                                                          }
+                                                          return p;
+                                                        });
+                                                        
+                                                        if (setProjects) {
+                                                          setProjects(nextProjects);
+                                                        }
+                                                        localStorage.setItem('engineering_projects', JSON.stringify(nextProjects));
+                                                      }
+
+                                                      // 2. Update daily records materials
+                                                      if (setRecords) {
+                                                        const nextRecords = records.map(r => {
+                                                          if (r.projectId === pId && r.materials && r.materials.length > 0) {
+                                                            const updatedMaterials = r.materials.map((m, mIdx) => {
+                                                              const keyUnit = `record-${r.id}-${mIdx}-unitPrice`;
+                                                              const keyCost = `record-${r.id}-${mIdx}-costPrice`;
+
+                                                              const up = tempMaterialPrices[keyUnit] !== undefined 
+                                                                ? parseFloat(tempMaterialPrices[keyUnit]) 
+                                                                : m.unitPrice;
+                                                                
+                                                              const cp = tempMaterialPrices[keyCost] !== undefined 
+                                                                ? parseFloat(tempMaterialPrices[keyCost]) 
+                                                                : m.costPrice;
+
+                                                              if (up !== m.unitPrice || (cp !== undefined && cp !== m.costPrice)) {
+                                                                changeCount++;
+                                                              }
+
+                                                              return {
+                                                                ...m,
+                                                                unitPrice: isNaN(up) ? m.unitPrice : up,
+                                                                costPrice: isNaN(cp) ? m.costPrice : cp
+                                                              };
+                                                            });
+                                                            return { ...r, materials: updatedMaterials };
+                                                          }
+                                                          return r;
+                                                        });
+
+                                                        setRecords(nextRecords);
+                                                        localStorage.setItem('engineering_records', JSON.stringify(nextRecords));
+                                                      }
+
+                                                      if (changeCount > 0) {
+                                                        onSaveToast(`💾 成功就地儲存與修正 ${changeCount} 個品項之牌成本進售價！對帳單已即時同步更新。`);
+                                                      } else {
+                                                        onSaveToast(`ℹ️ 未偵測到任何牌成本之修正。`);
+                                                      }
+                                                    }}
+                                                    className="px-5 py-2.5 bg-amber-400 hover:bg-amber-500 text-neutral-950 font-black text-xs rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-1.5"
+                                                  >
+                                                    <Check size={14} className="stroke-[2.5]" />
+                                                    <span>💾 儲存已調整之材料價格</span>
+                                                  </button>
+                                                  
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      setExpandedProjDetails(prev => ({ ...prev, [proj.id]: false }));
+                                                      setInlineEditingProjId(null);
+                                                    }}
+                                                    className="px-3.5 py-2.5 bg-[#2a2a2a] hover:bg-[#333] text-neutral-450 border border-neutral-850 font-bold text-xs rounded-xl transition cursor-pointer"
+                                                  >
+                                                    關閉收合
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            );
+                                          })()}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </React.Fragment>
                               );
                             })}
                           </tbody>
@@ -2086,11 +2729,17 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                       
                       const tType = t.allocationType;
                       let typeBadge = '';
-                      if (tType === 'specific_project') typeBadge = '🏢 特定工程配款';
-                      if (tType === 'client_pool') typeBadge = '🏦 存入預收池';
-                      if (tType === 'round_adjustment') typeBadge = '🔩 抹零/去尾調整';
-                      if (tType === 'advance') typeBadge = '🎬 保證/定金溢付';
-                      if (tType === 'old_debt') typeBadge = '随機自動抵舊';
+                      if (tType === 'specific_project') {
+                        typeBadge = t.amount < 0 ? '🔄 溢收扣減轉回' : '🏢 特定工程配款';
+                      } else if (tType === 'client_pool') {
+                        typeBadge = t.amount < 0 ? '💸 預收款退還/領回' : '🏦 存入預收池';
+                      } else if (tType === 'round_adjustment') {
+                        typeBadge = '🔩 抹零/去尾調整';
+                      } else if (tType === 'advance') {
+                        typeBadge = '🎬 保證/定金溢付';
+                      } else if (tType === 'old_debt') {
+                        typeBadge = '随機自動抵舊';
+                      }
 
                       return (
                         <tr key={t.id} className="border-b border-neutral-100 hover:bg-neutral-50">
@@ -2112,8 +2761,8 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                               <span className="text-neutral-400 italic">全配合戶通用暫收款</span>
                             )}
                           </td>
-                          <td className="py-3 px-3 font-mono font-black text-emerald-600 bg-emerald-500/5">
-                            ${t.amount.toLocaleString()}
+                          <td className={`py-3 px-3 font-mono font-black ${t.amount < 0 ? 'text-rose-650 bg-rose-500/5' : 'text-emerald-600 bg-emerald-500/5'}`}>
+                            {t.amount < 0 ? '-' : ''}${Math.abs(t.amount).toLocaleString()}
                           </td>
                           <td className="py-3 px-3 font-bold text-[11px]">{typeBadge}</td>
                           <td className="py-3 px-3 font-bold text-neutral-500">{t.method || '銀行轉帳'}</td>
@@ -2137,232 +2786,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
             )}
           </div>
 
-          {/* 各戶所有未收款施工案場明細列表 */}
-          <div className="bg-white rounded-xl border border-neutral-200 shadow-3xs overflow-hidden mt-6">
-            <div className="px-5 py-4 bg-rose-50 border-b border-rose-100 flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <AlertCircle size={16} className="text-rose-600" />
-                <h4 className="text-xs sm:text-sm font-black text-rose-900">
-                  ⚠️ 各配合客戶名下所有未收訖(仍有欠款)施工案場對帳明細
-                </h4>
-              </div>
-              <span className="text-[10px] font-bold bg-rose-200 text-rose-800 px-2.5 py-0.5 rounded-full uppercase">
-                未收工程帳務查核
-              </span>
-            </div>
-            
-            <div className="p-4 sm:p-5 space-y-4 bg-neutral-50/20">
-              {filteredAggregateLedger.filter(l => {
-                const clientProjs = projectSummariesList.filter(p => p.clientId === l.customerId || (l.customerId === '__unassigned__' && (!p.clientId || !customers.some(c => c.id === p.clientId))));
-                return clientProjs.some(p => p.outstandingBalance > 0);
-              }).length === 0 ? (
-                <div className="text-center py-8 text-neutral-400 italic text-xs">
-                  🎉 太棒了！目前所有客戶的完工與施工案場皆已結完清帳，無應收未收餘額。
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {filteredAggregateLedger
-                    .filter(l => {
-                      const clientProjs = projectSummariesList.filter(p => p.clientId === l.customerId || (l.customerId === '__unassigned__' && (!p.clientId || !customers.some(c => c.id === p.clientId))));
-                      return clientProjs.some(p => p.outstandingBalance > 0);
-                    })
-                    .map(l => {
-                      const unpaidProjects = projectSummariesList.filter(p => {
-                        const isMatched = p.clientId === l.customerId || (l.customerId === '__unassigned__' && (!p.clientId || !customers.some(c => c.id === p.clientId)));
-                        return isMatched && p.outstandingBalance > 0;
-                      });
-                      const totalOutstandingSum = unpaidProjects.reduce((sum, p) => sum + p.outstandingBalance, 0);
 
-                      return (
-                        <div key={l.customerId} className="border border-neutral-200 rounded-xl overflow-hidden bg-white shadow-3xs">
-                          {/* Inner Header */}
-                          <div className="px-4 py-2.5 bg-neutral-100 border-b border-neutral-200 flex flex-wrap justify-between items-center gap-2">
-                            <div className="flex items-center gap-1">
-                              <span className="font-extrabold text-neutral-800 text-xs">
-                                👤 客戶負責配合戶：
-                              </span>
-                              <span className="text-xs font-black text-neutral-900 border-l pl-1.5 border-neutral-300">
-                                {l.customerName}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3 text-[10px] font-mono font-medium text-neutral-500">
-                              <span>
-                                未收款案場數：<strong className="text-rose-600 font-extrabold">{unpaidProjects.length} 個</strong>
-                              </span>
-                              <span>|</span>
-                              <span>
-                                客戶餘額存池：<strong className={`${l.prepaidBalance > 0 ? 'text-emerald-600 font-extrabold' : 'text-neutral-400'}`}>${l.prepaidBalance.toLocaleString()} 元</strong>
-                              </span>
-                              <span>|</span>
-                              <span>
-                                該戶累計欠款：<strong className="text-rose-600 font-extrabold text-xs">${totalOutstandingSum.toLocaleString()} 元</strong>
-                              </span>
-                            </div>
-                          </div>
-                          
-                          {/* Project Mini Table */}
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-center text-[11px] border-collapse">
-                              <thead>
-                                <tr className="border-b border-neutral-100 text-[10px] text-neutral-400 font-bold bg-neutral-50 text-center">
-                                  <th className="py-2 px-3 text-left">施做案場/案序</th>
-                                  <th className="py-2 px-3">計價模式</th>
-                                  <th className="py-2 px-3">當前基數/合約</th>
-                                  <th className="py-2 px-3 text-emerald-600">已實收款額</th>
-                                  <th className="py-2 px-3 text-amber-600">去尾折抵</th>
-                                  <th className="py-2 px-3 text-rose-600">應收未收餘額</th>
-                                  <th className="py-2 px-3">案場狀態</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {unpaidProjects.map(up => {
-                                  const isCompleted = up.isCompleted;
-                                  const curMode = up.contractQuote > 0 ? 'quote' : 'actual';
-                                  const isCompletedButNoDirectReceipt = isCompleted && 
-                                    records.some(r => r.projectId === up.id && r.markAsCompleted && (!r.collectedAmount || r.collectedAmount <= 0));
-
-                                  return (
-                                    <tr key={up.id} className="border-b border-neutral-50 hover:bg-neutral-50/50 text-[11px]">
-                                      <td className="py-2.5 px-3 text-left font-mono font-bold text-neutral-850 select-all max-w-[320px] break-all leading-normal" title={up.name}>
-                                        <div className="bg-neutral-50 border border-neutral-100 p-1 rounded hover:bg-neutral-100 transition-colors space-y-1">
-                                          <div className="font-black text-neutral-800">{up.name}</div>
-                                          {up.priceWarnings && up.priceWarnings.length > 0 && (
-                                            <div className="mt-1 bg-rose-50 border border-rose-200/65 p-1.5 rounded-lg text-[9px] text-rose-800 font-extrabold flex flex-col gap-0.5 animate-fadeIn leading-relaxed">
-                                              <div className="text-rose-950 font-black flex items-center gap-0.5 select-none">
-                                                <span>⚠️ 牌價成本與實價預警 ({up.priceWarnings.length} 處缺失)：</span>
-                                              </div>
-                                              <div className="space-y-0.5 mt-0.5 text-rose-900 font-medium">
-                                                {up.priceWarnings.map((err, errIdx) => (
-                                                  <div key={errIdx} className="pl-1.5 border-l border-rose-300">
-                                                    • {err}
-                                                  </div>
-                                                ))}
-                                              </div>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </td>
-                                      <td className="py-2.5 px-3">
-                                        <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
-                                          curMode === 'quote' ? 'bg-indigo-50 text-indigo-700' : 'bg-orange-50 text-orange-700'
-                                        }`}>
-                                          {curMode === 'quote' ? '合約報價計費' : '實報實銷計費'}
-                                        </span>
-                                      </td>
-                                      <td className="py-2.5 px-3 font-mono text-neutral-700">
-                                        {editingQuoteProjId === up.id ? (
-                                          <div className="flex items-center justify-center gap-1.5 p-1 bg-white border border-[#D4AF37] rounded shadow-3xs animate-fadeIn inline-flex">
-                                            <input
-                                              type="number"
-                                              value={editingQuoteInput}
-                                              onChange={(e) => setEditingQuoteInput(e.target.value)}
-                                              className="w-20 px-1 py-0.5 text-xs bg-neutral-50 border border-neutral-300 text-neutral-800 font-bold text-center rounded outline-none focus:border-[#D4AF37]"
-                                              placeholder="報價金額"
-                                              autoFocus
-                                              onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                  const newAmt = parseFloat(editingQuoteInput) || 0;
-                                                  const updatedProjects = projects.map(p => {
-                                                    if (p.id === up.id) {
-                                                      return {
-                                                        ...p,
-                                                        estimationQuoteAmount: newAmt
-                                                      };
-                                                    }
-                                                    return p;
-                                                  });
-                                                  if (setProjects) {
-                                                    setProjects(updatedProjects);
-                                                  }
-                                                  localStorage.setItem('engineering_projects', JSON.stringify(updatedProjects));
-                                                  setEditingQuoteProjId(null);
-                                                  onSaveToast(`📝 案場【${up.name}】總體對外報價已變更為 NT$ ${newAmt.toLocaleString()} 元！`);
-                                                } else if (e.key === 'Escape') {
-                                                  setEditingQuoteProjId(null);
-                                                }
-                                              }}
-                                            />
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                const newAmt = parseFloat(editingQuoteInput) || 0;
-                                                const updatedProjects = projects.map(p => {
-                                                  if (p.id === up.id) {
-                                                    return {
-                                                      ...p,
-                                                      estimationQuoteAmount: newAmt
-                                                    };
-                                                  }
-                                                  return p;
-                                                });
-                                                if (setProjects) {
-                                                  setProjects(updatedProjects);
-                                                }
-                                                localStorage.setItem('engineering_projects', JSON.stringify(updatedProjects));
-                                                setEditingQuoteProjId(null);
-                                                onSaveToast(`📝 案場【${up.name}】總體對外報價已變更為 NT$ ${newAmt.toLocaleString()} 元！`);
-                                              }}
-                                              className="px-1.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded font-bold text-[10px] cursor-pointer"
-                                              title="儲存對外報價"
-                                            >
-                                              ✔️
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => setEditingQuoteProjId(null)}
-                                              className="px-1.5 py-0.5 bg-neutral-50 hover:bg-neutral-100 text-neutral-600 border border-neutral-200 rounded font-bold text-[10px] cursor-pointer"
-                                              title="取消"
-                                            >
-                                              ✕
-                                            </button>
-                                          </div>
-                                        ) : (
-                                          <div 
-                                            className="flex items-center justify-center gap-1.5 hover:text-[#D4AF37] cursor-pointer group select-none"
-                                            onClick={() => {
-                                              setEditingQuoteProjId(up.id);
-                                              setEditingQuoteInput(String(up.contractQuote || up.selectedBilledBasis));
-                                            }}
-                                            title="點擊調整或設定此案場總體對外報價金額"
-                                          >
-                                            <span className="font-bold underline decoration-dashed decoration-neutral-300 hover:decoration-[#D4AF37]">
-                                              ${up.selectedBilledBasis.toLocaleString()}
-                                            </span>
-                                            <span className="opacity-0 group-hover:opacity-100 text-[#D4AF37] text-[10px] ml-0.5 p-0.5 bg-neutral-150 hover:bg-neutral-200 rounded transition-all text-[8px] font-bold">
-                                              ✏️ 調整報價
-                                            </span>
-                                          </div>
-                                        )}
-                                      </td>
-                                      <td className="py-2.5 px-3 font-mono text-emerald-600 font-bold bg-emerald-550/5">${up.receivedPayment.toLocaleString()}</td>
-                                      <td className="py-2.5 px-3 font-mono text-amber-600 font-bold bg-amber-550/5">${up.roundingPaid.toLocaleString()}</td>
-                                      <td className="py-2.5 px-3 font-mono font-black text-rose-600 bg-rose-550/5">${up.outstandingBalance.toLocaleString()} 元</td>
-                                      <td className="py-2.5 px-3">
-                                        {isCompleted ? (
-                                          <span className="px-2.5 py-1 rounded-full text-[9px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse flex flex-col items-center gap-0.5">
-                                            <span>⚠️ 已完工 (未收款)</span>
-                                            <span className="text-[8px] font-mono text-rose-600 font-bold">欠: ${up.outstandingBalance.toLocaleString()}</span>
-                                          </span>
-                                        ) : (
-                                          <span className="px-2.5 py-1 rounded-full text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200 flex flex-col items-center gap-0.5">
-                                            <span>👷 施工中 (未收款)</span>
-                                            <span className="text-[8px] font-mono text-blue-600 font-bold">欠: ${up.outstandingBalance.toLocaleString()}</span>
-                                          </span>
-                                        )}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       )}
 
@@ -2513,15 +2937,39 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     data={projectSummariesList.map(p => {
                       // Gather site direct collected for this single project
                       const siteCol = filteredRecords.filter(r => r.projectId === p.id).reduce((s, r) => s + (r.collectedAmount || 0), 0);
+                      const profit = p.selectedBilledBasis - p.actualConstructionCost;
+
+                      // Extract a beautiful short display name for the chart x-axis
+                      const nameParts = p.name.split('-');
+                      let shortName = '';
+                      if (nameParts.length >= 4 && nameParts[1] !== '0000') {
+                        const company = nameParts[1] || '';
+                        const site = nameParts[3] || '';
+                        shortName = site ? `${company} (${site})` : company;
+                      } else {
+                        shortName = p.companyOrOwner || p.clientName || p.name;
+                        // If it's a generic placeholder serial, use the suffix
+                        if (shortName.includes('0000') && nameParts.length >= 4) {
+                          shortName = nameParts[3] || '案場';
+                        }
+                      }
+
+                      // Limit length to avoid layout breaking
+                      if (shortName.length > 15) {
+                        shortName = shortName.substring(0, 15) + '...';
+                      }
+
                       return {
-                        name: p.name.split('-')[3] || '案場',
+                        name: shortName || '案場',
                         '預估收入 (牌價)': p.selectedBilledBasis,
-                        '工程實際成本': p.actualCalculated,
+                        '工程實際成本': p.actualConstructionCost, // 修正：此處應使用 actualConstructionCost 實際成本，而非請款牌價
                         '現場直收代收款': siteCol,
-                        '實收工程款': p.receivedPayment
+                        '實收工程款': p.receivedPayment,
+                        '專案預估淨利': profit // 新增：利潤分析必備的淨利潤指標
                       };
                     })}
                     margin={{ top: 15, right: 10, left: -10, bottom: 5 }}
+                    barGap={4}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
                     <XAxis dataKey="name" stroke="#525252" tick={{ fontSize: 9, fill: '#a3a3a3' }} />
@@ -2532,10 +2980,11 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                       labelStyle={{ color: '#ffffff', fontWeight: 'bold', fontSize: '12px' }}
                     />
                     <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
-                    <Bar dataKey="預估收入 (牌價)" fill="#D4AF37" stroke="#AA7C11" radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="工程實際成本" fill="#8C7040" stroke="#684F25" radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="現場直收代收款" fill="#E6CA65" stroke="#BF9A30" radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="實收工程款" fill="#EAD2AC" stroke="#B89765" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="預估收入 (牌價)" fill="#D4AF37" stroke="#AA7C11" radius={[3, 3, 0, 0]} maxBarSize={30} />
+                    <Bar dataKey="工程實際成本" fill="#8C7040" stroke="#684F25" radius={[3, 3, 0, 0]} maxBarSize={30} />
+                    <Bar dataKey="現場直收代收款" fill="#E6CA65" stroke="#BF9A30" radius={[3, 3, 0, 0]} maxBarSize={30} />
+                    <Bar dataKey="實收工程款" fill="#EAD2AC" stroke="#B89765" radius={[3, 3, 0, 0]} maxBarSize={30} />
+                    <Bar dataKey="專案預估淨利" fill="#10B981" stroke="#059669" radius={[3, 3, 0, 0]} maxBarSize={30} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -2610,9 +3059,9 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                       <YAxis tick={{ fontSize: 9 }} />
                       <Tooltip formatter={(value) => [`NT$ ${value.toLocaleString()}元`, '']} />
                       <Legend wrapperStyle={{ fontSize: '10px' }} />
-                      <Bar dataKey="materials" name="材料成本支出" fill="#D4AF37" stackId="a" />
-                      <Bar dataKey="labor" name="工資支出" fill="#9C804B" stackId="a" />
-                      <Bar dataKey="expenses" name="現場報支支出" fill="#7F6C4C" stackId="a" />
+                      <Bar dataKey="materials" name="材料成本支出" fill="#D4AF37" stackId="a" maxBarSize={35} />
+                      <Bar dataKey="labor" name="工資支出" fill="#9C804B" stackId="a" maxBarSize={35} />
+                      <Bar dataKey="expenses" name="現場報支支出" fill="#7F6C4C" stackId="a" maxBarSize={35} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -3245,83 +3694,119 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
             {tableAttendanceList.length === 0 ? (
               <p className="text-xs text-neutral-400 italic text-center py-10">此篩選條件下，無任何出勤派遣考勤對帳明細。</p>
             ) : (
-              <div
-                className="overflow-x-auto overflow-y-auto max-h-[520px] relative scroll-smooth scrollbar-thin scrollbar-thumb-neutral-200"
-                onScroll={(e) => setTableScrollTop(e.currentTarget.scrollTop)}
-                id="virtualized-attendance-table-container"
-              >
-                <table className="w-full text-left text-xs md:text-sm border-collapse relative">
-                  <thead>
-                    <tr className="border-b-2 border-neutral-300 text-xs text-neutral-900 font-black bg-neutral-100 sticky top-0 z-10 shadow-sm">
-                      <th className="py-3 px-4 font-black bg-neutral-100 text-neutral-900">日期</th>
-                      <th className="py-3 px-4 font-black bg-neutral-100 text-neutral-900">配合員工姓名</th>
-                      <th className="py-3 px-4 font-black bg-neutral-100 text-neutral-900">施作工地/案場序號</th>
-                      <th className="py-3 px-4 text-center font-black bg-neutral-100 text-neutral-900">當日派工時數</th>
-                      <th className="py-3 px-4 text-center font-black bg-neutral-100 text-neutral-900">預設結算時薪</th>
-                      <th className="py-3 px-4 text-right font-black bg-neutral-100 text-neutral-900">應核付工資金額</th>
-                      <th className="py-3 px-4 font-black bg-neutral-100 text-neutral-900">當日交代要職與施作記述</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paddingTopHeight > 0 && (
-                      <tr style={{ height: paddingTopHeight }} key="virtual-padding-top" className="border-0">
-                        <td colSpan={7} className="p-0 border-0 pointer-events-none" />
-                      </tr>
-                    )}
-                    {visibleTableItems.map(item => (
-                      <tr key={item.id} className="border-b border-neutral-200 hover:bg-amber-500/5 transition-colors h-[76px] bg-white">
-                        <td className="py-3.5 px-4 font-mono text-neutral-900 font-extrabold text-xs md:text-sm">{item.date}</td>
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-black text-neutral-950 text-xs md:text-sm select-all">{item.name}</span>
-                            {item.isSupport && (
-                              <span className="text-[10px] bg-red-100 text-rose-700 border border-rose-300 px-2 py-0.5 rounded-lg font-black shrink-0 shadow-3xs">
-                                臨時外調{item.supportRole ? ` • ${item.supportRole}` : ''}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 select-all max-w-[320px] break-all" title={item.projectName}>
-                          <span className="text-xs md:text-sm text-neutral-950 font-extrabold block font-mono bg-neutral-100 p-1.5 border border-neutral-300 rounded-lg leading-normal">
-                            {item.projectName}
+              <div className="p-4 space-y-3 max-h-[600px] overflow-y-auto bg-neutral-50/50">
+                {groupedAttendanceByDate.sortedDates.map(date => {
+                  const dailyItems = groupedAttendanceByDate.groups[date] || [];
+                  const totalDailyHours = dailyItems.reduce((sum, item) => sum + item.hoursWork, 0);
+                  const totalDailyWage = dailyItems.reduce((sum, item) => sum + item.totalWage, 0);
+                  const isCollapsed = collapsedAttendanceDays[date] !== false; // Folded by default
+
+                  return (
+                    <div key={date} className="bg-white rounded-xl border border-neutral-200 overflow-hidden shadow-3xs hover:border-[#D4AF37]/50 transition-all">
+                      {/* Collapsible Header */}
+                      <div
+                        onClick={() => {
+                          setCollapsedAttendanceDays(prev => ({
+                            ...prev,
+                            [date]: !isCollapsed
+                          }));
+                        }}
+                        className="px-4 py-3 bg-neutral-100 border-b border-neutral-100 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer select-none hover:bg-neutral-150 transition-colors"
+                      >
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className="font-extrabold text-neutral-900 text-sm font-mono flex items-center gap-1.5 shrink-0">
+                            📅 {date}
                           </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-center font-mono font-black text-neutral-950">
-                          <div className="flex flex-col items-center">
-                            <span className="font-black text-neutral-950 text-xs md:text-sm">{item.hoursWork} 小時</span>
-                            {(item.otFirstTwo + item.otAfterTwo) > 0 ? (
-                              <span className="text-[10px] text-amber-800 font-extrabold bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded-md mt-1 whitespace-nowrap shadow-3xs">
-                                正常 {item.regularHours}h + 加班 {(item.otFirstTwo + item.otAfterTwo).toFixed(1)}h
-                              </span>
-                            ) : (
-                              <span className="text-[10px] text-neutral-500 font-bold bg-neutral-50 border border-neutral-200 px-1.5 py-0.5 rounded-md mt-1">全正常時數 ({item.hoursWork}h)</span>
-                            )}
+                          <span className="text-[11px] font-black bg-amber-500/10 text-amber-900 px-2 py-0.5 rounded border border-amber-500/20">
+                            共 {dailyItems.length} 人派遣
+                          </span>
+                          <span className="text-[11px] font-semibold text-neutral-500">
+                            總工時: <strong className="text-neutral-900 font-extrabold">{totalDailyHours} 小時</strong>
+                          </span>
+                          <span className="text-[11px] font-semibold text-neutral-500">
+                            總核付工資: <strong className="text-emerald-700 font-extrabold">${totalDailyWage.toLocaleString()} 元</strong>
+                          </span>
+                        </div>
+
+                        {/* Collapsed view shows individual hours per worker! */}
+                        <div className="flex flex-1 md:justify-end items-center gap-2.5 overflow-hidden">
+                          <div className="text-xs text-neutral-700 font-bold truncate bg-amber-100/30 border border-amber-200/20 rounded-lg px-2.5 py-1 max-w-full" title={dailyItems.map(item => `${item.name} (${item.hoursWork}h)`).join(', ')}>
+                            👥 人員時數: <span className="text-neutral-950 font-black">{dailyItems.map(item => `${item.name} (${item.hoursWork}h)`).join(', ')}</span>
                           </div>
-                        </td>
-                        <td className="py-3.5 px-4 text-center font-mono text-neutral-900 font-black text-xs md:text-sm bg-neutral-50/50">
-                          ${item.hourlyRate} / h
-                        </td>
-                        <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-900 bg-emerald-500/5">
-                          <div className="flex flex-col items-end">
-                            <span className="font-black text-xs md:text-sm text-emerald-700">${item.totalWage.toLocaleString()} 元</span>
-                            <span className="text-[10px] font-black text-neutral-700 bg-neutral-150 border border-neutral-250 rounded px-1.5 py-0.5 mt-1 whitespace-nowrap scale-95 origin-right shadow-3xs">
-                              正常(${Math.round(item.regularHours * item.hourlyRate).toLocaleString()})
-                              { (item.otFirstTwo + item.otAfterTwo) > 0 ? ` + 加班(${Math.round((item.otFirstTwo + item.otAfterTwo) * item.hourlyRate * 1.34).toLocaleString()})` : '' }
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 text-neutral-800 text-xs md:text-sm max-w-[280px] break-words whitespace-normal select-all font-semibold" title={item.dailyNotes}>
-                          {item.dailyNotes || <span className="text-neutral-400 italic">無特殊派遣施作記事</span>}
-                        </td>
-                      </tr>
-                    ))}
-                    {paddingBottomHeight > 0 && (
-                      <tr style={{ height: paddingBottomHeight }} key="virtual-padding-bottom" className="border-0">
-                        <td colSpan={7} className="p-0 border-0 pointer-events-none" />
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                          <span className="text-xs text-neutral-400 font-black shrink-0">
+                            {isCollapsed ? '🔽 展開細節' : '🔼 收合細節'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Expanded Details Table */}
+                      {!isCollapsed && (
+                        <div className="overflow-x-auto bg-white border-t border-neutral-100 animate-fadeIn">
+                          <table className="w-full text-left text-xs md:text-sm border-collapse">
+                            <thead>
+                              <tr className="border-b border-neutral-200 text-neutral-500 text-[10px] font-bold bg-neutral-50">
+                                <th className="py-2 px-4 font-extrabold text-neutral-800">配合員工姓名</th>
+                                <th className="py-2 px-4 font-extrabold text-neutral-800">施作工地/案場序號</th>
+                                <th className="py-2 px-4 text-center font-extrabold text-neutral-800">當日派工時數</th>
+                                <th className="py-2 px-4 text-center font-extrabold text-neutral-800">預設結算時薪</th>
+                                <th className="py-2 px-4 text-right font-extrabold text-neutral-800">應核付工資金額</th>
+                                <th className="py-2 px-4 font-extrabold text-neutral-800">當日交代要職與施作記述</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {dailyItems.map(item => (
+                                <tr key={item.id} className="border-b border-neutral-100 hover:bg-amber-500/5 transition-colors h-[68px]">
+                                  <td className="py-2.5 px-4">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-black text-neutral-950 text-xs select-all">{item.name}</span>
+                                      {item.isSupport && (
+                                        <span className="text-[9px] bg-red-100 text-rose-700 border border-rose-300 px-1.5 py-0.5 rounded-lg font-black shrink-0">
+                                          臨時外調{item.supportRole ? ` • ${item.supportRole}` : ''}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-2.5 px-4 select-all max-w-[240px] break-all" title={item.projectName}>
+                                    <span className="text-xs text-neutral-950 font-extrabold block font-mono bg-neutral-100 p-1 border border-neutral-300 rounded leading-normal">
+                                      {item.projectName}
+                                    </span>
+                                  </td>
+                                  <td className="py-2.5 px-4 text-center font-mono font-black text-neutral-950">
+                                    <div className="flex flex-col items-center">
+                                      <span className="font-black text-neutral-950 text-xs">{item.hoursWork} 小時</span>
+                                      {(item.otFirstTwo + item.otAfterTwo) > 0 ? (
+                                        <span className="text-[9px] text-amber-800 font-extrabold bg-amber-100 border border-amber-300 px-1.5 py-0.2 rounded mt-0.5 whitespace-nowrap">
+                                          正常 {item.regularHours}h + 加班 {(item.otFirstTwo + item.otAfterTwo).toFixed(1)}h
+                                        </span>
+                                      ) : (
+                                        <span className="text-[9px] text-neutral-500 font-bold bg-neutral-50 border border-neutral-200 px-1.5 py-0.2 rounded mt-0.5">正常 ({item.hoursWork}h)</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-2.5 px-4 text-center font-mono text-neutral-900 font-black text-xs bg-neutral-50/50">
+                                    ${item.hourlyRate} / h
+                                  </td>
+                                  <td className="py-2.5 px-4 text-right font-mono font-bold text-emerald-900 bg-emerald-550/5">
+                                    <div className="flex flex-col items-end">
+                                      <span className="font-black text-xs text-emerald-700">${item.totalWage.toLocaleString()} 元</span>
+                                      <span className="text-[9px] font-black text-neutral-700 bg-neutral-150 border border-neutral-200 rounded px-1.5 py-0.2 mt-0.5 whitespace-nowrap">
+                                        正常(${Math.round(item.regularHours * item.hourlyRate).toLocaleString()})
+                                        { (item.otFirstTwo + item.otAfterTwo) > 0 ? ` + 加班(${Math.round((item.otFirstTwo + item.otAfterTwo) * item.hourlyRate * 1.34).toLocaleString()})` : '' }
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="py-2.5 px-4 text-neutral-800 text-xs max-w-[240px] break-words whitespace-normal select-all font-semibold" title={item.dailyNotes}>
+                                    {item.dailyNotes || <span className="text-neutral-400 italic">無特殊派遣施作記事</span>}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -3970,6 +4455,19 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     {customers.map(c => (
                       <option className="!bg-[#1A1A1A] !text-[#E5E5E5]" key={c.id} value={c.id}>👤 {c.name}</option>
                     ))}
+                    {Object.keys(
+                      projectSummariesList
+                        .filter(p => !p.clientId || !customers.some(c => c.id === p.clientId))
+                        .reduce((acc, p) => {
+                          const owner = p.companyOrOwner || '未指派案場/散客';
+                          acc[owner] = true;
+                          return acc;
+                        }, {} as Record<string, boolean>)
+                    ).map(owner => (
+                      <option className="!bg-[#1A1A1A] !text-[#E5E5E5]" key={`__unassigned__:${owner}`} value={`__unassigned__:${owner}`}>
+                        🏢 {owner}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -4370,6 +4868,100 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                 className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-black shadow transition cursor-pointer"
               >
                 確認執行
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Prepaid Pool Refund Modal */}
+      {refundModal.isOpen && (
+        <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999] animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full border border-neutral-100 p-6 transform scale-100 transition-all">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="p-2.5 bg-rose-50 text-rose-600 rounded-full mt-0.5">
+                <AlertCircle size={22} className="stroke-[2]" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-extrabold text-neutral-950">領回/退還客戶預收款</h3>
+                <p className="text-xs text-neutral-500 mt-1 font-medium leading-relaxed">
+                  該客戶預收溢領沖抵池目前餘額為：
+                  <span className="text-emerald-600 font-bold ml-1">NT$ {refundModal.maxAmount.toLocaleString()} 元</span>
+                </p>
+
+                <div className="mt-4">
+                  <label className="block text-xs font-bold text-neutral-700 mb-1.5">
+                    請輸入欲領回 / 退款金額 (NT$)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={refundModal.amountInput}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/[^0-9]/g, '');
+                        setRefundModal(prev => ({ ...prev, amountInput: val }));
+                      }}
+                      className="w-full pl-3 pr-20 py-2 border border-neutral-300 rounded-lg text-sm bg-white text-neutral-900 font-bold focus:border-amber-500 focus:outline-hidden"
+                      placeholder="輸入金額"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setRefundModal(prev => ({ ...prev, amountInput: String(refundModal.maxAmount) }))}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 text-[10px] font-bold rounded-md transition"
+                    >
+                      全部領回
+                    </button>
+                  </div>
+                  {/* Realtime validation indicator */}
+                  {(() => {
+                    const amt = parseInt(refundModal.amountInput) || 0;
+                    if (amt <= 0) {
+                      return <p className="text-[10px] text-rose-500 font-bold mt-1.5">⚠️ 請輸入有效的退款金額</p>;
+                    }
+                    if (amt > refundModal.maxAmount) {
+                      return <p className="text-[10px] text-rose-500 font-bold mt-1.5">⚠️ 退款金額大於現有餘額上限！</p>;
+                    }
+                    return null;
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end items-center gap-2.5 border-t border-neutral-100 pt-4">
+              <button
+                type="button"
+                onClick={() => setRefundModal({ isOpen: false, customerId: '', maxAmount: 0, amountInput: '' })}
+                className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 rounded-lg text-xs font-bold transition cursor-pointer"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                disabled={(() => {
+                  const amt = parseInt(refundModal.amountInput) || 0;
+                  return amt <= 0 || amt > refundModal.maxAmount;
+                })()}
+                onClick={() => {
+                  const refundAmt = parseInt(refundModal.amountInput) || 0;
+                  const newTx: PaymentTransaction = {
+                    id: `tx-refund-pool-withdraw-${Date.now()}`,
+                    customerId: refundModal.customerId,
+                    date: new Date().toISOString().substring(0, 10),
+                    amount: -refundAmt, // Negative amount on client pool to represent withdrawal
+                    method: '退還現金/匯回',
+                    allocationType: 'client_pool',
+                    description: `[預收款領回] 退還客戶部分或全部預收款`,
+                    createdAt: new Date().toISOString()
+                  };
+
+                  setTransactions(prev => [newTx, ...prev]);
+                  onSaveToast(`💸 退還成功！已將 NT$ ${refundAmt.toLocaleString()} 元自預收帳戶中領回並退還給客戶。`);
+                  setRefundModal({ isOpen: false, customerId: '', maxAmount: 0, amountInput: '' });
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:bg-neutral-200 disabled:text-neutral-400 text-white rounded-lg text-xs font-black shadow transition cursor-pointer"
+              >
+                確認退還領回
               </button>
             </div>
           </div>
