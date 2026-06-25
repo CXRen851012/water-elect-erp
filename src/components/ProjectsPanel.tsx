@@ -33,6 +33,8 @@ export default function ProjectsPanel({
   const [statusFilter, setStatusFilter] = useState<'全部' | '報價中' | '施工進行中' | '已完工' | '未成'>('全部');
   const [sortMethod, setSortMethod] = useState<'newest' | 'oldest' | 'serial' | 'ownerName'>('newest');
   const [showOptimizationPanel, setShowOptimizationPanel] = useState<boolean>(true);
+  const [showOnlyWithWarnings, setShowOnlyWithWarnings] = useState<boolean>(false);
+  const [expandedWarnings, setExpandedWarnings] = useState<Record<string, boolean>>({});
 
   // --- Estimation Page State Management ---
   const [estimationProject, setEstimationProject] = useState<Project | null>(null);
@@ -505,8 +507,95 @@ export default function ProjectsPanel({
   const countCompleted = projects.filter(p => p.isCompleted).length;
   const countFailed = projects.filter(p => p.isEstimation && p.estimationStatus === '報價未成').length;
 
+  const getProjectWarnings = (p: Project) => {
+    const priceWarningsList: string[] = [];
+    const projectRecords = records.filter(r => r.projectId === p.id);
+
+    const quote = p.estimationQuoteAmount ?? 0;
+    const estLaborCost = p.estimationLabor?.reduce((sum, w) => sum + ((w.workerCount ?? 1) * (w.daysWork ?? 1) * (w.estimationSalary ?? 3000)), 0) ?? 0;
+    const estMatCost = p.estimationMaterials?.reduce((sum, m) => sum + (m.quantity * (m.costPrice ?? m.unitPrice * 0.7)), 0) ?? 0;
+    const totalEstCost = estLaborCost + estMatCost;
+
+    if (p.isEstimation) {
+      if (quote > 0) {
+        const estProfit = quote - totalEstCost;
+        const profitMargin = (estProfit / quote) * 100;
+        if (profitMargin < 20) {
+          priceWarningsList.push(`[毛利預警] 預估毛利率僅 ${profitMargin.toFixed(1)}% (預估成本 NT$ ${totalEstCost.toLocaleString()} 元)，低於安全防線 20%！`);
+        }
+      } else if (totalEstCost > 0) {
+        priceWarningsList.push(`[報價缺失] 已配置預估成本 NT$ ${totalEstCost.toLocaleString()} 元，但尚未登錄「對客實際統包報價」`);
+      }
+    }
+
+    if (p.estimationMaterials && p.estimationMaterials.length > 0) {
+      p.estimationMaterials.forEach(m => {
+        const up = m.unitPrice ?? 0;
+        const cp = m.costPrice ?? 0;
+        const matPreset = materialsPreset?.find(pMat => pMat.id === m.materialId || pMat.name === m.name);
+        if (matPreset && matPreset.isRealPrice) {
+          priceWarningsList.push(`⚖️ 估算耗材 [${m.name}] 屬「實價」品項 (無固定價格)`);
+        } else {
+          if (up < cp) {
+            priceWarningsList.push(`材料 [${m.name}] 估算牌價($${up})小於進口成本($${cp})`);
+          } else if (cp === 0) {
+            priceWarningsList.push(`材料 [${m.name}] 估算成本為 0 元`);
+          }
+        }
+      });
+    }
+
+    projectRecords.forEach(r => {
+      if (r.materials && r.materials.length > 0) {
+        r.materials.forEach(m => {
+          const up = m.unitPrice ?? 0;
+          const cp = m.costPrice ?? 0;
+          const matPreset = materialsPreset?.find(pMat => pMat.id === m.materialId || pMat.name === m.name);
+          if (matPreset && matPreset.isRealPrice) {
+            priceWarningsList.push(`⚖️ 施工日誌 (${r.date}) [${m.name}] 屬「實價」品項 (價格浮動大)`);
+          } else {
+            if (up < cp) {
+              priceWarningsList.push(`施工日誌 (${r.date}) [${m.name}] 申報牌價($${up})小於成本($${cp})`);
+            } else if (cp === 0) {
+              priceWarningsList.push(`施工日誌 (${r.date}) [${m.name}] 採購成本為 0 元`);
+            }
+          }
+        });
+      }
+    });
+
+    if (p.estimationLabor && p.estimationLabor.length > 0) {
+      p.estimationLabor.forEach(w => {
+        const sal = w.estimationSalary ?? 0;
+        const hr = w.hourlyRate ?? 0;
+        if (sal === 0 && hr === 0) {
+          priceWarningsList.push(`預估工種 [${w.name}] 工酬或時薪未配置(為 0)`);
+        }
+      });
+    }
+
+    projectRecords.forEach(r => {
+      if (r.workers && r.workers.length > 0) {
+        r.workers.forEach(w => {
+          const rate = w.hourlyRate ?? 0;
+          if (rate === 0) {
+            priceWarningsList.push(`日誌 (${r.date}) 師傅 [${w.name}] 實領時薪為 0 元`);
+          }
+        });
+      }
+    });
+
+    return priceWarningsList;
+  };
+
   // Filtered and sorted projects
   const filteredProjects = projects.filter(p => {
+    // 0. Only warnings filter
+    if (showOnlyWithWarnings) {
+      const warnings = getProjectWarnings(p);
+      if (warnings.length === 0) return false;
+    }
+
     // 1. Status Filter
     if (statusFilter === '報價中') {
       if (!p.isEstimation || p.estimationStatus !== '估價中') return false;
@@ -608,7 +697,7 @@ return (
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col lg:flex-row gap-3 items-center justify-between p-3.5 bg-neutral-100 rounded-xl border-2 border-neutral-300">
-        <div className="flex gap-1.5 w-full lg:w-auto flex-wrap m-px">
+        <div className="flex gap-1.5 w-full lg:w-auto flex-wrap items-center m-px">
           {(['全部', '報價中', '施工進行中', '已完工', '未成'] as const).map(f => (
             <button
               key={f}
@@ -623,6 +712,19 @@ return (
               {f}
             </button>
           ))}
+
+          <button
+            type="button"
+            onClick={() => setShowOnlyWithWarnings(!showOnlyWithWarnings)}
+            className={`px-3.5 py-1.5 text-xs font-extrabold rounded-lg transition-all cursor-pointer border flex items-center gap-1 ${
+              showOnlyWithWarnings
+                ? 'bg-rose-600 text-white border-rose-700 shadow-3xs'
+                : 'bg-white hover:bg-rose-50 border-rose-200 text-rose-850 font-bold'
+            }`}
+          >
+            <AlertTriangle size={12} className={showOnlyWithWarnings ? "animate-bounce" : ""} />
+            <span>⚠️ 僅顯示有警示案場 ({projects.filter(p => getProjectWarnings(p).length > 0).length})</span>
+          </button>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto items-center">
@@ -871,18 +973,30 @@ return (
 
                   {/* Budget Warning Inline Block */}
                   {hasBudgetWarning && (
-                    <div className="bg-rose-50 border border-rose-200 p-2.5 rounded-lg text-[10px] text-rose-800 font-extrabold flex items-start gap-1.5 leading-relaxed">
-                      <span className="text-xs mt-0.5">⚠️</span>
-                      <div className="space-y-1 w-full">
-                        <span className="text-rose-950 font-black block">【牌價成本預警：工料單價或薪資計收未配置】</span>
-                        <div className="space-y-1 mt-1 pl-1 border-l-2 border-rose-300">
+                    <div className="bg-rose-50 border border-rose-200 p-2.5 rounded-lg text-[10px] text-rose-800 font-extrabold flex flex-col gap-1.5 leading-relaxed">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedWarnings(prev => ({ ...prev, [p.id]: !prev[p.id] }))}
+                        className="flex items-center justify-between w-full font-black text-rose-950 text-[10.5px] cursor-pointer text-left bg-transparent border-none p-0 focus:outline-none"
+                      >
+                        <span className="flex items-center gap-1">
+                          <span className="text-xs">⚠️</span>
+                          <span>【牌價成本預警：工料單價或薪資計收未配置】({priceWarningsList.length} 項)</span>
+                        </span>
+                        <span className="text-rose-600 font-bold hover:underline shrink-0 ml-2">
+                          {expandedWarnings[p.id] ? '折疊 ▴' : '展開觀看明細 ▾'}
+                        </span>
+                      </button>
+
+                      {expandedWarnings[p.id] && (
+                        <div className="space-y-1 mt-1 pl-1 border-l-2 border-rose-300 animate-fadeIn text-[9.5px]">
                           {priceWarningsList.map((err, idx) => (
                             <div key={idx} className="text-rose-900 font-medium">
                               • {err}
                             </div>
                           ))}
                         </div>
-                      </div>
+                      )}
                     </div>
                   )}
 
@@ -1194,6 +1308,33 @@ return (
 
                       const isDeleting = deleteConfirmRecordId === rec.id;
 
+                      // Calculate warnings specific to this daily record
+                      const recWarnings: string[] = [];
+                      if (rec.materials && rec.materials.length > 0) {
+                        rec.materials.forEach(m => {
+                          const up = m.unitPrice ?? 0;
+                          const cp = m.costPrice ?? 0;
+                          const matPreset = materialsPreset?.find(pMat => pMat.id === m.materialId || pMat.name === m.name);
+                          if (matPreset && matPreset.isRealPrice) {
+                            recWarnings.push(`材料 [${m.name}] 屬「實價」品項 (對帳前需確認價格)`);
+                          } else {
+                            if (up < cp) {
+                              recWarnings.push(`材料 [${m.name}] 申報牌價($${up})小於成本($${cp})`);
+                            } else if (cp === 0) {
+                              recWarnings.push(`材料 [${m.name}] 採購成本為 0 元 (或未配置)`);
+                            }
+                          }
+                        });
+                      }
+                      if (rec.workers && rec.workers.length > 0) {
+                        rec.workers.forEach(w => {
+                          const rate = w.hourlyRate ?? 0;
+                          if (rate === 0) {
+                            recWarnings.push(`師傅 [${w.name}] 實領時薪為 0 元 (或未配置)`);
+                          }
+                        });
+                      }
+
                       return (
                         <div key={rec.id} className="relative group">
                           
@@ -1275,6 +1416,21 @@ return (
                                 )}
                               </div>
                             </div>
+
+                            {/* Record Warnings Display */}
+                            {recWarnings.length > 0 && (
+                              <div className="bg-rose-50 border border-rose-200 p-2.5 rounded-lg text-[10px] text-rose-800 font-extrabold flex items-start gap-1.5 leading-relaxed">
+                                <span className="text-xs mt-0.5">⚠️</span>
+                                <div className="space-y-0.5">
+                                  <span className="text-rose-950 font-black block">【此筆工務日誌價格/計收警示】</span>
+                                  {recWarnings.map((err, idx) => (
+                                    <div key={idx} className="text-rose-900 font-medium">
+                                      • {err}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
 
                             {/* Construction content details block */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">

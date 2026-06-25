@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Project, Worker, MaterialPreset, DailyRecord, RecordMaterial, RecordExpense, RecordWorker, Supplier } from '../types';
+import { Project, Worker, MaterialPreset, MaterialUnitOption, DailyRecord, RecordMaterial, RecordExpense, RecordWorker, Supplier } from '../types';
 import { 
   Plus, Trash2, Calendar, ClipboardList, HardHat, 
   FileText, ShoppingCart, DollarSign, Wrench, PlusCircle, AlertCircle, Sparkles, Check, Scale,
@@ -17,6 +17,7 @@ interface RecordFormProps {
   onOpenNewProjectModal: () => void;
   initialRecordToEdit?: DailyRecord;
   onCancel: () => void;
+  setMaterialsPreset?: React.Dispatch<React.SetStateAction<MaterialPreset[]>>;
 }
 
 const DEFAULT_SUBCATEGORIES: Record<string, string[]> = {
@@ -38,6 +39,7 @@ export default function RecordForm({
   onOpenNewProjectModal,
   initialRecordToEdit,
   onCancel,
+  setMaterialsPreset
 }: RecordFormProps) {
   const activeSuppliersPreset = (suppliersPreset || []).filter(s => s.showInMaterialsDatabase !== false);
 
@@ -99,6 +101,7 @@ export default function RecordForm({
   // 2. Materials log (No visible prices inside logger!)
   const [materials, setMaterials] = useState<RecordMaterial[]>([]);
   const [overridePricingMode, setOverridePricingMode] = useState<boolean>(false);
+  const [confirmWriteRowId, setConfirmWriteRowId] = useState<string | null>(null);
   const [selectedAddCategory, setSelectedAddCategory] = useState<string>('全部');
   const [selectedAddSubcategory, setSelectedAddSubcategory] = useState<string>('全部');
   const [selectedAddSupplier, setSelectedAddSupplier] = useState<string>('全部');
@@ -481,6 +484,191 @@ export default function RecordForm({
       }
       return m;
     }));
+  };
+
+  const handleWriteBackToPreset = (m: RecordMaterial, preset: MaterialPreset) => {
+    if (!setMaterialsPreset || !m.storeName || m.storeName === 'default') return;
+
+    // Helper to ensure unit options exist for the preset
+    const ensureLocalUnitOptions = (p: MaterialPreset): MaterialUnitOption[] => {
+      if (p.unitOptions && p.unitOptions.length > 0) {
+        return p.unitOptions;
+      }
+      return [
+        {
+          id: `${p.id}-unit-default`,
+          unit: p.unit || '個',
+          defaultUnitPrice: p.defaultUnitPrice || 0,
+          defaultCostPrice: p.defaultCostPrice || 0,
+          suppliers: p.suppliers || []
+        }
+      ];
+    };
+
+    // Helper to apply auto conversion to target options
+    const applyLocalAutoConversions = (p: MaterialPreset): MaterialPreset => {
+      const uOptions = ensureLocalUnitOptions(p);
+      if (uOptions.length <= 1) {
+        if (uOptions.length === 1) {
+          const primaryUo = uOptions[0];
+          return {
+            ...p,
+            unit: primaryUo.unit,
+            defaultUnitPrice: primaryUo.defaultUnitPrice,
+            defaultCostPrice: primaryUo.defaultCostPrice,
+            suppliers: primaryUo.suppliers
+          };
+        }
+        return p;
+      }
+
+      const updatedOptions = [...uOptions];
+      // Run 2 passes to resolve multi-stage target conversions perfectly
+      for (let pass = 0; pass < 2; pass++) {
+        for (let idx = 0; idx < updatedOptions.length; idx++) {
+          const uo = updatedOptions[idx];
+          if (idx === 0) continue; // First unit option is always the system root default basereference
+
+          if (uo.useConversionPricing) {
+            const factor = uo.conversionFactor ?? 1;
+            const convertVal = (v: number) => {
+              if (factor <= 0) return v;
+              return uo.conversionInverse ? Math.round(v / factor) : Math.round(v * factor);
+            };
+
+            // Find specific target unit option
+            const targetUo = updatedOptions.find(o => o.id === uo.targetUnitOptionId && o.id !== uo.id) || updatedOptions[0];
+
+            const defaultUnitPrice = convertVal(targetUo.defaultUnitPrice);
+            const defaultCostPrice = convertVal(targetUo.defaultCostPrice);
+
+            const updatedSuppliers = (targetUo.suppliers || []).map(ts => {
+              const existing = uo.suppliers?.find(s => s.storeName === ts.storeName);
+              return {
+                id: existing?.id || `sup-${Date.now()}-${Math.random().toString(36).substring(2, 4)}`,
+                storeName: ts.storeName,
+                listPrice: convertVal(ts.listPrice),
+                costPrice: convertVal(ts.costPrice)
+              };
+            });
+
+            updatedOptions[idx] = {
+              ...uo,
+              defaultUnitPrice,
+              defaultCostPrice,
+              suppliers: updatedSuppliers
+            };
+          }
+        }
+      }
+
+      const primaryUo = updatedOptions[0];
+      return {
+        ...p,
+        unitOptions: updatedOptions,
+        unit: primaryUo.unit,
+        defaultUnitPrice: primaryUo.defaultUnitPrice,
+        defaultCostPrice: primaryUo.defaultCostPrice,
+        suppliers: primaryUo.suppliers
+      };
+    };
+
+    setMaterialsPreset(prevPresets => {
+      return prevPresets.map(p => {
+        if (p.id !== preset.id) return p;
+
+        const updatedPreset = { ...p };
+
+        // Ensure we always have unitOptions array for consistent updates
+        const unitOptions = [...ensureLocalUnitOptions(updatedPreset)];
+        const matchedOptionIndex = unitOptions.findIndex(uo => uo.unit === m.unit);
+
+        if (matchedOptionIndex > -1) {
+          const targetUnitOption = { ...unitOptions[matchedOptionIndex] };
+          const suppliersList = [...(targetUnitOption.suppliers || [])];
+          const supIdx = suppliersList.findIndex(s => s.storeName === m.storeName);
+
+          if (supIdx > -1) {
+            suppliersList[supIdx] = {
+              ...suppliersList[supIdx],
+              listPrice: m.unitPrice ?? 0,
+              costPrice: m.costPrice ?? 0
+            };
+          } else {
+            suppliersList.push({
+              id: `sup-${Date.now()}-${Math.random().toString(36).substring(2, 4)}`,
+              storeName: m.storeName!,
+              listPrice: m.unitPrice ?? 0,
+              costPrice: m.costPrice ?? 0
+            });
+          }
+
+          targetUnitOption.suppliers = suppliersList;
+
+          // --- RECALCULATE MAX PRICING FOR THIS UNIT OPTION ---
+          const activeSuppliersWithListPrice = suppliersList.filter(s => s.listPrice > 0);
+          const activeSuppliersWithCostPrice = suppliersList.filter(s => s.costPrice > 0);
+
+          if (activeSuppliersWithListPrice.length > 0) {
+            targetUnitOption.defaultUnitPrice = Math.max(...activeSuppliersWithListPrice.map(s => s.listPrice));
+          } else if (m.unitPrice !== undefined) {
+            targetUnitOption.defaultUnitPrice = m.unitPrice;
+          }
+
+          if (activeSuppliersWithCostPrice.length > 0) {
+            targetUnitOption.defaultCostPrice = Math.max(...activeSuppliersWithCostPrice.map(s => s.costPrice));
+          } else if (m.costPrice !== undefined) {
+            targetUnitOption.defaultCostPrice = m.costPrice;
+          }
+
+          unitOptions[matchedOptionIndex] = targetUnitOption;
+          updatedPreset.unitOptions = unitOptions;
+        } else {
+          // Fallback legacy branch if somehow matchedOptionIndex is not found even after ensuring unitOptions
+          const suppliersList = [...(updatedPreset.suppliers || [])];
+          const supIdx = suppliersList.findIndex(s => s.storeName === m.storeName);
+
+          if (supIdx > -1) {
+            suppliersList[supIdx] = {
+              ...suppliersList[supIdx],
+              listPrice: m.unitPrice ?? 0,
+              costPrice: m.costPrice ?? 0
+            };
+          } else {
+            suppliersList.push({
+              id: `sup-${Date.now()}-${Math.random().toString(36).substring(2, 4)}`,
+              storeName: m.storeName!,
+              listPrice: m.unitPrice ?? 0,
+              costPrice: m.costPrice ?? 0
+            });
+          }
+          updatedPreset.suppliers = suppliersList;
+
+          // --- RECALCULATE MAX PRICING FOR TOP LEVEL ---
+          const activeSuppliersWithListPrice = suppliersList.filter(s => s.listPrice > 0);
+          const activeSuppliersWithCostPrice = suppliersList.filter(s => s.costPrice > 0);
+
+          if (activeSuppliersWithListPrice.length > 0) {
+            updatedPreset.defaultUnitPrice = Math.max(...activeSuppliersWithListPrice.map(s => s.listPrice));
+          } else if (m.unitPrice !== undefined) {
+            updatedPreset.defaultUnitPrice = m.unitPrice;
+          }
+
+          if (activeSuppliersWithCostPrice.length > 0) {
+            updatedPreset.defaultCostPrice = Math.max(...activeSuppliersWithCostPrice.map(s => s.costPrice));
+          } else if (m.costPrice !== undefined) {
+            updatedPreset.defaultCostPrice = m.costPrice;
+          }
+        }
+
+        // Apply auto conversions across other unit options, and sync primary to top-level
+        return applyLocalAutoConversions(updatedPreset);
+      });
+    });
+
+    if (onSaveToast) {
+      onSaveToast(`⭐ 已成功同步更新【${preset.name}】於【${m.storeName}】的特約大庫牌價與成本，並自動取最高特約值更新系統預設牌進價！`);
+    }
   };
 
   const handleUpdateMaterialField = (rowId: string, key: keyof RecordMaterial, value: any) => {
@@ -1154,7 +1342,7 @@ export default function RecordForm({
                             <select
                               value={m.materialId || 'custom'}
                               onChange={(e) => handleUpdateMaterialChoice(m.id, e.target.value)}
-                              className="w-full px-2 py-1.5 border border-neutral-200 rounded text-xs bg-white text-neutral-700"
+                              className="w-full px-2 py-1.5 border border-neutral-200 rounded text-xs bg-white text-neutral-700 font-bold"
                             >
                               <option value="custom">-- ⚙️ 現場自定義自填材料 (例如臨採) --</option>
                               {(() => {
@@ -1188,48 +1376,65 @@ export default function RecordForm({
                               })()}
                             </select>
 
-                          {m.materialId && !m.isNearbyPurchased && (() => {
-                            const preset = sortedMaterialsPreset.find(p => p.id === m.materialId);
-                            if (!preset) return null;
-                            
-                            const unitOptions = preset.unitOptions || [];
-                            const matchedOption = unitOptions.find(uo => uo.unit === m.unit);
-                            const relevantSuppliers = matchedOption 
-                              ? (matchedOption.suppliers || [])
-                              : (preset.suppliers || []);
+                            {m.materialId && !m.isNearbyPurchased && (() => {
+                              const preset = sortedMaterialsPreset.find(p => p.id === m.materialId);
+                              if (!preset) return null;
+                              
+                              const unitOptions = preset.unitOptions || [];
+                              const matchedOption = unitOptions.find(uo => uo.unit === m.unit);
+                              const relevantSuppliers = matchedOption 
+                                ? (matchedOption.suppliers || [])
+                                : (preset.suppliers || []);
 
-                            // Filter to only include suppliers with set price (listPrice > 0 or costPrice > 0)
-                            const activeSuppliers = relevantSuppliers.filter(s => s.listPrice > 0 || s.costPrice > 0);
-                            const currentStore = m.storeName || 'default';
-                            return (
-                              <div className="flex flex-col gap-1 bg-neutral-100/60 border border-neutral-200 p-2 rounded-lg text-[10px] text-neutral-600 mt-1 shadow-2xs">
-                                {activeSuppliers.length > 0 ? (
+                              // Filter to only include suppliers with set price (listPrice > 0 or costPrice > 0)
+                              const activeSuppliers = relevantSuppliers.filter(s => s.listPrice > 0 || s.costPrice > 0);
+                              const activeSupplierNames = activeSuppliers.map(s => s.storeName);
+
+                              // All other system suppliers that are not already active for this material/unit
+                              const otherSuppliers = activeSuppliersPreset.filter(s => !activeSupplierNames.includes(s.name));
+
+                              const currentStore = m.storeName || 'default';
+                              return (
+                                <div className="flex flex-col gap-1 bg-amber-50/20 border border-amber-200/50 p-2 rounded-lg text-[10px] text-neutral-600 mt-1 shadow-3xs">
                                   <div className="flex items-center gap-1">
-                                    <span className="font-bold flex-shrink-0">🏬 報價材料行:</span>
+                                    <span className="font-bold flex-shrink-0 text-amber-900">🏬 報價材料行:</span>
                                     <select
                                       value={currentStore}
                                       onChange={(e) => handleUpdateMaterialSupplierChoice(m.id, e.target.value, preset)}
-                                      className="px-1.5 py-0.5 border border-neutral-250 bg-white rounded font-bold text-neutral-800 text-[10px] w-full focus:ring-1 focus:ring-amber-500"
+                                      className="px-1.5 py-0.5 border border-amber-250 bg-white rounded font-bold text-amber-950 text-[10px] w-full focus:ring-1 focus:ring-amber-500 cursor-pointer"
                                     >
-                                      <option value="default">-- 使用預設大庫供貨 --</option>
-                                      {activeSuppliers.map(sup => (
-                                        <option key={sup.id} value={sup.storeName}>
-                                          {sup.storeName}
-                                        </option>
-                                      ))}
+                                      <option value="default">-- 📦 使用預設大庫供貨 --</option>
+                                      
+                                      {activeSuppliers.length > 0 && (
+                                        <optgroup label="✅ 已有特約合約報價">
+                                          {activeSuppliers.map(sup => (
+                                            <option key={sup.id} value={sup.storeName}>
+                                              🏬 {sup.storeName} (大庫: ${sup.listPrice}{overridePricingMode ? ` / 成本 ${sup.costPrice}` : ''})
+                                            </option>
+                                          ))}
+                                        </optgroup>
+                                      )}
+
+                                      {otherSuppliers.length > 0 && (
+                                        <optgroup label="➕ 其它配合材料行 (選取後可打自定價格並寫入大庫)">
+                                          {otherSuppliers.map(sup => (
+                                            <option key={sup.id} value={sup.name}>
+                                              ➕ {sup.name}
+                                            </option>
+                                          ))}
+                                        </optgroup>
+                                      )}
                                     </select>
                                   </div>
-                                ) : (
-                                  <div className="text-[9px] text-neutral-400 font-sans italic">
-                                    💡 此規格單位目前尚無特約店家的合約報價。
+                                  <div className="text-[9px] pl-0.5 leading-snug font-semibold text-neutral-500 scale-95 origin-left italic mt-0.5 flex items-center gap-1">
+                                    <span>👉 已選定：</span>
+                                    <span className={m.storeName ? "text-amber-800 font-extrabold" : "text-neutral-500 font-bold"}>
+                                      {m.storeName ? `🏬 【${m.storeName}】特約用料` : '📦 預設大庫供貨儲備'}
+                                    </span>
                                   </div>
-                                )}
-                                <div className="text-[9px] pl-0.5 leading-snug font-sans text-neutral-500 scale-95 origin-left italic">
-                                  已選定：{m.storeName ? `🏬 【${m.storeName}】特約對照用料` : '📦 預設大庫供貨儲備'}
                                 </div>
-                              </div>
-                            );
-                          })()}
+                              );
+                            })()}
 
                           {(!m.materialId || m.isNearbyPurchased) && (
                             <input
@@ -1355,35 +1560,100 @@ export default function RecordForm({
                                 className="w-full p-1 bg-white border border-neutral-200 rounded text-xs font-mono font-bold text-neutral-850 text-center"
                               />
                             </div>
-                            {m.costPrice !== undefined && m.costPrice > 0 && (
+                            {overridePricingMode && m.costPrice !== undefined && m.costPrice > 0 && (
                               <span className="text-[9px] text-neutral-400 text-center font-bold">臨購成本: ${m.costPrice}</span>
                             )}
                           </div>
                         ) : overridePricingMode ? (
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-1 bg-amber-50/30 p-1 border border-dashed border-amber-400 rounded-lg">
-                              <span className="text-amber-700 font-black text-xs">$</span>
-                              <input
-                                type="number"
-                                min="0"
-                                placeholder="出庫牌價覆寫"
-                                value={m.unitPrice || 0}
-                                onChange={(e) => handleUpdateMaterialField(m.id, 'unitPrice', parseInt(e.target.value, 10) || 0)}
-                                className="w-full p-0.5 bg-white border border-neutral-200 rounded text-xs font-mono font-black text-amber-950 text-center focus:outline-none focus:border-amber-500"
-                              />
+                          <div className="flex flex-col gap-1.5 p-1 bg-amber-50/20 border border-dashed border-amber-300 rounded-lg">
+                            {/* 牌價欄位 */}
+                            <div className="flex items-center gap-1">
+                              <span className="text-[9px] font-bold text-amber-800 shrink-0 w-8">牌價:</span>
+                              <div className="flex items-center gap-0.5 bg-white border border-neutral-200 rounded px-1 py-0.5 w-full">
+                                <span className="text-amber-700 font-black text-[10px]">$</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  placeholder="牌價覆寫"
+                                  value={m.unitPrice !== undefined ? m.unitPrice : 0}
+                                  onChange={(e) => handleUpdateMaterialField(m.id, 'unitPrice', parseInt(e.target.value, 10) || 0)}
+                                  className="w-full p-0 bg-transparent text-xs font-mono font-black text-amber-950 text-center focus:outline-none"
+                                />
+                              </div>
                             </div>
+                            {/* 成本欄位 */}
+                            <div className="flex items-center gap-1">
+                              <span className="text-[9px] font-bold text-emerald-800 shrink-0 w-8">成本:</span>
+                              <div className="flex items-center gap-0.5 bg-white border border-neutral-200 rounded px-1 py-0.5 w-full">
+                                <span className="text-emerald-700 font-black text-[10px]">$</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  placeholder="成本覆寫"
+                                  value={m.costPrice !== undefined ? m.costPrice : 0}
+                                  onChange={(e) => handleUpdateMaterialField(m.id, 'costPrice', parseInt(e.target.value, 10) || 0)}
+                                  className="w-full p-0 bg-transparent text-xs font-mono font-black text-emerald-950 text-center focus:outline-none"
+                                />
+                              </div>
+                            </div>
+
+                            {/* 檢視大庫對比 & 寫入大庫特約店家按鈕 */}
                             {(() => {
                               const preset = m.materialId ? sortedMaterialsPreset.find(p => p.id === m.materialId) : null;
                               if (preset) {
                                 const pricing = getUnitAndSupplierPrices(preset, m.unit, m.storeName);
+                                const hasSupplier = m.storeName && m.storeName !== 'default';
+                                
+                                // Check if this supplier exists in either matched unit option suppliers, or preset-wide suppliers
+                                const unitOptions = preset.unitOptions || [];
+                                const matchedOption = unitOptions.find(uo => uo.unit === m.unit);
+                                const relevantSuppliers = matchedOption 
+                                  ? (matchedOption.suppliers || [])
+                                  : (preset.suppliers || []);
+                                const isExistingSupplier = relevantSuppliers.some(s => s.storeName === m.storeName);
+
+                                const priceChanged = (m.unitPrice ?? 0) !== pricing.unitPrice;
+                                const costChanged = (m.costPrice ?? 0) !== pricing.costPrice;
+                                const isDifferent = priceChanged || costChanged;
+
+                                const shouldShowButton = hasSupplier && (!isExistingSupplier || isDifferent);
+                                const isConfirming = confirmWriteRowId === m.id;
+
                                 return (
                                   <div className="space-y-1 block mt-0.5 text-center">
-                                    <span className="text-[9px] text-emerald-800 bg-emerald-100/80 border border-emerald-300 px-1 py-0.5 rounded font-black block leading-none">
-                                      🏢 供貨成本: ${pricing.costPrice}
-                                    </span>
-                                    <span className="text-[9px] text-neutral-400 block leading-none select-none italic">
-                                      原規牌價: ${pricing.unitPrice}
-                                    </span>
+                                    <div className="text-[8px] text-neutral-400 leading-tight select-none italic">
+                                      大庫預設：牌價 ${pricing.unitPrice} / 成本 ${pricing.costPrice}
+                                    </div>
+                                    {shouldShowButton && setMaterialsPreset && (
+                                      isConfirming ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            handleWriteBackToPreset(m, preset);
+                                            setConfirmWriteRowId(null);
+                                          }}
+                                          className="w-full py-1 px-1 bg-rose-600 hover:bg-rose-700 text-white rounded font-bold text-[9px] transition-all cursor-pointer shadow-3xs hover:shadow-2xs border border-rose-700 animate-pulse flex items-center justify-center gap-0.5"
+                                          title="確定將特約報價寫入並更新耗材大庫？"
+                                        >
+                                          ⚠️ 確定更新大庫？
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setConfirmWriteRowId(m.id);
+                                            // Auto-reset confirming state after 4 seconds
+                                            setTimeout(() => {
+                                              setConfirmWriteRowId(prev => prev === m.id ? null : prev);
+                                            }, 4000);
+                                          }}
+                                          className="w-full py-1 px-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-bold text-[9px] transition-all cursor-pointer shadow-3xs hover:shadow-2xs border border-amber-600 animate-pulse flex items-center justify-center gap-0.5"
+                                          title="將此處調整的特定特約材料行牌成本同步更新回後台耗材大庫"
+                                        >
+                                          💾 寫入大庫特約報價
+                                        </button>
+                                      )
+                                    )}
                                   </div>
                                 );
                               }

@@ -992,6 +992,7 @@ export default function App() {
                   onOpenNewProjectModal={() => setShowProjectModal(true)}
                   initialRecordToEdit={recordToEdit}
                   onCancel={() => { setShowRecordForm(false); setRecordToEdit(undefined); }}
+                  setMaterialsPreset={setMaterials}
                 />
               </motion.div>
             ) : (
