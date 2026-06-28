@@ -106,6 +106,8 @@ export default function RecordForm({
   const [selectedAddSubcategory, setSelectedAddSubcategory] = useState<string>('全部');
   const [selectedAddSupplier, setSelectedAddSupplier] = useState<string>('全部');
   const [addSearchQuery, setAddSearchQuery] = useState<string>('');
+  const [isSubcategoryCollapsed, setIsSubcategoryCollapsed] = useState<boolean>(false);
+  const [isQuickAddCollapsed, setIsQuickAddCollapsed] = useState<boolean>(false);
 
   useEffect(() => {
     setSelectedAddSubcategory('全部');
@@ -1157,28 +1159,38 @@ export default function RecordForm({
             {/* Subcategory Dynamic Filter */}
             {selectedAddCategory !== '全部' && (
               <div className="space-y-1 mt-2.5 p-2 bg-amber-500/5 rounded-xl border border-dashed border-[#D4AF37]/20">
-                <span className="text-[10px] font-extrabold text-amber-600 block flex items-center gap-1">
-                  <span>📂 依次細分類 (二層細項) 進階過濾：</span>
-                </span>
-                <div className="flex flex-wrap gap-1">
-                  {['全部', ...(subcategoriesConfig[selectedAddCategory] || [])].map(sub => {
-                    const isSelected = selectedAddSubcategory === sub;
-                    return (
-                      <button
-                        key={sub}
-                        type="button"
-                        onClick={() => setSelectedAddSubcategory(sub)}
-                        className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
-                          isSelected
-                            ? 'bg-[#D4AF37] text-neutral-900 font-extrabold shadow-3xs'
-                            : 'bg-white hover:bg-neutral-100 border border-neutral-200 text-neutral-500'
-                        }`}
-                      >
-                        {sub === '全部' ? '🔍 全部次分類' : sub}
-                      </button>
-                    );
-                  })}
+                <div 
+                  className="flex items-center justify-between cursor-pointer select-none"
+                  onClick={() => setIsSubcategoryCollapsed(!isSubcategoryCollapsed)}
+                >
+                  <span className="text-[10px] font-extrabold text-amber-600 block flex items-center gap-1">
+                    <span>📂 依次細分類 (二層細項) 進階過濾：</span>
+                  </span>
+                  <span className="text-[10px] text-[#D4AF37] font-bold flex items-center gap-0.5">
+                    {isSubcategoryCollapsed ? '🔽 展開次分類' : '🔼 折疊次分類'}
+                  </span>
                 </div>
+                {!isSubcategoryCollapsed && (
+                  <div className="flex flex-wrap gap-1 pt-1.5 animate-fadeIn">
+                    {['全部', ...(subcategoriesConfig[selectedAddCategory] || [])].map(sub => {
+                      const isSelected = selectedAddSubcategory === sub;
+                      return (
+                        <button
+                          key={sub}
+                          type="button"
+                          onClick={() => setSelectedAddSubcategory(sub)}
+                          className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#D4AF37] text-neutral-900 font-extrabold shadow-3xs'
+                              : 'bg-white hover:bg-neutral-100 border border-neutral-200 text-neutral-500'
+                          }`}
+                        >
+                          {sub === '全部' ? '🔍 全部次分類' : sub}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1241,36 +1253,50 @@ export default function RecordForm({
               </div>
             </div>
 
+            {/* Preset Buttons Grid Toggle Header */}
+            <div 
+              className="flex items-center justify-between border-t border-neutral-200/60 pt-2.5 cursor-pointer select-none"
+              onClick={() => setIsQuickAddCollapsed(!isQuickAddCollapsed)}
+            >
+              <span className="text-[10px] font-extrabold text-neutral-600 flex items-center gap-1">
+                ⚡ 快速點選大庫材料品項 (單擊直接累加至耗用清單)：
+              </span>
+              <span className="text-[10px] text-amber-600 font-bold flex items-center gap-0.5">
+                {isQuickAddCollapsed ? '🔽 展開品項列表' : '🔼 折疊品項列表'}
+              </span>
+            </div>
+
             {/* Preset Buttons Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 max-h-[170px] overflow-y-auto pr-1 border-t border-neutral-200/60 pt-2.5">
-              {sortedMaterialsPreset
-                .filter(p => selectedAddCategory === '全部' || p.category === selectedAddCategory)
-                .filter(p => selectedAddSubcategory === '全部' || p.subcategory === selectedAddSubcategory)
-                .filter(p => {
-                  if (selectedAddSupplier === '全部') return true;
-                  const unitOpts = p.unitOptions || [];
-                  const hasStoreInUnit = unitOpts.some(uo => uo.suppliers?.some(s => s.storeName === selectedAddSupplier && (s.listPrice > 0 || s.costPrice > 0)));
-                  const hasStoreInLegacy = p.suppliers?.some(s => s.storeName === selectedAddSupplier && (s.listPrice > 0 || s.costPrice > 0));
-                  return hasStoreInUnit || hasStoreInLegacy;
-                })
-                .filter(p => {
-                  if (!addSearchQuery.trim()) return true;
-                  const kw = addSearchQuery.trim().toLowerCase();
-                  return p.name.toLowerCase().includes(kw) || 
-                         (p.category || '').toLowerCase().includes(kw) ||
-                         (p.unit || '').toLowerCase().includes(kw);
-                })
-                .map(p => {
-                  const uniqueSuppliers = p.suppliers?.length || 0;
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => handleQuickAddPresetMaterial(p)}
-                      className="text-left p-2 bg-white hover:bg-amber-50/40 border border-neutral-200 hover:border-amber-300 rounded-lg shadow-3xs transition flex flex-col justify-between h-auto cursor-pointer"
-                    >
-                      <span className="font-bold text-neutral-800 text-[11px] leading-tight line-clamp-2">{p.name}</span>
-                      <div className="flex justify-between items-center text-[9px] text-neutral-400 mt-1 font-mono scale-95 origin-left">
+            {!isQuickAddCollapsed && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 max-h-[170px] overflow-y-auto pr-1 pt-1.5 animate-fadeIn">
+                {sortedMaterialsPreset
+                  .filter(p => selectedAddCategory === '全部' || p.category === selectedAddCategory)
+                  .filter(p => selectedAddSubcategory === '全部' || p.subcategory === selectedAddSubcategory)
+                  .filter(p => {
+                    if (selectedAddSupplier === '全部') return true;
+                    const unitOpts = p.unitOptions || [];
+                    const hasStoreInUnit = unitOpts.some(uo => uo.suppliers?.some(s => s.storeName === selectedAddSupplier && (s.listPrice > 0 || s.costPrice > 0)));
+                    const hasStoreInLegacy = p.suppliers?.some(s => s.storeName === selectedAddSupplier && (s.listPrice > 0 || s.costPrice > 0));
+                    return hasStoreInUnit || hasStoreInLegacy;
+                  })
+                  .filter(p => {
+                    if (!addSearchQuery.trim()) return true;
+                    const kw = addSearchQuery.trim().toLowerCase();
+                    return p.name.toLowerCase().includes(kw) || 
+                           (p.category || '').toLowerCase().includes(kw) ||
+                           (p.unit || '').toLowerCase().includes(kw);
+                  })
+                  .map(p => {
+                    const uniqueSuppliers = p.suppliers?.length || 0;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => handleQuickAddPresetMaterial(p)}
+                        className="text-left p-2 bg-white hover:bg-amber-50/40 border border-neutral-200 hover:border-amber-300 rounded-lg shadow-3xs transition flex flex-col justify-between h-auto cursor-pointer"
+                      >
+                        <span className="font-bold text-neutral-800 text-[11px] leading-tight line-clamp-2">{p.name}</span>
+                        <div className="flex justify-between items-center text-[9px] text-neutral-400 mt-1 font-mono scale-95 origin-left">
                         <span>單位：{p.unit}</span>
                         {uniqueSuppliers > 0 && (
                           <span className="text-amber-700 font-sans font-extrabold text-[8px] scale-90">🏬特約({uniqueSuppliers})</span>
@@ -1301,7 +1327,8 @@ export default function RecordForm({
                 </div>
               )}
             </div>
-          </div>
+          )}
+        </div>
 
           {materials.length === 0 ? (
             <div className="text-center py-7 border border-dashed border-neutral-200 rounded-xl bg-neutral-50/20 text-xs text-neutral-400">

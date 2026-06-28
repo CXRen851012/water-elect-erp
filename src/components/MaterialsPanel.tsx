@@ -63,6 +63,54 @@ export default function MaterialsPanel({
     onSaveToast('↕️ 已成功自訂調整大類分類之排列順序！');
   };
 
+  // 移轉整個二級次分類至其他大類 (主分類)
+  const handleMoveSubcategoryToNewCategory = (subName: string, oldCategory: string, newCategory: string) => {
+    // 1. Remove subName from oldCategory list
+    const oldList = (subcategories[oldCategory] || []).filter(s => s !== subName);
+    // 2. Add subName to newCategory list (if not already exists)
+    const newList = [...(subcategories[newCategory] || [])];
+    if (!newList.includes(subName)) {
+      newList.push(subName);
+    }
+    
+    const updatedSubcategories = {
+      ...subcategories,
+      [oldCategory]: oldList,
+      [newCategory]: newList
+    };
+    
+    setSubcategories(updatedSubcategories);
+    saveSubcategories(updatedSubcategories);
+
+    // 3. Move subcategory multipliers as well
+    const oldMultKey = `${oldCategory}:${subName}`;
+    const newMultKey = `${newCategory}:${subName}`;
+    if (subMultipliers[oldMultKey] !== undefined) {
+      const updatedMults = { ...subMultipliers };
+      updatedMults[newMultKey] = updatedMults[oldMultKey];
+      delete updatedMults[oldMultKey];
+      setSubMultipliers(updatedMults);
+      saveSubcategoryMultipliers(updatedMults);
+    }
+
+    // 4. Update all materials belonging to oldCategory with this subcategory
+    setMaterials(prevMaterials => {
+      const updatedMaterials = prevMaterials.map(m => {
+        if (m.category === oldCategory && m.subcategory === subName) {
+          return {
+            ...m,
+            category: newCategory
+          };
+        }
+        return m;
+      });
+      return updatedMaterials;
+    });
+
+    onSaveToast(`📦 已成功將次分類【${subName}】轉移至主分類【${newCategory}】，且該次分類下的所有建檔資材已自動更新為新大類！`);
+    setActiveConfigCategory(null); // Reset configure view to refresh states safely
+  };
+
   // 記錄哪些單位選項的特約材料行是展開的（預設為摺疊，不在此 map 中或為 false）
   const [expandedSuppliers, setExpandedSuppliers] = useState<{ [optionId: string]: boolean }>({});
 
@@ -1910,31 +1958,49 @@ export default function MaterialsPanel({
                                     {sidx + 1}. {sub}
                                   </span>
                                   
-                                  {/* Custom markup rate for this subcategory */}
-                                  <div className="flex items-center gap-1.5 mt-0.5 text-[9.5px]">
-                                    <span className="text-neutral-500">自訂加成：</span>
-                                    <input
-                                      type="number"
-                                      step="0.05"
-                                      min="1.0"
-                                      max="3.0"
-                                      placeholder="繼承大類"
-                                      value={subMultipliers[multKey] || ''}
-                                      onChange={(e) => {
-                                        const valStr = e.target.value;
-                                        const updated = { ...subMultipliers };
-                                        if (valStr === '') {
-                                          delete updated[multKey];
-                                        } else {
-                                          const val = parseFloat(valStr) || 1.1;
-                                          updated[multKey] = val;
-                                        }
-                                        setSubMultipliers(updated);
-                                        saveSubcategoryMultipliers(updated);
-                                      }}
-                                      className="w-16 px-1 border border-neutral-800 rounded text-[9.5px] font-mono text-center bg-[#1A1A1A] text-[#F3E5AB] font-extrabold focus:outline-none focus:border-[#D4AF37]"
-                                    />
-                                    <span className="text-neutral-400 text-[8.5px]">{subMultipliers[multKey] ? `已啟用 (${subMultipliers[multKey]}x)` : '繼承大類'}</span>
+                                  {/* Custom markup rate and move category for this subcategory */}
+                                  <div className="flex flex-col gap-1 mt-0.5 text-[9.5px]">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-neutral-500">自訂加成：</span>
+                                      <input
+                                        type="number"
+                                        step="0.05"
+                                        min="1.0"
+                                        max="3.0"
+                                        placeholder="繼承大類"
+                                        value={subMultipliers[multKey] || ''}
+                                        onChange={(e) => {
+                                          const valStr = e.target.value;
+                                          const updated = { ...subMultipliers };
+                                          if (valStr === '') {
+                                            delete updated[multKey];
+                                          } else {
+                                            const val = parseFloat(valStr) || 1.1;
+                                            updated[multKey] = val;
+                                          }
+                                          setSubMultipliers(updated);
+                                          saveSubcategoryMultipliers(updated);
+                                        }}
+                                        className="w-16 px-1 border border-neutral-800 rounded text-[9.5px] font-mono text-center bg-[#1A1A1A] text-[#F3E5AB] font-extrabold focus:outline-none focus:border-[#D4AF37]"
+                                      />
+                                      <span className="text-neutral-400 text-[8.5px]">{subMultipliers[multKey] ? `已啟用 (${subMultipliers[multKey]}x)` : '繼承大類'}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                      <span className="text-amber-200">變更大類：</span>
+                                      <select
+                                        value={activeConfigCategory}
+                                        onChange={(e) => {
+                                          const targetCategory = e.target.value;
+                                          if (targetCategory === activeConfigCategory) return;
+                                          handleMoveSubcategoryToNewCategory(sub, activeConfigCategory, targetCategory);
+                                        }}
+                                        className="px-1 py-0 border border-neutral-800 rounded text-[9.5px] bg-[#1E1E1E] text-amber-250 focus:outline-none focus:border-[#D4AF37] cursor-pointer font-extrabold"
+                                      >
+                                        {categories.map(cat => (
+                                          <option key={cat} value={cat}>{cat}</option>
+                                        ))}
+                                      </select>
+                                    </div>
                                   </div>
                                 </div>
 
@@ -2049,7 +2115,14 @@ export default function MaterialsPanel({
                   <span>📂 依細分二層分類 (次分類) 進階篩選：</span>
                 </label>
                 <div className="flex flex-wrap gap-1">
-                  {['全部', ...(subcategories[settingsMatCategoryFilter] || [])].map(sub => {
+                  {(() => {
+                    const subList = [...(subcategories[settingsMatCategoryFilter] || [])];
+                    const hasUnclassified = materials.some(m => m.category === settingsMatCategoryFilter && (!m.subcategory || m.subcategory.trim() === ''));
+                    if (hasUnclassified) {
+                      subList.push('未分類');
+                    }
+                    return ['全部', ...subList];
+                  })().map(sub => {
                     const isSelected = settingsMatSubcategoryFilter === sub;
                     return (
                       <button
@@ -2062,7 +2135,7 @@ export default function MaterialsPanel({
                             : 'bg-[#121212] text-neutral-400 hover:text-white border border-neutral-800/85 hover:border-neutral-700'
                         }`}
                       >
-                        {sub === '全部' ? '🔍 全部次細部' : sub}
+                        {sub === '全部' ? '🔍 全部次細部' : (sub === '未分類' ? '❓ 未分類' : sub)}
                       </button>
                     );
                   })}
@@ -2110,7 +2183,11 @@ export default function MaterialsPanel({
         {(() => {
           const filteredMaterials = materials
             .filter(m => settingsMatCategoryFilter === '全部' || m.category === settingsMatCategoryFilter)
-            .filter(m => settingsMatSubcategoryFilter === '全部' || m.subcategory === settingsMatSubcategoryFilter)
+            .filter(m => {
+              if (settingsMatSubcategoryFilter === '全部') return true;
+              if (settingsMatSubcategoryFilter === '未分類') return !m.subcategory || m.subcategory.trim() === '';
+              return m.subcategory === settingsMatSubcategoryFilter;
+            })
             .filter(m => {
               if (settingsMatSupplierFilter === '全部') return true;
               const options = ensureUnitOptions(m);

@@ -3701,6 +3701,15 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   const totalDailyWage = dailyItems.reduce((sum, item) => sum + item.totalWage, 0);
                   const isCollapsed = collapsedAttendanceDays[date] !== false; // Folded by default
 
+                  // Aggregate personnel hours by name
+                  const workerHoursMap: Record<string, number> = {};
+                  dailyItems.forEach(item => {
+                    workerHoursMap[item.name] = (workerHoursMap[item.name] || 0) + item.hoursWork;
+                  });
+                  const aggregatedWorkerString = Object.entries(workerHoursMap)
+                    .map(([name, hours]) => `${name} (${hours}h)`)
+                    .join(', ');
+
                   return (
                     <div key={date} className="bg-white rounded-xl border border-neutral-200 overflow-hidden shadow-3xs hover:border-[#D4AF37]/50 transition-all">
                       {/* Collapsible Header */}
@@ -3730,8 +3739,8 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
 
                         {/* Collapsed view shows individual hours per worker! */}
                         <div className="flex flex-1 md:justify-end items-center gap-2.5 overflow-hidden">
-                          <div className="text-xs text-neutral-700 font-bold truncate bg-amber-100/30 border border-amber-200/20 rounded-lg px-2.5 py-1 max-w-full" title={dailyItems.map(item => `${item.name} (${item.hoursWork}h)`).join(', ')}>
-                            👥 人員時數: <span className="text-neutral-950 font-black">{dailyItems.map(item => `${item.name} (${item.hoursWork}h)`).join(', ')}</span>
+                          <div className="text-xs text-neutral-700 font-bold truncate bg-amber-100/30 border border-amber-200/20 rounded-lg px-2.5 py-1 max-w-full" title={aggregatedWorkerString}>
+                            👥 人員時數: <span className="text-neutral-950 font-black">{aggregatedWorkerString}</span>
                           </div>
                           <span className="text-xs text-neutral-400 font-black shrink-0">
                             {isCollapsed ? '🔽 展開細節' : '🔼 收合細節'}
