@@ -721,6 +721,31 @@ export default function MaterialsPanel({
     setCategoryConfigs(updatedConfigs);
     saveCategoryMaterialConfigs(updatedConfigs);
 
+    // Sync subcategories keys
+    const updatedSubcategories = { ...subcategories };
+    if (updatedSubcategories[oldVal]) {
+      updatedSubcategories[newVal] = updatedSubcategories[oldVal];
+      delete updatedSubcategories[oldVal];
+      setSubcategories(updatedSubcategories);
+      saveSubcategories(updatedSubcategories);
+    }
+
+    // Sync subcategory multipliers keys
+    const updatedSubMultipliers = { ...subMultipliers };
+    let hasMultiplierChanges = false;
+    Object.keys(updatedSubMultipliers).forEach(k => {
+      if (k.startsWith(`${oldVal}:`)) {
+        const subName = k.substring(oldVal.length + 1);
+        updatedSubMultipliers[`${newVal}:${subName}`] = updatedSubMultipliers[k];
+        delete updatedSubMultipliers[k];
+        hasMultiplierChanges = true;
+      }
+    });
+    if (hasMultiplierChanges) {
+      setSubMultipliers(updatedSubMultipliers);
+      saveSubcategoryMultipliers(updatedSubMultipliers);
+    }
+
     // Sync all existing presets in the database
     setMaterials(materials.map(m => m.category === oldVal ? { ...m, category: newVal } : m));
     setRenamingCategoryOld(null);
