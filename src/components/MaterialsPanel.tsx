@@ -2155,6 +2155,105 @@ export default function MaterialsPanel({
               );
             })()}
 
+            {(() => {
+              // Only look at materials with VALID active categories
+              const legacySubsMap: { [catSubKey: string]: { category: string; subcategory: string; count: number } } = {};
+              materials.forEach(m => {
+                const cat = m.category;
+                const sub = m.subcategory;
+                if (cat && categories.includes(cat) && sub && sub.trim() !== '') {
+                  const registeredList = subcategories[cat] || [];
+                  if (!registeredList.includes(sub)) {
+                    const key = `${cat}::${sub}`;
+                    if (!legacySubsMap[key]) {
+                      legacySubsMap[key] = { category: cat, subcategory: sub, count: 0 };
+                    }
+                    legacySubsMap[key].count++;
+                  }
+                }
+              });
+
+              const legacySubs = Object.values(legacySubsMap);
+              if (legacySubs.length === 0) return null;
+
+              return (
+                <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-3 mb-6 animate-fadeIn">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">⚠️</span>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-black text-amber-200">次分類對帳警示：偵測到未註冊或不一致的次分類</h4>
+                      <p className="text-[10px] text-neutral-400 mt-0.5">系統發現有部分材料品項的「次分類」未出現在該大類的正式設定中。這會造成篩選頁籤與自訂加成無法完全對應。</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-amber-500/20">
+                    {legacySubs.map(({ category, subcategory, count }) => {
+                      const registeredList = subcategories[category] || [];
+                      return (
+                        <div key={`${category}::${subcategory}`} className="flex flex-col gap-2 p-3 bg-neutral-900 rounded-xl border border-neutral-800">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                            <span className="text-xs font-bold text-neutral-200 leading-normal">
+                              📂 大類：<span className="text-neutral-400 font-bold">{category}</span> ➔ 次類：<span className="text-amber-400 font-black">{subcategory}</span>
+                              <span className="ml-1 text-[10px] text-neutral-500 font-mono">({count} 筆品項)</span>
+                            </span>
+                          </div>
+                          
+                          <div className="flex flex-wrap items-center gap-2 pt-1.5 border-t border-neutral-850">
+                            {/* Action 1: Register it */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const currentList = subcategories[category] || [];
+                                if (currentList.includes(subcategory)) return;
+                                const updatedAll = {
+                                  ...subcategories,
+                                  [category]: [...currentList, subcategory]
+                                };
+                                setSubcategories(updatedAll);
+                                saveSubcategories(updatedAll);
+                                onSaveToast(`✅ 已將【${subcategory}】註冊為【${category}】大類的正式次分類！`);
+                              }}
+                              className="px-2.5 py-1 text-[10px] font-black bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-450 border border-emerald-500/20 hover:border-emerald-500/40 rounded-lg transition cursor-pointer"
+                            >
+                              ➕ 補登為正式次分類
+                            </button>
+
+                            {/* Action 2: Batch transfer to another subcategory */}
+                            <div className="flex items-center gap-1.5 ml-auto sm:ml-0">
+                              <span className="text-[10px] text-neutral-400">移轉至 👉</span>
+                              <select
+                                onChange={(e) => {
+                                  const targetSub = e.target.value;
+                                  if (targetSub === '') return;
+                                  
+                                  // Update all materials under category with old subcategory to targetSub
+                                  const updated = materials.map(m => {
+                                    if (m.category === category && m.subcategory === subcategory) {
+                                      return { ...m, subcategory: targetSub === 'unclassified' ? '' : targetSub };
+                                    }
+                                    return m;
+                                  });
+                                  setMaterials(updated);
+                                  onSaveToast(`📦 已成功將 ${count} 筆品項次分類移轉為【${targetSub === 'unclassified' ? '未分類' : targetSub}】！`);
+                                }}
+                                defaultValue=""
+                                className="px-2 py-0.5 text-xs border border-neutral-700 rounded bg-[#1A1A1A] text-amber-200 focus:outline-none focus:border-[#D4AF37] cursor-pointer"
+                              >
+                                <option value="" disabled>-- 選擇目標次分類 --</option>
+                                <option value="unclassified">❓ 設為未分類</option>
+                                {registeredList.map(s => (
+                                  <option key={s} value={s}>{s}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="flex flex-wrap gap-1">
               {(() => {
                 const uniqueCats = [...categories];
