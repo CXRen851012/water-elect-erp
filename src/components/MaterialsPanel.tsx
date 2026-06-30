@@ -2103,13 +2103,75 @@ export default function MaterialsPanel({
               </div>
             )}
 
+            {(() => {
+              const legacyCategories = Array.from(new Set(
+                materials
+                  .map(m => m.category)
+                  .filter((cat): cat is string => !!cat && !categories.includes(cat))
+              ));
+              if (legacyCategories.length === 0) return null;
+              return (
+                <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-3 mb-6 animate-fadeIn">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">⚠️</span>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-black text-amber-200">大庫分類對帳警示：偵測到舊有或不一致的材料分類</h4>
+                      <p className="text-[10px] text-neutral-400 mt-0.5">系統發現有部分材料品項仍保留「舊的/不存在於現行設定中」的大類名稱，這會導致這些品項無法在上方分類頁籤中正確顯示。</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-amber-500/20">
+                    {legacyCategories.map(legacyCat => {
+                      const count = materials.filter(m => m.category === legacyCat).length;
+                      return (
+                        <div key={legacyCat} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 bg-neutral-900 rounded-xl border border-neutral-800">
+                          <span className="text-xs font-bold text-neutral-200">
+                            📁 舊分類：<span className="text-amber-400 font-black">{legacyCat}</span> <span className="text-[10px] text-neutral-500 font-mono">({count} 筆品項)</span>
+                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] text-neutral-400">移轉至 👉</span>
+                            <select
+                              onChange={(e) => {
+                                const targetCat = e.target.value;
+                                if (!targetCat) return;
+                                // Update all materials under legacyCat to targetCat
+                                const updated = materials.map(m => m.category === legacyCat ? { ...m, category: targetCat } : m);
+                                setMaterials(updated);
+                                onSaveToast(`📦 已成功將 ${count} 筆品項自舊分類【${legacyCat}】批次移轉至新分類【${targetCat}】！`);
+                              }}
+                              defaultValue=""
+                              className="px-2 py-1 text-xs border border-neutral-700 rounded bg-[#1A1A1A] text-amber-200 focus:outline-none focus:border-[#D4AF37] cursor-pointer animate-pulse"
+                            >
+                              <option value="" disabled>-- 選擇目標大類 --</option>
+                              {categories.map(c => (
+                                <option key={c} value={c}>{c}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="flex flex-wrap gap-1">
-              {['全部', ...categories].map(cat => {
+              {(() => {
+                const uniqueCats = [...categories];
+                materials.forEach(m => {
+                  if (m.category && !uniqueCats.includes(m.category)) {
+                    uniqueCats.push(m.category);
+                  }
+                });
+                return ['全部', ...uniqueCats];
+              })().map(cat => {
                 const isSelected = settingsMatCategoryFilter === cat;
+                const isLegacy = !categories.includes(cat) && cat !== '全部';
                 
                 // Get smart emoji icon
                 let emoji = '📦 ';
                 if (cat === '全部') emoji = '📂 ';
+                else if (isLegacy) emoji = '⚠️ ';
                 else if (cat.includes('電')) emoji = '⚡ ';
                 else if (cat.includes('水') || cat.includes('管')) emoji = '💧 ';
                 else if (cat.includes('廚') || cat.includes('衛') || cat.includes('浴')) emoji = '🛁 ';
@@ -2120,7 +2182,10 @@ export default function MaterialsPanel({
                   <button
                     key={cat}
                     type="button"
-                    onClick={() => setSettingsMatCategoryFilter(cat)}
+                    onClick={() => {
+                      setSettingsMatCategoryFilter(cat);
+                      setSettingsMatSubcategoryFilter('全部');
+                    }}
                     className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
                       isSelected
                         ? '!bg-[var(--color-accent)] !text-[#0D0D0D] font-extrabold shadow-md'
@@ -2128,7 +2193,7 @@ export default function MaterialsPanel({
                     }`}
                   >
                     {emoji}
-                    {cat === '全部' ? '全部種類' : cat.replace('類', '')}
+                    {cat === '全部' ? '全部種類' : (isLegacy ? `${cat} (舊)` : cat.replace('類', ''))}
                   </button>
                 );
               })}
@@ -2142,25 +2207,39 @@ export default function MaterialsPanel({
                 <div className="flex flex-wrap gap-1">
                   {(() => {
                     const subList = [...(subcategories[settingsMatCategoryFilter] || [])];
+                    const extraSubs: string[] = [];
+                    materials.forEach(m => {
+                      if (m.category === settingsMatCategoryFilter && m.subcategory && m.subcategory.trim() !== '') {
+                        if (!subList.includes(m.subcategory) && !extraSubs.includes(m.subcategory)) {
+                          extraSubs.push(m.subcategory);
+                        }
+                      }
+                    });
+                    
                     const hasUnclassified = materials.some(m => m.category === settingsMatCategoryFilter && (!m.subcategory || m.subcategory.trim() === ''));
+                    const listWithStatus = [
+                      { value: '全部', label: '🔍 全部次細部' },
+                      ...subList.map(s => ({ value: s, label: s })),
+                      ...extraSubs.map(s => ({ value: s, label: `⚠️ ${s} (舊分類)` })),
+                    ];
                     if (hasUnclassified) {
-                      subList.push('未分類');
+                      listWithStatus.push({ value: '未分類', label: '❓ 未分類' });
                     }
-                    return ['全部', ...subList];
-                  })().map(sub => {
-                    const isSelected = settingsMatSubcategoryFilter === sub;
+                    return listWithStatus;
+                  })().map(({ value, label }) => {
+                    const isSelected = settingsMatSubcategoryFilter === value;
                     return (
                       <button
-                        key={sub}
+                        key={value}
                         type="button"
-                        onClick={() => setSettingsMatSubcategoryFilter(sub)}
+                        onClick={() => setSettingsMatSubcategoryFilter(value)}
                         className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
                           isSelected
                             ? 'bg-[#D4AF37] text-[#0D0D0D] font-extrabold shadow-sm'
                             : 'bg-[#121212] text-neutral-400 hover:text-white border border-neutral-800/85 hover:border-neutral-700'
                         }`}
                       >
-                        {sub === '全部' ? '🔍 全部次細部' : (sub === '未分類' ? '❓ 未分類' : sub)}
+                        {label}
                       </button>
                     );
                   })}
@@ -2248,15 +2327,13 @@ export default function MaterialsPanel({
           categories.forEach(cat => {
             groups[cat] = [];
           });
-          groups['其它/未分類'] = [];
 
           sortedFiltered.forEach(m => {
             const cat = m.category || '其它/未分類';
-            if (groups[cat]) {
-              groups[cat].push(m);
-            } else {
-              groups['其它/未分類'].push(m);
+            if (!groups[cat]) {
+              groups[cat] = [];
             }
+            groups[cat].push(m);
           });
 
           return (
@@ -2309,9 +2386,20 @@ export default function MaterialsPanel({
                             }}
                             className="w-full px-2 py-1.5 border border-[#D4AF37]/20 rounded text-xs !bg-[var(--bg-input)] !text-[var(--text-secondary)] font-bold outline-none focus:border-[#D4AF37]"
                           >
-                            {categories.map(cat => (
-                              <option key={cat} value={cat} className="!bg-[var(--bg-card)]">📦 {cat}</option>
-                            ))}
+                            {(() => {
+                              const opts = [...categories];
+                              if (editMatCategory && !opts.includes(editMatCategory)) {
+                                opts.push(editMatCategory);
+                              }
+                              return opts;
+                            })().map(cat => {
+                              const isLegacy = !categories.includes(cat);
+                              return (
+                                <option key={cat} value={cat} className="!bg-[var(--bg-card)] text-xs font-bold">
+                                  {isLegacy ? `⚠️ 舊：${cat}` : `📦 ${cat}`}
+                                </option>
+                              );
+                            })}
                           </select>
                         </div>
 

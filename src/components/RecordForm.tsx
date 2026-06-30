@@ -54,8 +54,15 @@ export default function RecordForm({
     } catch (e) {
       // fallback
     }
+    if (materialsPreset && Array.isArray(materialsPreset)) {
+      materialsPreset.forEach(m => {
+        if (m.category && !customCategories.includes(m.category)) {
+          customCategories.push(m.category);
+        }
+      });
+    }
     return ['全部', ...customCategories];
-  }, []);
+  }, [materialsPreset]);
 
   // Sort materialsPreset by Category order, then by Name ascending (localeCompare zh-TW)
   const subcategoriesConfig = React.useMemo(() => {
@@ -1172,20 +1179,42 @@ export default function RecordForm({
                 </div>
                 {!isSubcategoryCollapsed && (
                   <div className="flex flex-wrap gap-1 pt-1.5 animate-fadeIn">
-                    {['全部', ...(subcategoriesConfig[selectedAddCategory] || [])].map(sub => {
-                      const isSelected = selectedAddSubcategory === sub;
+                    {(() => {
+                      const subList = [...(subcategoriesConfig[selectedAddCategory] || [])];
+                      const extraSubs: string[] = [];
+                      if (materialsPreset && Array.isArray(materialsPreset)) {
+                        materialsPreset.forEach(m => {
+                          if (m.category === selectedAddCategory && m.subcategory && m.subcategory.trim() !== '') {
+                            if (!subList.includes(m.subcategory) && !extraSubs.includes(m.subcategory)) {
+                              extraSubs.push(m.subcategory);
+                            }
+                          }
+                        });
+                      }
+                      const hasUnclassified = materialsPreset?.some(m => m.category === selectedAddCategory && (!m.subcategory || m.subcategory.trim() === ''));
+                      const listWithStatus = [
+                        { value: '全部', label: '🔍 全部次分類' },
+                        ...subList.map(s => ({ value: s, label: s })),
+                        ...extraSubs.map(s => ({ value: s, label: `⚠️ ${s} (舊分類)` })),
+                      ];
+                      if (hasUnclassified) {
+                        listWithStatus.push({ value: '未分類', label: '❓ 未分類' });
+                      }
+                      return listWithStatus;
+                    })().map(({ value, label }) => {
+                      const isSelected = selectedAddSubcategory === value;
                       return (
                         <button
-                          key={sub}
+                          key={value}
                           type="button"
-                          onClick={() => setSelectedAddSubcategory(sub)}
+                          onClick={() => setSelectedAddSubcategory(value)}
                           className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
                             isSelected
                               ? 'bg-[#D4AF37] text-neutral-900 font-extrabold shadow-3xs'
                               : 'bg-white hover:bg-neutral-100 border border-neutral-200 text-neutral-500'
                           }`}
                         >
-                          {sub === '全部' ? '🔍 全部次分類' : sub}
+                          {label}
                         </button>
                       );
                     })}
@@ -1217,7 +1246,7 @@ export default function RecordForm({
                     .filter(p => {
                       const matchesCategory = selectedAddCategory === '全部' || p.category === selectedAddCategory;
                       if (!matchesCategory) return false;
-                      const matchesSubcategory = selectedAddSubcategory === '全部' || p.subcategory === selectedAddSubcategory;
+                      const matchesSubcategory = selectedAddSubcategory === '全部' || (selectedAddSubcategory === '未分類' ? (!p.subcategory || p.subcategory.trim() === '') : p.subcategory === selectedAddSubcategory);
                       if (!matchesSubcategory) return false;
                       
                       const matchesSearch = !addSearchQuery.trim() || (() => {
@@ -1271,7 +1300,11 @@ export default function RecordForm({
               <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 max-h-[170px] overflow-y-auto pr-1 pt-1.5 animate-fadeIn">
                 {sortedMaterialsPreset
                   .filter(p => selectedAddCategory === '全部' || p.category === selectedAddCategory)
-                  .filter(p => selectedAddSubcategory === '全部' || p.subcategory === selectedAddSubcategory)
+                  .filter(p => {
+                    if (selectedAddSubcategory === '全部') return true;
+                    if (selectedAddSubcategory === '未分類') return !p.subcategory || p.subcategory.trim() === '';
+                    return p.subcategory === selectedAddSubcategory;
+                  })
                   .filter(p => {
                     if (selectedAddSupplier === '全部') return true;
                     const unitOpts = p.unitOptions || [];
@@ -1307,7 +1340,11 @@ export default function RecordForm({
                 })}
               {sortedMaterialsPreset
                 .filter(p => selectedAddCategory === '全部' || p.category === selectedAddCategory)
-                .filter(p => selectedAddSubcategory === '全部' || p.subcategory === selectedAddSubcategory)
+                .filter(p => {
+                  if (selectedAddSubcategory === '全部') return true;
+                  if (selectedAddSubcategory === '未分類') return !p.subcategory || p.subcategory.trim() === '';
+                  return p.subcategory === selectedAddSubcategory;
+                })
                 .filter(p => {
                   if (selectedAddSupplier === '全部') return true;
                   const unitOpts = p.unitOptions || [];
