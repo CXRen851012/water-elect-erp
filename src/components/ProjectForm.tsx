@@ -3,7 +3,7 @@ import { Project, Customer } from '../types';
 import { Plus, X, Building2, CheckCircle2, Search, UserCheck, MapPin, Phone, AlertTriangle } from 'lucide-react';
 
 interface ProjectFormProps {
-  onSave: (project: Omit<Project, 'id' | 'createdAt'>, updatedCustomer?: Customer) => void;
+  onSave: (project: Omit<Project, 'id' | 'createdAt'> & { createdAt?: string }, updatedCustomer?: Customer) => void;
   onClose: () => void;
   existingProjects: Project[];
   customers: Customer[];
@@ -378,7 +378,8 @@ export default function ProjectForm({
       projectNotes: projectNotes.trim() || undefined,
       generatedName: finalGeneratedName,
       isCompleted: false,
-      isEstimation: isEstimation
+      isEstimation: isEstimation,
+      createdAt: projectDate + 'T00:00:00.000Z'
     }, updatedCustomer);
   };
 

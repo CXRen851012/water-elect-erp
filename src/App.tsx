@@ -48,7 +48,7 @@ export default function App() {
 
     // 2. Detect additions and modifications, updating updatedAt timestamps
     const nowStr = new Date().toISOString();
-    let changed = false;
+    let changed = prev.length !== next.length;
 
     const updatedList = next.map(nextItem => {
       const prevItem = prevMap.get(nextItem.id);
@@ -825,7 +825,7 @@ export default function App() {
 
   // ---- 5. Save Project handler (Handles synchronized client auto-persisting) ----
   const handleSaveProject = (
-    projectData: Omit<Project, 'id' | 'createdAt'>, 
+    projectData: Omit<Project, 'id' | 'createdAt'> & { createdAt?: string }, 
     updatedCustomer?: Customer
   ) => {
     // Check duplication of full project name
@@ -838,9 +838,9 @@ export default function App() {
     const newProject: Project = {
       ...projectData,
       id: `proj-${Date.now()}`,
-      createdAt: new Date().toISOString(),
+      createdAt: projectData.createdAt || new Date().toISOString(),
       estimationStatus: projectData.isEstimation ? (projectData.estimationStatus || '估價中') : undefined
-    };
+    } as Project;
 
     setProjects(prev => [newProject, ...prev]);
 
