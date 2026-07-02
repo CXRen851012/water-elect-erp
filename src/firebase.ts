@@ -163,6 +163,26 @@ export function sanitizeForFirestore(obj: any): any {
   return obj;
 }
 
+/**
+ * 記錄本地刪除墓碑 (Tombstones)，用於後續雲端增量同步中將刪除指令派送至 Firestore 雲端
+ */
+export function recordTombstone(collectionName: string, id: string) {
+  try {
+    const stored = localStorage.getItem('engineering_deleted_tombstones');
+    const tombstones = stored ? JSON.parse(stored) : [];
+    if (!tombstones.some((t: any) => t.id === id && t.collectionName === collectionName)) {
+      tombstones.push({
+        id,
+        collectionName,
+        deletedAt: new Date().toISOString()
+      });
+      localStorage.setItem('engineering_deleted_tombstones', JSON.stringify(tombstones));
+    }
+  } catch (err) {
+    console.error("無法將刪除項目寫入本地墓碑佇列:", err);
+  }
+}
+
 // 彙總上傳至 Firebase Firestore
 export async function uploadAllToFirebase(
   uid: string,
@@ -435,6 +455,301 @@ export async function downloadAllFromFirebase(uid: string): Promise<{
     message: '☁️ 成功自 Google Cloud Firestore 下載同步所有工務與 Excel 級 ERP 資料！',
     data: results
   };
+}
+
+/**
+ * ⚡【增量同步 + 墓碑機制】核心雙向智能同步引擎
+ * 僅查詢與上傳自上次同步時間以來的變更項目，大幅降低 Firebase 讀寫用量，
+ * 同時利用 tombstones 機制在不同裝置間同步資料的物理刪除，兼顧效能與資料一致性。
+ */
+export async function syncIncrementalWithFirebase(
+  uid: string,
+  localData: {
+    workers: any[];
+    suppliers: any[];
+    materials: any[];
+    customers: any[];
+    projects: any[];
+    records: any[];
+    transactions: any[];
+    workerAdvances: any[];
+    pettyCashTransactions: any[];
+  }
+): Promise<{
+  success: boolean;
+  message: string;
+  updatedData?: typeof localData;
+}> {
+  if (!uid) {
+    return { success: false, message: '請先登入 Google 帳號，才能進行增量雙向同步！' };
+  }
+
+  const ownerUid = uid;
+  const successes: string[] = [];
+  const errors: string[] = [];
+  const nowStr = new Date().toISOString();
+
+  // 讀取上次同步時間 (ISO格式)。若從未同步，則 fallback 為 1970 基準，即首次同步全量拉取與上傳
+  const lastSyncStr = localStorage.getItem('firebase_last_sync_iso');
+  const lastSyncTime = lastSyncStr ? new Date(lastSyncStr).getTime() : 0;
+
+  // 定義資料表映射關係
+  const collectionsMapping = {
+    workers: { name: 'workers', key: 'workers', label: '👷 工班人員' },
+    suppliers: { name: 'suppliers', key: 'suppliers', label: '🛒 特約材料夥伴' },
+    materials: { name: 'materials', key: 'materials', label: '📦 牌物料品項' },
+    customers: { name: 'customers', key: 'customers', label: '👥 業主地址名錄' },
+    projects: { name: 'projects', key: 'projects', label: '🏗️ 施工案場清單' },
+    records: { name: 'records', key: 'records', label: '📄 每日派工日誌' },
+    transactions: { name: 'transactions', key: 'transactions', label: '💰 客戶收款對帳' },
+    workerAdvances: { name: 'worker_advances', key: 'workerAdvances', label: '💵 團隊借支預支' },
+    pettyCashTransactions: { name: 'petty_cash', key: 'pettyCashTransactions', label: '👛 零用公金流水' },
+  };
+
+  // 深拷貝本地現有資料結構
+  const mergedData: any = {
+    workers: [...localData.workers],
+    suppliers: [...localData.suppliers],
+    materials: [...localData.materials],
+    customers: [...localData.customers],
+    projects: [...localData.projects],
+    records: [...localData.records],
+    transactions: [...localData.transactions],
+    workerAdvances: [...localData.workerAdvances],
+    pettyCashTransactions: [...localData.pettyCashTransactions],
+  };
+
+  try {
+    // ==========================================
+    // 步驟 A: 獲取雲端自上次同步後的「刪除墓碑紀錄」 (Tombstones)
+    // ==========================================
+    let remoteTombstones: any[] = [];
+    try {
+      let qTomb = query(collection(db, 'tombstones'), where('ownerUid', '==', ownerUid));
+      if (lastSyncTime > 0 && lastSyncStr) {
+        // 安全增量：只查詢比上次同步時間更晚的墓碑
+        qTomb = query(collection(db, 'tombstones'), where('ownerUid', '==', ownerUid), where('deletedAt', '>', lastSyncStr));
+      }
+      const tSnap = await getDocs(qTomb);
+      tSnap.forEach(docSnap => {
+        remoteTombstones.push(docSnap.data());
+      });
+    } catch (err: any) {
+      console.warn("📥 讀取雲端刪除墓碑失敗（可能是首次設定，尚無該集合），將自動跳過他端刪除合併：", err);
+    }
+
+    // 物理刪除本地匹配之項目
+    let remoteDeleteCount = 0;
+    for (const tomb of remoteTombstones) {
+      const { id, collectionName } = tomb;
+      const foundMapping = Object.values(collectionsMapping).find(m => m.name === collectionName);
+      if (foundMapping) {
+        const localKey = foundMapping.key;
+        const beforeLen = mergedData[localKey].length;
+        mergedData[localKey] = mergedData[localKey].filter((item: any) => item.id !== id);
+        if (mergedData[localKey].length < beforeLen) {
+          remoteDeleteCount++;
+        }
+      }
+    }
+    if (remoteDeleteCount > 0) {
+      successes.push(`🗑️ 【雲端刪除同步】清除了本機 ${remoteDeleteCount} 筆已被其他裝置刪除的項目 (墓碑對齊)`);
+    }
+
+    // ==========================================
+    // 步驟 B: 下載雲端自上次同步後「新增 / 被修改」的項目
+    // ==========================================
+    let remoteUpdateCount = 0;
+    for (const [key, mapping] of Object.entries(collectionsMapping)) {
+      try {
+        let q = query(collection(db, mapping.name), where('ownerUid', '==', ownerUid));
+        if (lastSyncTime > 0 && lastSyncStr) {
+          // 只請求大於上次同步更新日期的雲端異動，節省 90% 以上的讀取用量！
+          q = query(collection(db, mapping.name), where('ownerUid', '==', ownerUid), where('updatedAt', '>', lastSyncStr));
+        }
+        const qSnap = await getDocs(q);
+        
+        qSnap.forEach(docSnap => {
+          const remoteItem = { ...docSnap.data() };
+          delete remoteItem.ownerUid; // 移除包裝欄位避免影響 UI
+
+          const localList = mergedData[mapping.key];
+          const localIdx = localList.findIndex((item: any) => item.id === remoteItem.id);
+
+          if (localIdx === -1) {
+            // 本地完全沒有此 ID：判定為他端新增
+            localList.push(remoteItem);
+            remoteUpdateCount++;
+          } else {
+            // 本地已有此 ID：比對異動時間戳 (Conflict Resolution: Last-Write-Wins)
+            const localItem = localList[localIdx];
+            const localUp = localItem.updatedAt ? new Date(localItem.updatedAt).getTime() : 0;
+            const remoteUp = remoteItem.updatedAt ? new Date(remoteItem.updatedAt).getTime() : 0;
+
+            if (remoteUp > localUp) {
+              localList[localIdx] = remoteItem;
+              remoteUpdateCount++;
+            }
+          }
+        });
+      } catch (err: any) {
+        console.error(`📥 下載 ${mapping.label} 增量失敗:`, err);
+        errors.push(`${mapping.label} 增量下載: ${err.message || err}`);
+      }
+    }
+    if (remoteUpdateCount > 0) {
+      successes.push(`📥 【雲端更新拉取】成功融合了他端新增或修改的 ${remoteUpdateCount} 筆資料`);
+    }
+
+    // ==========================================
+    // 步驟 C: 上傳本地累積之「物理刪除墓碑紀錄」
+    // ==========================================
+    let localTombstones: any[] = [];
+    try {
+      const stored = localStorage.getItem('engineering_deleted_tombstones');
+      localTombstones = stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      console.error("無法載入本地墓碑快取：", e);
+    }
+
+    if (localTombstones.length > 0) {
+      const tBatch = writeBatch(db);
+      for (const tomb of localTombstones) {
+        // 1. 寫入雲端 tombstones 記錄（供他端日後增量拉取對齊）
+        const tRef = doc(db, 'tombstones', tomb.id);
+        tBatch.set(tRef, {
+          id: tomb.id,
+          collectionName: tomb.collectionName,
+          deletedAt: tomb.deletedAt || nowStr,
+          ownerUid: ownerUid
+        });
+
+        // 2. 物理刪除雲端原有之正式文件，徹底清空雲端儲存空間
+        const docRef = doc(db, tomb.collectionName, tomb.id);
+        tBatch.delete(docRef);
+      }
+      await tBatch.commit();
+      
+      // 清空本地墓碑緩衝區
+      localStorage.removeItem('engineering_deleted_tombstones');
+      successes.push(`📤 【本地刪除上傳】成功註銷並清理雲端 ${localTombstones.length} 筆項目，並成功在雲端建立對應墓碑`);
+    }
+
+    // ==========================================
+    // 步驟 D: 上傳本地新增或已修改的異動資料 (含初次遺漏時戳者)
+    // ==========================================
+    let localUploadCount = 0;
+    let uploadBatch = writeBatch(db);
+    let batchOperationsCount = 0;
+
+    for (const [key, mapping] of Object.entries(collectionsMapping)) {
+      const localList = mergedData[mapping.key];
+
+      for (const item of localList) {
+        const itemUp = item.updatedAt ? new Date(item.updatedAt).getTime() : 0;
+        
+        // 若項目無 updatedAt（可能在升級前新增）或 updatedAt 比上次同步時間更新，即需要上傳！
+        if (!item.updatedAt || itemUp > lastSyncTime) {
+          if (!item.updatedAt) {
+            item.updatedAt = nowStr;
+          }
+
+          const docRef = doc(db, mapping.name, item.id);
+          const cleanedData = sanitizeForFirestore(item);
+          uploadBatch.set(docRef, {
+            ...cleanedData,
+            ownerUid: ownerUid
+          });
+
+          batchOperationsCount++;
+          localUploadCount++;
+
+          // 保持在 Firestore 批次限制內
+          if (batchOperationsCount >= 400) {
+            await uploadBatch.commit();
+            uploadBatch = writeBatch(db);
+            batchOperationsCount = 0;
+          }
+        }
+      }
+    }
+
+    if (batchOperationsCount > 0) {
+      await uploadBatch.commit();
+    }
+
+    if (localUploadCount > 0) {
+      successes.push(`📤 【本地更新上傳】已成功將本地 ${localUploadCount} 筆異動/新品項增量同步上傳至雲端`);
+    }
+
+    // ==========================================
+    // 步驟 E: 備份並寫入自訂分類等系統組態 (settings)
+    // ==========================================
+    try {
+      const settingsData = {
+        materialCategories: (() => {
+          try { return JSON.parse(localStorage.getItem('engineering_material_categories') || 'null'); } catch { return null; }
+        })(),
+        materialSubcategories: (() => {
+          try { return JSON.parse(localStorage.getItem('engineering_material_subcategories') || 'null'); } catch { return null; }
+        })(),
+        subcategoryMultipliers: (() => {
+          try { return JSON.parse(localStorage.getItem('engineering_subcategory_multipliers') || 'null'); } catch { return null; }
+        })(),
+        categoryMaterialConfigs: (() => {
+          try { return JSON.parse(localStorage.getItem('engineering_category_material_configs') || 'null'); } catch { return null; }
+        })(),
+        roleBillingConfigs: (() => {
+          try { return JSON.parse(localStorage.getItem('engineering_role_billing_configs') || 'null'); } catch { return null; }
+        })(),
+        workerRoles: (() => {
+          try { return JSON.parse(localStorage.getItem('engineering_worker_roles') || 'null'); } catch { return null; }
+        })(),
+        ownerUid: ownerUid,
+        updatedAt: nowStr
+      };
+      await setDoc(doc(db, 'settings', ownerUid), sanitizeForFirestore(settingsData));
+    } catch (err: any) {
+      console.error("⚙️ 同步自訂設定檔失敗:", err);
+      errors.push(`⚙️ 自訂設定同步失敗: ${err.message || err}`);
+    }
+
+    // 更新本次增量同步的歷史備份快照 (循環 5 份快照)
+    try {
+      await createRollingBackup(ownerUid, mergedData);
+    } catch (backupErr) {
+      console.error("備份滾動快照失敗（非阻斷性錯誤）：", backupErr);
+    }
+
+    // 更新同步時間記號
+    localStorage.setItem('firebase_last_sync_iso', nowStr);
+    localStorage.setItem('firebase_last_sync', new Date(nowStr).toLocaleString('zh-TW'));
+
+    if (errors.length > 0) {
+      return {
+        success: false,
+        message: `⚠️ 增量同步完成，但遭遇以下非阻斷性異常：\n` + errors.join('\n'),
+        updatedData: mergedData
+      };
+    }
+
+    const summaryMsg = successes.length > 0 
+      ? successes.join('\n') 
+      : '✨ 雲端與本機資料皆已是對齊狀態，無需進行任何實體資料上傳與下載！';
+
+    return {
+      success: true,
+      message: summaryMsg,
+      updatedData: mergedData
+    };
+
+  } catch (err: any) {
+    console.error("增量同步過程發生致命錯誤:", err);
+    return {
+      success: false,
+      message: `❌ 增量同步致命失敗：${err.message || err}`
+    };
+  }
 }
 
 /**

@@ -106,6 +106,18 @@
         "roleBillingConfigs": { "type": "array", "description": "職等對客報價定價規則" },
         "workerRoles": { "type": "array", "description": "同仁自訂角色名單" }
       }
+    },
+    "Tombstone": {
+      "title": "Tombstone",
+      "description": "已刪除資料之墓碑記錄，用於跨端增量同步與刪除追蹤",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "被刪除項目的唯一 ID" },
+        "collectionName": { "type": "string", "description": "所屬集合名稱 (例如 materials, records)" },
+        "deletedAt": { "type": "string", "description": "刪除時間戳 (ISO)" },
+        "ownerUid": { "type": "string", "description": "擁有者 UID" }
+      },
+      "required": ["id", "collectionName", "deletedAt", "ownerUid"]
     }
   },
   "firestore": {
@@ -140,6 +152,10 @@
     "/settings/{settingsId}": {
       "schema": "Settings",
       "description": "自訂分類與報價加成倍率設定"
+    },
+    "/tombstones/{tombstoneId}": {
+      "schema": "Tombstone",
+      "description": "已刪除資料之墓碑記錄"
     }
   }
 }

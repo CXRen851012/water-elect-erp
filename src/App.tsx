@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Project, Worker, MaterialPreset, DailyRecord, Customer, Supplier, PaymentTransaction, WorkerAdvance, PettyCashTransaction } from './types';
 import { DEFAULT_WORKERS, DEFAULT_MATERIALS, DEFAULT_SUPPLIERS } from './data';
 import { motion, AnimatePresence } from 'motion/react';
@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from './firebase';
+import { auth, recordTombstone } from './firebase';
 
 import ProjectForm from './components/ProjectForm';
 import RecordForm from './components/RecordForm';
@@ -25,9 +25,57 @@ import FirebaseSyncPanel from './components/FirebaseSyncPanel';
 
 export default function App() {
   // ---- 1. Initialize State with Local Storage fallback ----
+  const bypassTrackingRef = useRef(false);
+
+  // Helper function to track insertions, modifications, and deletions for incremental sync with tombstones
+  function trackStateChanges<T extends { id: string; updatedAt?: string }>(
+    prev: T[],
+    next: T[],
+    collectionName: string
+  ): T[] {
+    if (bypassTrackingRef.current) return next;
+    if (prev === next) return prev;
+
+    const prevMap = new Map<string, T>(prev.map(item => [item.id, item]));
+    const nextIds = new Set<string>(next.map(item => item.id));
+
+    // 1. Detect deletions and write to local tombstones
+    prev.forEach(item => {
+      if (!nextIds.has(item.id)) {
+        recordTombstone(collectionName, item.id);
+      }
+    });
+
+    // 2. Detect additions and modifications, updating updatedAt timestamps
+    const nowStr = new Date().toISOString();
+    let changed = false;
+
+    const updatedList = next.map(nextItem => {
+      const prevItem = prevMap.get(nextItem.id);
+      if (!prevItem) {
+        changed = true;
+        return { ...nextItem, updatedAt: nowStr };
+      } else {
+        const cleanCompare = (obj: any) => {
+          if (!obj) return '';
+          const copy = { ...obj };
+          delete copy.updatedAt;
+          return JSON.stringify(copy);
+        };
+
+        if (cleanCompare(prevItem) !== cleanCompare(nextItem)) {
+          changed = true;
+          return { ...nextItem, updatedAt: nowStr };
+        }
+        return prevItem; // preserve reference
+      }
+    });
+
+    return changed ? updatedList : prev;
+  }
   
   // Existing Workers List
-  const [workers, setWorkers] = useState<Worker[]>(() => {
+  const [workers, setRawWorkers] = useState<Worker[]>(() => {
     try {
       const stored = localStorage.getItem('engineering_workers');
       return stored ? JSON.parse(stored) : DEFAULT_WORKERS;
@@ -35,9 +83,12 @@ export default function App() {
       return DEFAULT_WORKERS;
     }
   });
+  const setWorkers = (val: React.SetStateAction<Worker[]>) => {
+    setRawWorkers(prev => trackStateChanges(prev, typeof val === 'function' ? (val as any)(prev) : val, 'workers'));
+  };
 
   // Material Suppliers Directory
-  const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
+  const [suppliers, setRawSuppliers] = useState<Supplier[]>(() => {
     try {
       const stored = localStorage.getItem('engineering_suppliers');
       return stored ? JSON.parse(stored) : DEFAULT_SUPPLIERS;
@@ -45,9 +96,12 @@ export default function App() {
       return DEFAULT_SUPPLIERS;
     }
   });
+  const setSuppliers = (val: React.SetStateAction<Supplier[]>) => {
+    setRawSuppliers(prev => trackStateChanges(prev, typeof val === 'function' ? (val as any)(prev) : val, 'suppliers'));
+  };
 
   // Material Templates
-  const [materials, setMaterials] = useState<MaterialPreset[]>(() => {
+  const [materials, setRawMaterials] = useState<MaterialPreset[]>(() => {
     try {
       const stored = localStorage.getItem('engineering_materials');
       return stored ? JSON.parse(stored) : DEFAULT_MATERIALS;
@@ -55,9 +109,12 @@ export default function App() {
       return DEFAULT_MATERIALS;
     }
   });
+  const setMaterials = (val: React.SetStateAction<MaterialPreset[]>) => {
+    setRawMaterials(prev => trackStateChanges(prev, typeof val === 'function' ? (val as any)(prev) : val, 'materials'));
+  };
 
   // New persistent Customers address list
-  const [customers, setCustomers] = useState<Customer[]>(() => {
+  const [customers, setRawCustomers] = useState<Customer[]>(() => {
     try {
       const stored = localStorage.getItem('engineering_customers');
       if (stored) {
@@ -133,9 +190,12 @@ export default function App() {
       return [];
     }
   });
+  const setCustomers = (val: React.SetStateAction<Customer[]>) => {
+    setRawCustomers(prev => trackStateChanges(prev, typeof val === 'function' ? (val as any)(prev) : val, 'customers'));
+  };
 
   // Projects / Sites Management
-  const [projects, setProjects] = useState<Project[]>(() => {
+  const [projects, setRawProjects] = useState<Project[]>(() => {
     try {
       const stored = localStorage.getItem('engineering_projects');
       if (stored) {
@@ -177,9 +237,12 @@ export default function App() {
       return [];
     }
   });
+  const setProjects = (val: React.SetStateAction<Project[]>) => {
+    setRawProjects(prev => trackStateChanges(prev, typeof val === 'function' ? (val as any)(prev) : val, 'projects'));
+  };
 
   // Daily Engineering Records
-  const [records, setRecords] = useState<DailyRecord[]>(() => {
+  const [records, setRawRecords] = useState<DailyRecord[]>(() => {
     try {
       const stored = localStorage.getItem('engineering_records');
       if (stored) {
@@ -215,6 +278,9 @@ export default function App() {
       return [];
     }
   });
+  const setRecords = (val: React.SetStateAction<DailyRecord[]>) => {
+    setRawRecords(prev => trackStateChanges(prev, typeof val === 'function' ? (val as any)(prev) : val, 'records'));
+  };
 
   // ---- 2. Synchronization effects to clients Local Storage ----
   useEffect(() => {
@@ -338,7 +404,7 @@ export default function App() {
   }, [records]);
 
   // Persistent Client Transactions List (Billing Receipts Ledger)
-  const [transactions, setTransactions] = useState<PaymentTransaction[]>(() => {
+  const [transactions, setRawTransactions] = useState<PaymentTransaction[]>(() => {
     try {
       const stored = localStorage.getItem('engineering_transactions');
       return stored ? JSON.parse(stored) : [];
@@ -346,13 +412,16 @@ export default function App() {
       return [];
     }
   });
+  const setTransactions = (val: React.SetStateAction<PaymentTransaction[]>) => {
+    setRawTransactions(prev => trackStateChanges(prev, typeof val === 'function' ? (val as any)(prev) : val, 'transactions'));
+  };
 
   useEffect(() => {
     localStorage.setItem('engineering_transactions', JSON.stringify(transactions));
   }, [transactions]);
 
   // Worker Cash Advances (預支借支管理)
-  const [workerAdvances, setWorkerAdvances] = useState<WorkerAdvance[]>(() => {
+  const [workerAdvances, setRawWorkerAdvances] = useState<WorkerAdvance[]>(() => {
     try {
       const stored = localStorage.getItem('engineering_worker_advances');
       if (stored) return JSON.parse(stored);
@@ -374,13 +443,16 @@ export default function App() {
       return [];
     }
   });
+  const setWorkerAdvances = (val: React.SetStateAction<WorkerAdvance[]>) => {
+    setRawWorkerAdvances(prev => trackStateChanges(prev, typeof val === 'function' ? (val as any)(prev) : val, 'worker_advances'));
+  };
 
   useEffect(() => {
     localStorage.setItem('engineering_worker_advances', JSON.stringify(workerAdvances));
   }, [workerAdvances]);
 
   // Petty Cash / Public fund Ledger (零用金與公基金收支記帳)
-  const [pettyCashTransactions, setPettyCashTransactions] = useState<PettyCashTransaction[]>(() => {
+  const [pettyCashTransactions, setRawPettyCashTransactions] = useState<PettyCashTransaction[]>(() => {
     try {
       const stored = localStorage.getItem('engineering_petty_cash');
       if (stored) return JSON.parse(stored);
@@ -423,6 +495,9 @@ export default function App() {
       return [];
     }
   });
+  const setPettyCashTransactions = (val: React.SetStateAction<PettyCashTransaction[]>) => {
+    setRawPettyCashTransactions(prev => trackStateChanges(prev, typeof val === 'function' ? (val as any)(prev) : val, 'petty_cash'));
+  };
 
   useEffect(() => {
     localStorage.setItem('engineering_petty_cash', JSON.stringify(pettyCashTransactions));
@@ -1863,6 +1938,7 @@ export default function App() {
                     </div>
 
                     <FirebaseSyncPanel
+                      bypassTrackingRef={bypassTrackingRef}
                       workers={workers}
                       setWorkers={setWorkers}
                       suppliers={suppliers}
