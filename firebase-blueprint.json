@@ -93,6 +93,19 @@
         "amount": { "type": "number", "description": "金額" }
       },
       "required": ["id", "projectId", "date", "type", "amount"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "自訂分類與報價加成倍率設定",
+      "type": "object",
+      "properties": {
+        "materialCategories": { "type": "array", "description": "材料自訂分類清單" },
+        "materialSubcategories": { "type": "object", "description": "二級次細分類對照表" },
+        "subcategoryMultipliers": { "type": "object", "description": "次分類建議倍率" },
+        "categoryMaterialConfigs": { "type": "array", "description": "各大類耗材加成預設" },
+        "roleBillingConfigs": { "type": "array", "description": "職等對客報價定價規則" },
+        "workerRoles": { "type": "array", "description": "同仁自訂角色名單" }
+      }
     }
   },
   "firestore": {
@@ -123,6 +136,10 @@
     "/transactions/{transactionId}": {
       "schema": "PaymentTransaction",
       "description": "進度領款與材料公积金核銷帳目"
+    },
+    "/settings/{settingsId}": {
+      "schema": "Settings",
+      "description": "自訂分類與報價加成倍率設定"
     }
   }
 }

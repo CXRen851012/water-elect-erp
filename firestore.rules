@@ -58,6 +58,11 @@ service cloud.firestore {
       allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
     }
     
+    match /settings/{id} {
+      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+    }
+    
     match /backups/{id} {
       allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
       allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);

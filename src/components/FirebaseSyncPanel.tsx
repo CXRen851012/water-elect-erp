@@ -294,7 +294,10 @@ export default function FirebaseSyncPanel({
             if (d.workerAdvances) setWorkerAdvances(d.workerAdvances);
             if (d.pettyCashTransactions) setPettyCashTransactions(d.pettyCashTransactions);
 
-            onSaveToast('雲端還原全庫載入已成功！請立刻核對最新統計數據。');
+            onSaveToast('🎉 雲端還原全庫與自訂設定載入成功！系統即將重新啟動對齊數據...');
+            setTimeout(() => {
+              window.location.reload();
+            }, 1500);
           } else {
             setSyncError(result.message);
             onSaveToast('雲端還原未完成，請確認安全連線是否穩定。');
@@ -330,10 +333,24 @@ export default function FirebaseSyncPanel({
             if (d.workerAdvances) setWorkerAdvances(d.workerAdvances);
             if (d.pettyCashTransactions) setPettyCashTransactions(d.pettyCashTransactions);
             
+            // 還原自訂分類與倍率配置
+            if (d.settings) {
+              const s = d.settings;
+              if (s.materialCategories) localStorage.setItem('engineering_material_categories', JSON.stringify(s.materialCategories));
+              if (s.materialSubcategories) localStorage.setItem('engineering_material_subcategories', JSON.stringify(s.materialSubcategories));
+              if (s.subcategoryMultipliers) localStorage.setItem('engineering_subcategory_multipliers', JSON.stringify(s.subcategoryMultipliers));
+              if (s.categoryMaterialConfigs) localStorage.setItem('engineering_category_material_configs', JSON.stringify(s.categoryMaterialConfigs));
+              if (s.roleBillingConfigs) localStorage.setItem('engineering_role_billing_configs', JSON.stringify(s.roleBillingConfigs));
+              if (s.workerRoles) localStorage.setItem('engineering_worker_roles', JSON.stringify(s.workerRoles));
+            }
+
             setLastSync(dateStr);
             localStorage.setItem('firebase_last_sync', dateStr);
             
-            onSaveToast(`✨ 倒帶還原成功！已回復至歷史時間快照：[ ${dateStr} ]！`);
+            onSaveToast(`✨ 倒帶還原成功！已回復至歷史時間快照：[ ${dateStr} ]！系統即將重新載入...`);
+            setTimeout(() => {
+              window.location.reload();
+            }, 1500);
           } else {
             onSaveToast('❌ 還原失敗：該歷史快照資料格式有缺損。');
           }

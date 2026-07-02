@@ -268,6 +268,37 @@ export async function uploadAllToFirebase(
     }
   }
 
+  // 5. 同步使用者自訂分類、二級次分類與倍率設定至 settings 集合
+  try {
+    const settingsData = {
+      materialCategories: (() => {
+        try { return JSON.parse(localStorage.getItem('engineering_material_categories') || 'null'); } catch { return null; }
+      })(),
+      materialSubcategories: (() => {
+        try { return JSON.parse(localStorage.getItem('engineering_material_subcategories') || 'null'); } catch { return null; }
+      })(),
+      subcategoryMultipliers: (() => {
+        try { return JSON.parse(localStorage.getItem('engineering_subcategory_multipliers') || 'null'); } catch { return null; }
+      })(),
+      categoryMaterialConfigs: (() => {
+        try { return JSON.parse(localStorage.getItem('engineering_category_material_configs') || 'null'); } catch { return null; }
+      })(),
+      roleBillingConfigs: (() => {
+        try { return JSON.parse(localStorage.getItem('engineering_role_billing_configs') || 'null'); } catch { return null; }
+      })(),
+      workerRoles: (() => {
+        try { return JSON.parse(localStorage.getItem('engineering_worker_roles') || 'null'); } catch { return null; }
+      })(),
+      ownerUid: ownerUid,
+      updatedAt: new Date().toISOString()
+    };
+    await setDoc(doc(db, 'settings', ownerUid), sanitizeForFirestore(settingsData));
+    successes.push(`⚙️ 自訂分類與加成配置 (同步寫入雲端設定檔)`);
+  } catch (err: any) {
+    console.error("Firebase upload settings failed", err);
+    errors.push(`⚙️ 自訂分類與設定 (settings): ${err.message || err}`);
+  }
+
   if (errors.length > 0) {
     const successMsg = successes.length > 0 ? "部分成功：\n" + successes.map(s => `✅ ${s}`).join('\n') + "\n\n" : "";
     const errorMsg = "⚠️ 以下資料表上傳失敗：\n" + errors.map(e => `❌ ${e}`).join('\n');
@@ -357,6 +388,38 @@ export async function downloadAllFromFirebase(uid: string): Promise<{
     }
   }
 
+  // 下載與還原自訂分類與倍率設定
+  try {
+    const settingsDoc = await getDoc(doc(db, 'settings', ownerUid));
+    if (settingsDoc.exists()) {
+      const sData = settingsDoc.data();
+      if (sData.materialCategories) {
+        localStorage.setItem('engineering_material_categories', JSON.stringify(sData.materialCategories));
+      }
+      if (sData.materialSubcategories) {
+        localStorage.setItem('engineering_material_subcategories', JSON.stringify(sData.materialSubcategories));
+      }
+      if (sData.subcategoryMultipliers) {
+        localStorage.setItem('engineering_subcategory_multipliers', JSON.stringify(sData.subcategoryMultipliers));
+      }
+      if (sData.categoryMaterialConfigs) {
+        localStorage.setItem('engineering_category_material_configs', JSON.stringify(sData.categoryMaterialConfigs));
+      }
+      if (sData.roleBillingConfigs) {
+        localStorage.setItem('engineering_role_billing_configs', JSON.stringify(sData.roleBillingConfigs));
+      }
+      if (sData.workerRoles) {
+        localStorage.setItem('engineering_worker_roles', JSON.stringify(sData.workerRoles));
+      }
+      successes.push(`⚙️ 自訂分類與加成配置 (自雲端回復本地)`);
+    } else {
+      successes.push(`⚙️ 自訂分類與加成配置 (雲端尚無此設定，保持本地狀態)`);
+    }
+  } catch (err: any) {
+    console.error("Firebase download settings failed", err);
+    errors.push(`⚙️ 自訂分類與設定 (settings): ${err.message || err}`);
+  }
+
   if (errors.length > 0) {
     const successMsg = successes.length > 0 ? "部分成功下載：\n" + successes.map(s => `✅ ${s}`).join('\n') + "\n\n" : "";
     const errorMsg = "⚠️ 以下資料表同步下載失敗：\n" + errors.map(e => `❌ ${e}`).join('\n');
@@ -429,7 +492,27 @@ export async function createRollingBackup(
         records: sanitizedRecords,
         transactions: sanitizedTransactions,
         workerAdvances: sanitizedWorkerAdvances,
-        pettyCashTransactions: sanitizedPettyCashTransactions
+        pettyCashTransactions: sanitizedPettyCashTransactions,
+        settings: sanitizeForFirestore({
+          materialCategories: (() => {
+            try { return JSON.parse(localStorage.getItem('engineering_material_categories') || 'null'); } catch { return null; }
+          })(),
+          materialSubcategories: (() => {
+            try { return JSON.parse(localStorage.getItem('engineering_material_subcategories') || 'null'); } catch { return null; }
+          })(),
+          subcategoryMultipliers: (() => {
+            try { return JSON.parse(localStorage.getItem('engineering_subcategory_multipliers') || 'null'); } catch { return null; }
+          })(),
+          categoryMaterialConfigs: (() => {
+            try { return JSON.parse(localStorage.getItem('engineering_category_material_configs') || 'null'); } catch { return null; }
+          })(),
+          roleBillingConfigs: (() => {
+            try { return JSON.parse(localStorage.getItem('engineering_role_billing_configs') || 'null'); } catch { return null; }
+          })(),
+          workerRoles: (() => {
+            try { return JSON.parse(localStorage.getItem('engineering_worker_roles') || 'null'); } catch { return null; }
+          })()
+        })
       }
     });
 
