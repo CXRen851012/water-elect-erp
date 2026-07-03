@@ -1090,19 +1090,11 @@ export default function RecordForm({
 
         {/* SECTION 2: Material registers (No price shown!) */}
         <section className="space-y-3">
-          <div className="flex items-center justify-between pb-1.5 border-b border-neutral-200">
+          <div className="flex items-center pb-1.5 border-b border-neutral-200">
             <div className="flex items-center gap-1.5">
               <ShoppingCart size={16} className="text-amber-600" />
               <h3 className="text-xs sm:text-sm font-extrabold text-neutral-850">二、 本日工地用料消耗登記（倉儲出庫 / 附近臨購）</h3>
             </div>
-            <button
-              type="button"
-              onClick={handleAddMaterialRow}
-              className="px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 hover:border-amber-300 text-xs font-bold rounded-lg flex items-center gap-1"
-            >
-              <Plus size={12} />
-              新增耗用材料
-            </button>
           </div>
 
           {/* Categorized Quick Add Material Tablet Dashboard */}
@@ -1367,9 +1359,20 @@ export default function RecordForm({
           )}
         </div>
 
+        <div className="flex justify-end pt-1">
+          <button
+            type="button"
+            onClick={handleAddMaterialRow}
+            className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 hover:border-amber-300 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-3xs transition cursor-pointer"
+          >
+            <Plus size={14} className="text-amber-600" />
+            新增耗用材料
+          </button>
+        </div>
+
           {materials.length === 0 ? (
             <div className="text-center py-7 border border-dashed border-neutral-200 rounded-xl bg-neutral-50/20 text-xs text-neutral-400">
-              今日工作無消耗倉庫材料，亦無附近緊急購買！若有使用，請點按上方大庫一鍵速選，或點按右上方「新增耗用材料」登記。
+              今日工作無消耗倉庫材料，亦無附近緊急購買！若有使用，請點按上方大庫一鍵速選，或點按下方「新增耗用材料」登記。
             </div>
           ) : (
             <div className="overflow-x-auto">

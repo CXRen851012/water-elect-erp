@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MaterialPreset, Supplier, MaterialUnitOption, MaterialSupplier } from '../types';
-import { Plus, Trash2, Edit, ShoppingBag, Info, ShieldCheck, ChevronDown, ChevronUp, Scale, Settings, Check, X, FileSpreadsheet, Download, Upload } from 'lucide-react';
+import { Plus, Trash2, Edit, ShoppingBag, Info, ShieldCheck, ChevronDown, ChevronUp, Scale, Settings, Check, X, FileSpreadsheet, Download, Upload, ArrowRightLeft } from 'lucide-react';
 import { calculateMaterialListPrice, getCategoryMaterialConfigs, saveCategoryMaterialConfigs, getSubcategories, saveSubcategories, getSubcategoryMultipliers, saveSubcategoryMultipliers } from '../utils/billingUtils';
 import * as XLSX from 'xlsx';
 
@@ -119,6 +119,17 @@ export default function MaterialsPanel({
   const [newCategoryInput, setNewCategoryInput] = useState('');
   const [renamingCategoryOld, setRenamingCategoryOld] = useState<string | null>(null);
   const [renamingCategoryInput, setRenamingCategoryInput] = useState('');
+
+  // --- Category Deletion Modal States ---
+  const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
+  const [subcategoryToDelete, setSubcategoryToDelete] = useState<{ category: string; subcategory: string } | null>(null);
+  const [transferTargetCategory, setTransferTargetCategory] = useState<string>('');
+  const [transferTargetSubcategory, setTransferTargetSubcategory] = useState<string>(''); // 'empty' or specific subcategory name
+
+  // --- Category Conversion Modal States ---
+  const [categoryToConvertToSub, setCategoryToConvertToSub] = useState<string | null>(null);
+  const [conversionTargetCategory, setConversionTargetCategory] = useState<string>('');
+  const [subToConvertToMain, setSubToConvertToMain] = useState<{ category: string; subcategory: string } | null>(null);
 
   // New Material form state
   const [newMatName, setNewMatName] = useState('');
@@ -752,7 +763,18 @@ export default function MaterialsPanel({
     onSaveToast(`📂 已大整改品項分類：${oldVal} ➡️ ${newVal}！`);
   };
 
-  const handleDeleteCategory = (catName: string) => {
+  const triggerDeleteCategory = (catName: string) => {
+    const affected = materials.filter(m => m.category === catName);
+    if (affected.length === 0) {
+      executeDeleteCategoryDirectly(catName);
+    } else {
+      setCategoryToDelete(catName);
+      const others = categories.filter(c => c !== catName);
+      setTransferTargetCategory(others[0] || '');
+    }
+  };
+
+  const executeDeleteCategoryDirectly = (catName: string) => {
     const updatedCats = categories.filter(c => c !== catName);
     saveCategories(updatedCats);
 
@@ -760,8 +782,218 @@ export default function MaterialsPanel({
     setCategoryConfigs(updatedConfigs);
     saveCategoryMaterialConfigs(updatedConfigs);
 
-    setMaterials(materials.map(m => m.category === catName ? { ...m, category: '工具與雜耗' } : m));
-    onSaveToast(`🗑️ 成功撤銷分類【${catName}】。原分類材料已安全歸類至「工具與雜耗」！`);
+    // Sync subcategories keys
+    const updatedSubcategories = { ...subcategories };
+    delete updatedSubcategories[catName];
+    setSubcategories(updatedSubcategories);
+    saveSubcategories(updatedSubcategories);
+
+    // Sync subcategory multipliers keys
+    const updatedSubMultipliers = { ...subMultipliers };
+    Object.keys(updatedSubMultipliers).forEach(k => {
+      if (k.startsWith(`${catName}:`)) {
+        delete updatedSubMultipliers[k];
+      }
+    });
+    setSubMultipliers(updatedSubMultipliers);
+    saveSubcategoryMultipliers(updatedSubMultipliers);
+
+    onSaveToast(`🗑️ 成功刪除主分類【${catName}】！`);
+  };
+
+  const handleResolveCategoryDeleteWithPurge = () => {
+    if (!categoryToDelete) return;
+    const catName = categoryToDelete;
+
+    const remainingMaterials = materials.filter(m => m.category !== catName);
+    setMaterials(remainingMaterials);
+
+    executeDeleteCategoryDirectly(catName);
+    setCategoryToDelete(null);
+    onSaveToast(`🗑️ 已成功刪除主分類【${catName}】及旗下所有材料品項！`);
+  };
+
+  const handleResolveCategoryDeleteWithTransfer = () => {
+    if (!categoryToDelete || !transferTargetCategory) return;
+    const catName = categoryToDelete;
+    const target = transferTargetCategory;
+
+    const updatedMaterials = materials.map(m => {
+      if (m.category === catName) {
+        return { ...m, category: target, subcategory: undefined };
+      }
+      return m;
+    });
+    setMaterials(updatedMaterials);
+
+    executeDeleteCategoryDirectly(catName);
+    setCategoryToDelete(null);
+    onSaveToast(`📦 已成功刪除主分類【${catName}】，原旗下品項已整批轉移至主分類【${target}】下！`);
+  };
+
+  const triggerDeleteSubcategory = (catName: string, subName: string) => {
+    const affected = materials.filter(m => m.category === catName && m.subcategory === subName);
+    if (affected.length === 0) {
+      executeDeleteSubcategoryDirectly(catName, subName);
+    } else {
+      setSubcategoryToDelete({ category: catName, subcategory: subName });
+      const currentSubs = subcategories[catName] || [];
+      const others = currentSubs.filter(s => s !== subName);
+      setTransferTargetSubcategory(others[0] || 'empty');
+    }
+  };
+
+  const executeDeleteSubcategoryDirectly = (catName: string, subName: string) => {
+    const currentList = (subcategories[catName] || []).filter(item => item !== subName);
+    const updatedAll = { ...subcategories, [catName]: currentList };
+    setSubcategories(updatedAll);
+    saveSubcategories(updatedAll);
+    
+    // Also delete multiplier
+    const multKey = `${catName}:${subName}`;
+    const updatedMults = { ...subMultipliers };
+    delete updatedMults[multKey];
+    setSubMultipliers(updatedMults);
+    saveSubcategoryMultipliers(updatedMults);
+
+    onSaveToast(`🗑️ 已成功刪除二級次分類：【${subName}】。`);
+  };
+
+  const handleResolveSubcategoryDeleteWithPurge = () => {
+    if (!subcategoryToDelete) return;
+    const { category, subcategory } = subcategoryToDelete;
+
+    const remainingMaterials = materials.filter(m => !(m.category === category && m.subcategory === subcategory));
+    setMaterials(remainingMaterials);
+
+    executeDeleteSubcategoryDirectly(category, subcategory);
+    setSubcategoryToDelete(null);
+    onSaveToast(`🗑️ 已成功刪除次分類【${subcategory}】及旗下的所有材料品項！`);
+  };
+
+  const handleResolveSubcategoryDeleteWithTransfer = () => {
+    if (!subcategoryToDelete) return;
+    const { category, subcategory } = subcategoryToDelete;
+    const target = transferTargetSubcategory;
+
+    const updatedMaterials = materials.map(m => {
+      if (m.category === category && m.subcategory === subcategory) {
+        return {
+          ...m,
+          subcategory: target === 'empty' ? undefined : target
+        };
+      }
+      return m;
+    });
+    setMaterials(updatedMaterials);
+
+    executeDeleteSubcategoryDirectly(category, subcategory);
+    setSubcategoryToDelete(null);
+    onSaveToast(
+      target === 'empty'
+        ? `📦 已成功刪除次分類【${subcategory}】，原旗下品項已清除次分類標記（僅保留大類【${category}】）！`
+        : `📦 已成功刪除次分類【${subcategory}】，原旗下品項已整批轉移至同大類下的次分類【${target}】！`
+    );
+  };
+
+  const handleConvertCategoryToSubcategory = (catName: string, targetMainCategory: string) => {
+    if (!catName || !targetMainCategory || catName === targetMainCategory) return;
+
+    // 1. Remove from categories list
+    const updatedCats = categories.filter(c => c !== catName);
+    saveCategories(updatedCats);
+
+    const updatedConfigs = categoryConfigs.filter(c => c.category !== catName);
+    setCategoryConfigs(updatedConfigs);
+    saveCategoryMaterialConfigs(updatedConfigs);
+
+    // 2. Add as a subcategory under the chosen targetMainCategory
+    const currentSubs = subcategories[targetMainCategory] || [];
+    const updatedSubs = [...currentSubs];
+    if (!updatedSubs.includes(catName)) {
+      updatedSubs.push(catName);
+    }
+    const updatedAllSubs = {
+      ...subcategories,
+      [targetMainCategory]: updatedSubs
+    };
+    delete updatedAllSubs[catName];
+
+    setSubcategories(updatedAllSubs);
+    saveSubcategories(updatedAllSubs);
+
+    // 3. Update all materials: change category to targetMainCategory, and subcategory to catName
+    const updatedMaterials = materials.map(m => {
+      if (m.category === catName) {
+        return {
+          ...m,
+          category: targetMainCategory,
+          subcategory: catName
+        };
+      }
+      return m;
+    });
+    setMaterials(updatedMaterials);
+
+    // Remove multipliers for old category & its subcategories
+    const updatedMults = { ...subMultipliers };
+    Object.keys(updatedMults).forEach(k => {
+      if (k.startsWith(`${catName}:`)) {
+        delete updatedMults[k];
+      }
+    });
+    setSubMultipliers(updatedMults);
+    saveSubcategoryMultipliers(updatedMults);
+
+    setCategoryToConvertToSub(null);
+    onSaveToast(`🔄 已將原主分類【${catName}】直接降格為【${targetMainCategory}】旗下的次分類，且原分類下所有品項已自動更新！`);
+  };
+
+  const handleConvertSubcategoryToMainCategory = (catName: string, subName: string) => {
+    if (!catName || !subName) return;
+
+    if (categories.includes(subName)) {
+      onSaveToast(`⚠️ 無法升格：主分類中已存在同名分類【${subName}】！`);
+      return;
+    }
+    const updatedCats = [...categories, subName];
+    saveCategories(updatedCats);
+
+    const updatedConfigs = [...categoryConfigs, { category: subName, multiplier: 1.10 }];
+    setCategoryConfigs(updatedConfigs);
+    saveCategoryMaterialConfigs(updatedConfigs);
+
+    // Remove subName from subcategories of catName
+    const currentSubs = (subcategories[catName] || []).filter(s => s !== subName);
+    const updatedAllSubs = {
+      ...subcategories,
+      [catName]: currentSubs
+    };
+    setSubcategories(updatedAllSubs);
+    saveSubcategories(updatedAllSubs);
+
+    // Update all materials belonging to catName and subName
+    const updatedMaterials = materials.map(m => {
+      if (m.category === catName && m.subcategory === subName) {
+        return {
+          ...m,
+          category: subName,
+          subcategory: undefined
+        };
+      }
+      return m;
+    });
+    setMaterials(updatedMaterials);
+
+    // Clean up multiplier for that specific subcategory
+    const multKey = `${catName}:${subName}`;
+    const updatedMults = { ...subMultipliers };
+    delete updatedMults[multKey];
+    setSubMultipliers(updatedMults);
+    saveSubcategoryMultipliers(updatedMults);
+
+    setSubToConvertToMain(null);
+    onSaveToast(`🔄 已將原次分類【${subName}】成功升格為全新獨立主分類，所有對應品項已歸入新主分類下！`);
   };
 
   const ensureUnitOptions = (m: MaterialPreset): MaterialUnitOption[] => {
@@ -1830,7 +2062,7 @@ export default function MaterialsPanel({
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    handleDeleteCategory(cat);
+                                    triggerDeleteCategory(cat);
                                     setDeleteConfirmCategory(null);
                                   }}
                                   className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-[11px] font-bold cursor-pointer transition-all"
@@ -1877,6 +2109,18 @@ export default function MaterialsPanel({
                                   title="更名"
                                 >
                                   <Edit size={11} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCategoryToConvertToSub(cat);
+                                    const others = categories.filter(c => c !== cat);
+                                    setConversionTargetCategory(others[0] || '');
+                                  }}
+                                  className="p-1 hover:text-[#D4AF37] hover:bg-neutral-850 rounded transition shrink-0 cursor-pointer"
+                                  title="轉換為次級分類"
+                                >
+                                  <ArrowRightLeft size={11} className="rotate-90 text-amber-200" />
                                 </button>
                                 <button
                                   type="button"
@@ -2070,24 +2314,22 @@ export default function MaterialsPanel({
                                     <ChevronDown size={12} />
                                   </button>
 
+                                  {/* Convert to Main Category */}
+                                  <button
+                                    type="button"
+                                    onClick={() => setSubToConvertToMain({ category: activeConfigCategory, subcategory: sub })}
+                                    className="p-1 text-neutral-500 hover:text-emerald-400 hover:bg-neutral-800 rounded transition cursor-pointer"
+                                    title="升格為獨立主分類"
+                                  >
+                                    <ArrowRightLeft size={11} className="-rotate-90 text-emerald-400" />
+                                  </button>
+
                                   {/* Delete */}
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      const currentList = (subcategories[activeConfigCategory] || []).filter(item => item !== sub);
-                                      const updatedAll = { ...subcategories, [activeConfigCategory]: currentList };
-                                      setSubcategories(updatedAll);
-                                      saveSubcategories(updatedAll);
-                                      
-                                      // Also delete multiplier
-                                      const updatedMults = { ...subMultipliers };
-                                      delete updatedMults[multKey];
-                                      setSubMultipliers(updatedMults);
-                                      saveSubcategoryMultipliers(updatedMults);
-
-                                      onSaveToast(`🗑️ 已刪除次級細分類：【${sub}】。`);
-                                    }}
+                                    onClick={() => triggerDeleteSubcategory(activeConfigCategory, sub)}
                                     className="p-1 text-neutral-500 hover:text-red-400 hover:bg-neutral-800 rounded transition cursor-pointer"
+                                    title="刪除"
                                   >
                                     <Trash2 size={11} />
                                   </button>
@@ -3122,6 +3364,255 @@ export default function MaterialsPanel({
                 className="flex-1 order-1 sm:order-2 px-5 py-3 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer select-none transition-all duration-150 flex items-center justify-center gap-1.5"
               >
                 <span>忽略警告，仍要建立</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ⚠️ 主分類刪除與轉移彈窗 */}
+      {categoryToDelete && (
+        <div className="fixed inset-0 z-[105] flex items-center justify-center p-4 bg-neutral-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-neutral-200 p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-6 animate-scaleUp">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-red-50 text-red-600 rounded-2xl shrink-0">
+                <Trash2 size={28} className="animate-pulse" />
+              </div>
+              <div className="space-y-1 text-left">
+                <span className="text-[10px] font-black text-red-800 tracking-wider uppercase block">Category Delete Protection</span>
+                <h3 className="text-base font-black text-neutral-900 leading-tight">
+                  ⚠️ 刪除主分類【{categoryToDelete}】防呆警告
+                </h3>
+                <p className="text-xs text-neutral-500">
+                  系統檢測到此大類下尚有 <strong className="text-red-600 font-extrabold">{materials.filter(m => m.category === categoryToDelete).length}</strong> 個建檔材料。
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-neutral-50 rounded-2xl border border-neutral-200/65 p-4.5 space-y-4 text-left">
+              <div className="space-y-1">
+                <label className="block text-[11px] font-extrabold text-neutral-700">
+                  📦 方案一：將原分類之材料整批轉移至其他主分類：
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    value={transferTargetCategory}
+                    onChange={(e) => setTransferTargetCategory(e.target.value)}
+                    className="flex-1 px-3 py-1.5 border border-neutral-300 rounded-xl bg-white text-xs focus:ring-2 focus:ring-amber-500 outline-none text-neutral-800"
+                  >
+                    {categories.filter(c => c !== categoryToDelete).map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={categories.filter(c => c !== categoryToDelete).length === 0}
+                    onClick={handleResolveCategoryDeleteWithTransfer}
+                    className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    確認轉移並刪除
+                  </button>
+                </div>
+              </div>
+
+              <div className="border-t border-neutral-200/60 my-2 pt-3">
+                <label className="block text-[11px] font-extrabold text-red-700 mb-1">
+                  🔥 方案二：一同刪除分類及該分類下所有品項 (不可復原)：
+                </label>
+                <button
+                  type="button"
+                  onClick={handleResolveCategoryDeleteWithPurge}
+                  className="w-full py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  🗑️ 確認一同刪除分類及所有材料品項
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setCategoryToDelete(null)}
+                className="w-full py-3 border border-neutral-250 bg-white hover:bg-neutral-50 text-neutral-700 font-black text-xs rounded-xl transition-all cursor-pointer"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ⚠️ 次分類刪除與轉移彈窗 */}
+      {subcategoryToDelete && (
+        <div className="fixed inset-0 z-[105] flex items-center justify-center p-4 bg-neutral-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-neutral-200 p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-6 animate-scaleUp">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-red-50 text-red-600 rounded-2xl shrink-0">
+                <Trash2 size={28} className="animate-pulse" />
+              </div>
+              <div className="space-y-1 text-left">
+                <span className="text-[10px] font-black text-red-800 tracking-wider uppercase block">Subcategory Delete Protection</span>
+                <h3 className="text-base font-black text-neutral-900 leading-tight">
+                  ⚠️ 刪除次分類【{subcategoryToDelete.subcategory}】防呆警告
+                </h3>
+                <p className="text-xs text-neutral-500">
+                  系統檢測到大類【{subcategoryToDelete.category}】的本次分類下，尚有 <strong className="text-red-600 font-extrabold">{materials.filter(m => m.category === subcategoryToDelete.category && m.subcategory === subcategoryToDelete.subcategory).length}</strong> 個建檔材料。
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-neutral-50 rounded-2xl border border-neutral-200/65 p-4.5 space-y-4 text-left">
+              <div className="space-y-1">
+                <label className="block text-[11px] font-extrabold text-neutral-700">
+                  📦 方案一：轉移該次分類材料至：
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    value={transferTargetSubcategory}
+                    onChange={(e) => setTransferTargetSubcategory(e.target.value)}
+                    className="flex-1 px-3 py-1.5 border border-neutral-300 rounded-xl bg-white text-xs focus:ring-2 focus:ring-amber-500 outline-none text-neutral-850"
+                  >
+                    {(subcategories[subcategoryToDelete.category] || []).filter(s => s !== subcategoryToDelete.subcategory).map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                    <option value="empty">清除次分類標記 (僅保留大類)</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleResolveSubcategoryDeleteWithTransfer}
+                    className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  >
+                    確認轉移並刪除
+                  </button>
+                </div>
+              </div>
+
+              <div className="border-t border-neutral-200/60 my-2 pt-3">
+                <label className="block text-[11px] font-extrabold text-red-700 mb-1">
+                  🔥 方案二：一同刪除分類及該次分類下所有品項 (不可復原)：
+                </label>
+                <button
+                  type="button"
+                  onClick={handleResolveSubcategoryDeleteWithPurge}
+                  className="w-full py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  🗑️ 確認一同刪除次分類及所有材料品項
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setSubcategoryToDelete(null)}
+                className="w-full py-3 border border-neutral-250 bg-white hover:bg-neutral-50 text-neutral-700 font-black text-xs rounded-xl transition-all cursor-pointer"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔄 主分類降格為次分類轉換彈窗 */}
+      {categoryToConvertToSub && (
+        <div className="fixed inset-0 z-[105] flex items-center justify-center p-4 bg-neutral-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-neutral-200 p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-6 animate-scaleUp">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl shrink-0">
+                <ArrowRightLeft size={28} className="text-amber-600" />
+              </div>
+              <div className="space-y-1 text-left">
+                <span className="text-[10px] font-black text-amber-850 tracking-wider uppercase block">Category Level Down</span>
+                <h3 className="text-base font-black text-neutral-900 leading-tight">
+                  🔄 將主分類【{categoryToConvertToSub}】降格為二級次分類
+                </h3>
+                <p className="text-xs text-neutral-500">
+                  原分類將改為次分類屬性，且原分類下所有品項的大類屬性將更新。
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-neutral-50 rounded-2xl border border-neutral-200/65 p-4.5 space-y-3 text-left">
+              <label className="block text-[11px] font-extrabold text-neutral-700">
+                📁 請選擇要併入的「目標新主分類」：
+              </label>
+              <select
+                value={conversionTargetCategory}
+                onChange={(e) => setConversionTargetCategory(e.target.value)}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-xl bg-white text-xs focus:ring-2 focus:ring-amber-500 outline-none text-neutral-850"
+              >
+                {categories.filter(c => c !== categoryToConvertToSub).map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-neutral-400 italic">
+                💡 轉換後，原主分類【{categoryToConvertToSub}】將消失，並成為【{conversionTargetCategory}】旗下之次分類。
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setCategoryToConvertToSub(null)}
+                className="flex-1 px-5 py-3 border border-neutral-250 bg-white hover:bg-neutral-50 text-neutral-700 font-bold text-xs rounded-xl cursor-pointer"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                disabled={!conversionTargetCategory}
+                onClick={() => handleConvertCategoryToSubcategory(categoryToConvertToSub, conversionTargetCategory)}
+                className="flex-1 px-5 py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                確認降格轉換
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔄 次分類升格為主分類確認彈窗 */}
+      {subToConvertToMain && (
+        <div className="fixed inset-0 z-[105] flex items-center justify-center p-4 bg-neutral-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-neutral-200 p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-6 animate-scaleUp">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl shrink-0">
+                <ArrowRightLeft size={28} className="text-emerald-600 -rotate-90" />
+              </div>
+              <div className="space-y-1 text-left">
+                <span className="text-[10px] font-black text-emerald-850 tracking-wider uppercase block">Category Level Promotion</span>
+                <h3 className="text-base font-black text-neutral-900 leading-tight">
+                  🔄 將次分類【{subToConvertToMain.subcategory}】升格為全新獨立主分類
+                </h3>
+                <p className="text-xs text-neutral-500">
+                  原屬於大類【{subToConvertToMain.category}】下的次分類【{subToConvertToMain.subcategory}】，將獨立成為一級大類。
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-neutral-50 rounded-2xl border border-neutral-200/65 p-4 pt-3.5 pb-3.5 text-xs text-left text-neutral-600 space-y-2">
+              <p>升格後將發生以下自動調整：</p>
+              <ul className="list-disc pl-5 space-y-1 text-neutral-500 text-[11px]">
+                <li>此分類將新增至一級主分類清單中。</li>
+                <li>原【{subToConvertToMain.category}】➡️【{subToConvertToMain.subcategory}】下的所有建檔品項，大類將更新為【{subToConvertToMain.subcategory}】，並清空其次分類標記。</li>
+              </ul>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setSubToConvertToMain(null)}
+                className="flex-1 px-5 py-3 border border-neutral-250 bg-white hover:bg-neutral-50 text-neutral-700 font-bold text-xs rounded-xl cursor-pointer"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConvertSubcategoryToMainCategory(subToConvertToMain.category, subToConvertToMain.subcategory)}
+                className="flex-1 px-5 py-3 bg-emerald-600 hover:bg-emerald-750 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                確認升格獨立
               </button>
             </div>
           </div>
