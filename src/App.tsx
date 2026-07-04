@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   ClipboardList, TrendingUp, Plus, Landmark, Users,
   Check, Info, FileSpreadsheet, Sparkles, Building2, Calendar, HardHat,
-  ShoppingBag, FolderLock, Store, Coins,
+  ShoppingBag, FolderLock, Store, Coins, History,
   Database, AlertTriangle, Download, Upload, Trash2, Settings, ShieldAlert,
   Cloud, CloudOff, RefreshCw, LogOut, LogIn, Search, ArrowUpDown, SlidersHorizontal
 } from 'lucide-react';
@@ -506,6 +506,49 @@ export default function App() {
   // ---- 3. Navigation Controls & Modal states ----
   const [activeTab, setActiveTab] = useState<'construction' | 'billing' | 'workers' | 'materials' | 'supabase-excel'>('construction');
   const [recordsSubTab, setRecordsSubTab] = useState<'today' | 'projects' | 'history' | 'customers'>('today');
+  const [progressSelectedDate, setProgressSelectedDate] = useState<string>(() => {
+    const local = new Date();
+    const offset = local.getTimezoneOffset();
+    const localToday = new Date(local.getTime() - (offset * 60 * 1000));
+    return localToday.toISOString().substring(0, 10);
+  });
+
+  const handlePrevDay = () => {
+    const parts = progressSelectedDate.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const d = new Date(year, month, day);
+      d.setDate(d.getDate() - 1);
+      const yStr = d.getFullYear();
+      const mStr = String(d.getMonth() + 1).padStart(2, '0');
+      const dStr = String(d.getDate()).padStart(2, '0');
+      setProgressSelectedDate(`${yStr}-${mStr}-${dStr}`);
+    }
+  };
+
+  const handleNextDay = () => {
+    const parts = progressSelectedDate.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const d = new Date(year, month, day);
+      d.setDate(d.getDate() + 1);
+      const yStr = d.getFullYear();
+      const mStr = String(d.getMonth() + 1).padStart(2, '0');
+      const dStr = String(d.getDate()).padStart(2, '0');
+      setProgressSelectedDate(`${yStr}-${mStr}-${dStr}`);
+    }
+  };
+
+  const handleSetToToday = () => {
+    const local = new Date();
+    const offset = local.getTimezoneOffset();
+    const localToday = new Date(local.getTime() - (offset * 60 * 1000));
+    setProgressSelectedDate(localToday.toISOString().substring(0, 10));
+  };
 
   // ---- 2.5 Firebase 雲端狀態監測 ----
   const [firebaseConnected, setFirebaseConnected] = useState<boolean>(false);
@@ -523,9 +566,29 @@ export default function App() {
   const [historySortBy, setHistorySortBy] = useState<string>('date_desc');
   const [historyVisibleLimit, setHistoryVisibleLimit] = useState<number>(30);
 
+  const getInitHistoryStartDate = () => {
+    const now = new Date();
+    const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const y = prevMonth.getFullYear();
+    const m = String(prevMonth.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}-01`;
+  };
+
+  const getInitHistoryEndDate = () => {
+    const now = new Date();
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const y = lastDay.getFullYear();
+    const m = String(lastDay.getMonth() + 1).padStart(2, '0');
+    const d = String(lastDay.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const [historyStartDate, setHistoryStartDate] = useState<string>(getInitHistoryStartDate);
+  const [historyEndDate, setHistoryEndDate] = useState<string>(getInitHistoryEndDate);
+
   useEffect(() => {
     setHistoryVisibleLimit(30);
-  }, [historySearch, historyStatusFilter, historyProjectFilter, historySortBy]);
+  }, [historySearch, historyStatusFilter, historyProjectFilter, historySortBy, historyStartDate, historyEndDate]);
   const [showRecordForm, setShowRecordForm] = useState<boolean>(false);
   const [recordFormAnimDone, setRecordFormAnimDone] = useState<boolean>(false);
 
@@ -905,7 +968,7 @@ export default function App() {
               </div>
             </div>
 
-             {/* Quick action for new project and app overview stats */}
+            {/* Quick action for new project and app overview stats */}
             <div className="flex items-center gap-3">
               <button
                 id="header-supabase-status"
@@ -921,7 +984,7 @@ export default function App() {
                   <>
                     <Cloud size={14} className="text-amber-500 shrink-0 select-none animate-pulse" />
                     <span className="hidden sm:inline">Firebase 雲端已接通</span>
-                    <span className="inline sm:hidden">已接通</span>
+                    <span className="inline sm:hidden font-medium">已接通</span>
                   </>
                 ) : (
                   <>
@@ -961,19 +1024,18 @@ export default function App() {
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
-            className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-white font-medium text-xs py-2.5 px-5 rounded-full shadow-xl flex items-center gap-2 border border-neutral-800"
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-[#121212] text-white font-medium text-xs py-2.5 px-5 rounded-full shadow-xl flex items-center gap-2 border border-neutral-800"
           >
             <Sparkles size={14} className="text-amber-400 animate-pulse" />
             <span>{toastMessage}</span>
           </motion.div>
         )}
-      </AnimatePresence>
+      </  AnimatePresence>
 
       {/* Main Container workspace */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
         {/* Tab Selection Navigation */}
         <nav className="flex space-x-2 border-b border-neutral-850 mb-6 pb-px overflow-x-auto select-none no-scrollbar scrollbar-none">
-          {/* TAB 0: Combined Construction Management */}
           <button
             id="tab-construction"
             onClick={() => { setActiveTab('construction'); setRecordsSubTab('today'); setShowRecordForm(false); setRecordToEdit(undefined); }}
@@ -1109,6 +1171,8 @@ export default function App() {
                       </div>
                     </div>
 
+
+
                     {/* Integrated Sub-Navigation Controls */}
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 select-none">
                       <div className="flex border border-[#2D2D2D] bg-[#1E1E1E] p-1.5 rounded-xl flex-1 max-w-4xl gap-2 shadow-sm overflow-x-auto scrollbar-none">
@@ -1138,7 +1202,7 @@ export default function App() {
                           <FolderLock size={15} className="shrink-0 stroke-[2.5]" />
                           <span>
                             <span className="hidden sm:inline">工程案場總覽</span>
-                            <span className="inline sm:hidden">工程案場</span>
+                            <span className="inline sm:hidden">案場總覽</span>
                           </span>
                         </button>
 
@@ -1150,9 +1214,9 @@ export default function App() {
                               : 'bg-[#252525] text-neutral-300 border-[#3A3A3A] hover:text-[#D4AF37] hover:bg-[#2C2C2C] font-semibold'
                           }`}
                         >
-                          <ClipboardList size={15} className="shrink-0 stroke-[2.5]" />
+                          <History size={15} className="shrink-0 stroke-[2.5]" />
                           <span>
-                            <span className="hidden sm:inline">歷史派工彙整</span>
+                            <span className="hidden sm:inline">歷史工務日誌簿</span>
                             <span className="inline sm:hidden">歷史日誌</span>
                           </span>
                         </button>
@@ -1168,19 +1232,18 @@ export default function App() {
                           <Users size={15} className="shrink-0 stroke-[2.5]" />
                           <span>
                             <span className="hidden sm:inline">合作業主名錄</span>
-                            <span className="inline sm:hidden">合作業主</span>
+                            <span className="inline sm:hidden">業主名錄</span>
                           </span>
                         </button>
                       </div>
 
                       <div className="flex items-center gap-3 shrink-0">
                         <button
-                          id="quick-start-record-btn"
                           onClick={() => { setRecordToEdit(undefined); setShowRecordForm(true); }}
                           className="px-5 py-2.5 bg-[#D4AF37] hover:bg-[#bfa032] text-black font-extrabold text-xs rounded-xl transition-all border border-[#D4AF37] shadow-md flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
                         >
                           <Plus size={14} className="stroke-[3]" />
-                          <span>登錄當日工務日誌</span>
+                          登錄本日施工與調度日誌
                         </button>
                       </div>
                     </div>
@@ -1189,11 +1252,47 @@ export default function App() {
                     {recordsSubTab === 'today' && (
                       <div className="space-y-6">
 
+                        {/* Interactive Date Switcher Widget */}
+                        <div className="bg-[#1E1E1E] border border-[#2D2D2D] p-4.5 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm select-none">
+                          <div className="flex items-center gap-2.5">
+                            <Calendar className="text-[#D4AF37] stroke-[2.5]" size={18} />
+                            <div>
+                              <span className="text-xs text-neutral-400 block font-bold">目前查看日期施工進度</span>
+                              <span className="text-sm font-black text-white font-mono">{progressSelectedDate}</span>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              onClick={handlePrevDay}
+                              className="px-3.5 py-2 bg-[#252525] hover:bg-[#2C2C2C] text-neutral-300 hover:text-white border border-[#3A3A3A] hover:border-[#D4AF37]/50 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                            >
+                              <span>⬅️ 前一天</span>
+                            </button>
+                            <input
+                              type="date"
+                              value={progressSelectedDate}
+                              onChange={(e) => setProgressSelectedDate(e.target.value)}
+                              className="px-3.5 py-1.5 border border-[#3A3A3A] rounded-xl text-xs font-bold text-white bg-[#121212] focus:outline-none focus:border-[#D4AF37] cursor-pointer"
+                            />
+                            <button
+                              onClick={handleNextDay}
+                              className="px-3.5 py-2 bg-[#252525] hover:bg-[#2C2C2C] text-neutral-300 hover:text-white border border-[#3A3A3A] hover:border-[#D4AF37]/50 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                            >
+                              <span>後一天 ➡️</span>
+                            </button>
+                            <button
+                              onClick={handleSetToToday}
+                              className="px-3.5 py-2 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/20 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                            >
+                              回今天
+                            </button>
+                          </div>
+                        </div>
+
                         {/* Today Stats Summary */}
                         {(() => {
-                          const todayStr = new Date().toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
-                          const utcTodayStr = new Date().toISOString().substring(0, 10);
-                          const todayRecords = records.filter(r => r.date === todayStr || r.date === utcTodayStr);
+                          const targetDate = progressSelectedDate;
+                          const todayRecords = records.filter(r => r.date === targetDate);
                           
                           const todayWorkersCount = todayRecords.reduce((sum, r) => sum + (r.workers?.length || 0), 0);
                           const todayEstimatedCost = todayRecords.reduce((sum, r) => {
@@ -1211,7 +1310,7 @@ export default function App() {
                                   <FolderLock size={20} />
                                 </div>
                                 <div>
-                                  <span className="text-xs text-neutral-400 block font-bold">今日施工進場</span>
+                                  <span className="text-xs text-neutral-400 block font-bold">選定日施工進場</span>
                                   <span className="text-lg font-black text-neutral-800 font-mono">
                                     {todayRecords.length} <span className="text-xs font-bold text-neutral-500">處案場</span>
                                   </span>
@@ -1223,7 +1322,7 @@ export default function App() {
                                   <HardHat size={20} />
                                 </div>
                                 <div>
-                                  <span className="text-xs text-neutral-400 block font-bold">今日調派工班</span>
+                                  <span className="text-xs text-neutral-400 block font-bold">選定日調派工班</span>
                                   <span className="text-lg font-black text-neutral-800 font-mono">
                                     {todayWorkersCount} <span className="text-xs font-bold text-neutral-500">人次</span>
                                   </span>
@@ -1235,7 +1334,7 @@ export default function App() {
                                   <Coins size={20} />
                                 </div>
                                 <div>
-                                  <span className="text-xs text-neutral-400 block font-bold">今日預估工料成本</span>
+                                  <span className="text-xs text-neutral-400 block font-bold">選定日預估工料成本</span>
                                   <span className="text-lg font-black text-neutral-800 font-mono">
                                     ${todayEstimatedCost.toLocaleString()} <span className="text-xs font-bold text-neutral-500">元</span>
                                   </span>
@@ -1249,9 +1348,8 @@ export default function App() {
                         <div className="space-y-3">
 
                           {(() => {
-                            const todayStr = new Date().toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
-                            const utcTodayStr = new Date().toISOString().substring(0, 10);
-                            const todayRecords = records.filter(r => r.date === todayStr || r.date === utcTodayStr);
+                            const targetDate = progressSelectedDate;
+                            const todayRecords = records.filter(r => r.date === targetDate);
 
                             const activeProjects = projects.filter(p => {
                               if (p.isCompleted) return false;
@@ -1264,13 +1362,13 @@ export default function App() {
                             if (todayRecords.length === 0) {
                               return (
                                 <div className="text-center py-10 bg-[#1E1E1E] border border-[#2C2C2C] rounded-2xl border-dashed flex flex-col items-center justify-center">
-                                  <p className="text-sm text-neutral-400 font-extrabold mb-1">今天尚未登錄任何施工日誌！</p>
+                                  <p className="text-sm text-neutral-400 font-extrabold mb-1">【{targetDate}】尚未登錄任何施工日誌！</p>
                                   <button
                                     onClick={() => { setRecordToEdit(undefined); setShowRecordForm(true); }}
                                     className="mt-3 px-5 py-2.5 bg-[#D4AF37] hover:bg-[#bfa032] text-black font-extrabold text-xs rounded-xl transition-all border border-[#D4AF37] shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
                                   >
                                     <Plus size={14} className="stroke-[3]" />
-                                    <span>登錄當日工務日誌</span>
+                                    <span>登錄該日工務日誌</span>
                                   </button>
                                 </div>
                               );

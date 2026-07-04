@@ -299,6 +299,7 @@ export default function ProjectsPanel({
   const [editProjectNotes, setEditProjectNotes] = useState('');
   const [editIsEstimation, setEditIsEstimation] = useState(false);
   const [editEstimationStatus, setEditEstimationStatus] = useState<'估價中' | '進行中施工' | '報價未成'>('估價中');
+  const [editCreatedAt, setEditCreatedAt] = useState('');
 
   const handleToggleProjectStatus = (id: string) => {
     setProjects(prevProjects => prevProjects.map(p => {
@@ -414,6 +415,7 @@ export default function ProjectsPanel({
     setEditProjectNotes(p.projectNotes || '');
     setEditIsEstimation(p.isEstimation || false);
     setEditEstimationStatus(p.estimationStatus || '估價中');
+    setEditCreatedAt(p.createdAt ? p.createdAt.substring(0, 10) : new Date().toISOString().substring(0, 10));
   };
 
   const handleSaveBasicInfo = (e: React.FormEvent) => {
@@ -434,7 +436,8 @@ export default function ProjectsPanel({
 
     setProjects(prev => prev.map(p => {
       if (p.id === editingProject.id) {
-        const prefixDate = p.createdAt ? p.createdAt.substring(0, 10).replace(/-/g, '') : '20260530';
+        const newCreatedAt = editCreatedAt ? `${editCreatedAt}T00:00:00.000Z` : (p.createdAt || new Date().toISOString());
+        const prefixDate = editCreatedAt ? editCreatedAt.replace(/-/g, '') : (p.createdAt ? p.createdAt.substring(0, 10).replace(/-/g, '') : '20260530');
         
         let clientPart = editCompanyOrOwner.trim();
         const p_name = editContactPerson.trim();
@@ -473,13 +476,44 @@ export default function ProjectsPanel({
           projectNotes: editProjectNotes,
           isEstimation: editIsEstimation,
           estimationStatus: editIsEstimation ? editEstimationStatus : undefined,
-          generatedName: genName
+          generatedName: genName,
+          createdAt: newCreatedAt
         };
       }
       return p;
     }));
 
     // Update state variables to match modified project basic details
+    const finalCreatedAt = editCreatedAt ? `${editCreatedAt}T00:00:00.000Z` : (editingProject.createdAt || new Date().toISOString());
+    const finalPrefixDate = editCreatedAt ? editCreatedAt.replace(/-/g, '') : (editingProject.createdAt ? editingProject.createdAt.substring(0, 10).replace(/-/g, '') : '20260530');
+    
+    let clientPart_u = editCompanyOrOwner.trim();
+    const p_name_u = editContactPerson.trim();
+    const ph_u = editContactPhone.trim();
+    
+    if (p_name_u && p_name_u !== '本人' && p_name_u !== editCompanyOrOwner.trim()) {
+      if (ph_u) {
+        clientPart_u += `(${p_name_u}:${ph_u})`;
+      } else {
+        clientPart_u += `(${p_name_u})`;
+      }
+    } else {
+      if (ph_u) {
+        clientPart_u += `(${ph_u})`;
+      }
+    }
+
+    const addrAbbrev_u = editAddressAbbreviated.trim();
+    let addressPart_u = '';
+    if (addrAbbrev_u) {
+      addressPart_u = `(${addrAbbrev_u})${editFullAddress.trim()}`;
+    } else {
+      addressPart_u = editFullAddress.trim();
+    }
+
+    const baseName_u = `${finalPrefixDate}-${clientPart_u}-${addressPart_u}-${editingProject.serialNumber}`;
+    const genName_u = editIsEstimation ? `[估]${baseName_u}` : baseName_u;
+
     const updatedProj: Project = {
       ...editingProject,
       companyOrOwner: editCompanyOrOwner,
@@ -490,6 +524,8 @@ export default function ProjectsPanel({
       projectNotes: editProjectNotes,
       isEstimation: editIsEstimation,
       estimationStatus: editIsEstimation ? editEstimationStatus : undefined,
+      generatedName: genName_u,
+      createdAt: finalCreatedAt
     };
 
     if (selectedProjectForDetail?.id === editingProject.id) {
@@ -1566,6 +1602,20 @@ return (
 
             {/* Form Body */}
             <div className="p-5 space-y-4">
+              {/* Project Date */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-neutral-700 block">
+                  案場日期 (建立日期) <span className="text-red-500">*</span>
+                </label>
+                <input 
+                  type="date"
+                  required
+                  value={editCreatedAt}
+                  onChange={e => setEditCreatedAt(e.target.value)}
+                  className="w-full text-xs p-2.5 border border-neutral-205 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white text-neutral-800 font-bold"
+                />
+              </div>
+
               {/* Company / Owner Name */}
               <div className="space-y-1">
                 <label className="text-xs font-bold text-neutral-700 block">
