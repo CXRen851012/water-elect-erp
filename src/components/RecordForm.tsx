@@ -1796,14 +1796,17 @@ export default function RecordForm({
                           className="w-full p-2 border border-neutral-200 rounded text-xs bg-white text-neutral-800 font-extrabold focus:border-amber-400 focus:ring-1 focus:ring-amber-200"
                         >
                           <optgroup label="固定在職人員名單 (快速點選)">
-                            {workersPreset.filter(wp => wp.status !== '離職').map(wp => {
-                              const isAlreadySelected = workers.some(currW => currW.workerId === wp.id && currW.id !== w.id);
-                              return (
-                                <option key={wp.id} value={wp.id} disabled={isAlreadySelected}>
-                                  👷 {wp.name} ({wp.role || '在職'}) {isAlreadySelected ? '(已派遣)' : ''}
+                            {workersPreset
+                              .filter(wp => wp.status !== '離職')
+                              .filter(wp => {
+                                const isAlreadySelected = workers.some(currW => currW.workerId === wp.id && currW.id !== w.id);
+                                return !isAlreadySelected;
+                              })
+                              .map(wp => (
+                                <option key={wp.id} value={wp.id}>
+                                  👷 {wp.name} ({wp.role || '在職'})
                                 </option>
-                              );
-                            })}
+                              ))}
                           </optgroup>
                           <optgroup label="外部派工臨時支援 (不留常備底名)">
                             <option value="support_temp">
