@@ -1597,9 +1597,99 @@ export default function App() {
                             </div>
                           </div>
 
+                          {/* 5. Date Range Filter & Presets */}
+                          <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between border-t border-neutral-100 pt-3.5">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 w-full lg:w-auto">
+                              <span className="text-[11px] font-extrabold text-neutral-500 shrink-0 uppercase tracking-wider flex items-center gap-1">
+                                📅 查找時段區間:
+                              </span>
+                              <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <input
+                                  type="date"
+                                  value={historyStartDate}
+                                  onChange={(e) => setHistoryStartDate(e.target.value)}
+                                  className="bg-neutral-50 hover:bg-neutral-100/40 border border-neutral-200 rounded-xl text-xs px-2.5 py-1.5 font-bold text-neutral-700 focus:outline-hidden focus:border-amber-500 cursor-pointer"
+                                />
+                                <span className="text-xs text-neutral-400 font-bold">至</span>
+                                <input
+                                  type="date"
+                                  value={historyEndDate}
+                                  onChange={(e) => setHistoryEndDate(e.target.value)}
+                                  className="bg-neutral-50 hover:bg-neutral-100/40 border border-neutral-200 rounded-xl text-xs px-2.5 py-1.5 font-bold text-neutral-700 focus:outline-hidden focus:border-amber-500 cursor-pointer"
+                                />
+                              </div>
+                            </div>
+                            
+                            {/* Preset Buttons for easy selection */}
+                            <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setHistoryStartDate(getInitHistoryStartDate());
+                                  setHistoryEndDate(getInitHistoryEndDate());
+                                }}
+                                className={`px-2.5 py-1 text-[11px] font-extrabold rounded-lg transition-all cursor-pointer ${
+                                  historyStartDate === getInitHistoryStartDate() && historyEndDate === getInitHistoryEndDate()
+                                    ? 'bg-amber-500/15 text-amber-800 border border-amber-200'
+                                    : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-150 border border-transparent'
+                                }`}
+                              >
+                                預設 (本月 + 上月)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const now = new Date();
+                                  const y = now.getFullYear();
+                                  const m = String(now.getMonth() + 1).padStart(2, '0');
+                                  setHistoryStartDate(`${y}-${m}-01`);
+                                  
+                                  const lastDay = new Date(y, now.getMonth() + 1, 0);
+                                  const d = String(lastDay.getDate()).padStart(2, '0');
+                                  setHistoryEndDate(`${y}-${m}-${d}`);
+                                }}
+                                className="px-2.5 py-1 text-[11px] font-extrabold bg-neutral-100 text-neutral-500 hover:bg-neutral-150 rounded-lg border border-transparent transition-all cursor-pointer"
+                              >
+                                單獨本月
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const end = new Date();
+                                  const start = new Date();
+                                  start.setDate(end.getDate() - 30);
+                                  
+                                  const format = (d: Date) => {
+                                    const yyyy = d.getFullYear();
+                                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                                    const dd = String(d.getDate()).padStart(2, '0');
+                                    return `${yyyy}-${mm}-${dd}`;
+                                  };
+                                  setHistoryStartDate(format(start));
+                                  setHistoryEndDate(format(end));
+                                }}
+                                className="px-2.5 py-1 text-[11px] font-extrabold bg-neutral-100 text-neutral-500 hover:bg-neutral-150 rounded-lg border border-transparent transition-all cursor-pointer"
+                              >
+                                過去 30 天
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const now = new Date();
+                                  const y = now.getFullYear();
+                                  setHistoryStartDate(`${y}-01-01`);
+                                  setHistoryEndDate(`${y}-12-31`);
+                                }}
+                                className="px-2.5 py-1 text-[11px] font-extrabold bg-neutral-100 text-neutral-500 hover:bg-neutral-150 rounded-lg border border-transparent transition-all cursor-pointer"
+                              >
+                                今年整年
+                              </button>
+                            </div>
+                          </div>
+
                           {/* Active Filters Clear Indicators */}
-                          {(historySearch || historyStatusFilter !== 'all' || historyProjectFilter !== 'all' || historySortBy !== 'date_desc') && (
-                            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-neutral-101">
+                          {(historySearch || historyStatusFilter !== 'all' || historyProjectFilter !== 'all' || historySortBy !== 'date_desc' || historyStartDate !== getInitHistoryStartDate() || historyEndDate !== getInitHistoryEndDate()) && (
+                            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-neutral-100 select-none">
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <span className="text-[10px] bg-amber-500/10 text-amber-850 font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1">
                                   <SlidersHorizontal size={10} />
@@ -1623,6 +1713,15 @@ export default function App() {
                                     <button onClick={() => setHistoryProjectFilter('all')} className="hover:text-neutral-900 font-extrabold cursor-pointer ml-1">×</button>
                                   </span>
                                 )}
+                                {(historyStartDate !== getInitHistoryStartDate() || historyEndDate !== getInitHistoryEndDate()) && (
+                                  <span className="text-[10px] bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded-lg border border-neutral-200 flex items-center gap-1 font-medium">
+                                    時段: {historyStartDate} 至 {historyEndDate}
+                                    <button onClick={() => {
+                                      setHistoryStartDate(getInitHistoryStartDate());
+                                      setHistoryEndDate(getInitHistoryEndDate());
+                                    }} className="hover:text-neutral-900 font-extrabold cursor-pointer ml-1">×</button>
+                                  </span>
+                                )}
                               </div>
 
                               <button
@@ -1631,6 +1730,8 @@ export default function App() {
                                   setHistoryStatusFilter('all');
                                   setHistoryProjectFilter('all');
                                   setHistorySortBy('date_desc');
+                                  setHistoryStartDate(getInitHistoryStartDate());
+                                  setHistoryEndDate(getInitHistoryEndDate());
                                 }}
                                 className="text-[10px] text-amber-700 hover:text-amber-850 font-black cursor-pointer underline underline-offset-2 flex items-center gap-0.5 select-none"
                               >
@@ -1644,6 +1745,10 @@ export default function App() {
                         {(() => {
                           // 1. Filter
                           const filteredHistoryRecords = records.filter(r => {
+                            // Date range filter
+                            if (historyStartDate && r.date < historyStartDate) return false;
+                            if (historyEndDate && r.date > historyEndDate) return false;
+
                             // Keyword search
                             if (historySearch) {
                               const matchSearch = historySearch.toLowerCase();
