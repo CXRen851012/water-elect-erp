@@ -621,6 +621,33 @@ export default function ProjectsPanel({
       }
     });
 
+    // 5. 智慧「防呆提醒」材料警示：避免選錯材料 B 導致扣錯 (比對退料與扣量)
+    if (projectRecords.length > 0) {
+      const sortedRecords = [...projectRecords].sort((a, b) => a.date.localeCompare(b.date));
+      const runningTotals: Record<string, number> = {};
+
+      sortedRecords.forEach(r => {
+        (r.materials || []).forEach(m => {
+          const materialId = m.materialId;
+          const key = materialId ? `id_${materialId}` : `name_${(m.name || '').trim().toLowerCase()}`;
+          const displayName = m.name || (materialId ? (materialsPreset.find(preset => preset.id === materialId)?.name || '未指定') : '未命名');
+          const currentQty = m.quantity || 0;
+
+          if (currentQty < 0) {
+            const totalPrev = runningTotals[key] || 0;
+            if (totalPrev <= 0) {
+              priceWarningsList.push(`↩️ 施工日誌 (${r.date}) 材料 [${displayName}] 發生退料警示：此案場先前從未登記過此材料！`);
+            } else if (totalPrev + currentQty < 0) {
+              priceWarningsList.push(`↩️ 施工日誌 (${r.date}) 材料 [${displayName}] 發生退料警示：退料數量 (${-currentQty}) 大於先前歷史累計耗量 (${totalPrev})！`);
+            }
+          }
+
+          // Update running total
+          runningTotals[key] = (runningTotals[key] || 0) + currentQty;
+        });
+      });
+    }
+
     return priceWarningsList;
   };
 
@@ -916,6 +943,33 @@ return (
               }
             });
 
+            // 5. 智慧「防呆提醒」材料警示：避免選錯材料 B 導致扣錯 (比對退料與扣量)
+            if (projectRecords.length > 0) {
+              const sortedRecords = [...projectRecords].sort((a, b) => a.date.localeCompare(b.date));
+              const runningTotals: Record<string, number> = {};
+
+              sortedRecords.forEach(r => {
+                (r.materials || []).forEach(m => {
+                  const materialId = m.materialId;
+                  const key = materialId ? `id_${materialId}` : `name_${(m.name || '').trim().toLowerCase()}`;
+                  const displayName = m.name || (materialId ? (materialsPreset.find(preset => preset.id === materialId)?.name || '未指定') : '未命名');
+                  const currentQty = m.quantity || 0;
+
+                  if (currentQty < 0) {
+                    const totalPrev = runningTotals[key] || 0;
+                    if (totalPrev <= 0) {
+                      priceWarningsList.push(`↩️ 施工日誌 (${r.date}) 材料 [${displayName}] 發生退料警示：此案場先前從未登記過此材料！`);
+                    } else if (totalPrev + currentQty < 0) {
+                      priceWarningsList.push(`↩️ 施工日誌 (${r.date}) 材料 [${displayName}] 發生退料警示：退料數量 (${-currentQty}) 大於先前歷史累計耗量 (${totalPrev})！`);
+                    }
+                  }
+
+                  // Update running total
+                  runningTotals[key] = (runningTotals[key] || 0) + currentQty;
+                });
+              });
+            }
+
             const hasBudgetWarning = priceWarningsList.length > 0;
 
             const isCompletedButNoDirectReceipt = p.isCompleted && 
@@ -926,7 +980,7 @@ return (
                 key={p.id} 
                 className={`p-5 rounded-2xl border-2 transition-all flex flex-col justify-between gap-4 bg-white ${
                   hasBudgetWarning
-                    ? 'border-red-500 ring-2 ring-red-50 hover:shadow-md shadow-sm'
+                    ? 'border-red-500 ring-4 ring-red-100/70 hover:shadow-lg shadow-md animate-[pulse_2s_infinite]'
                     : p.isCompleted 
                       ? 'border-neutral-300 bg-neutral-100/50 opacity-80' 
                       : 'border-neutral-200 hover:border-amber-500 hover:shadow-md shadow-3xs'
@@ -979,8 +1033,8 @@ return (
                         )
                       )}
                       {hasBudgetWarning && (
-                        <span className="text-[9px] font-extrabold text-white bg-rose-650 border border-rose-700 rounded px-1.5 py-0.5 animate-bounce">
-                          利潤警戒
+                        <span className="text-[9px] font-black text-white bg-red-600 border border-red-700 rounded-md px-1.5 py-0.5 shadow-sm animate-pulse flex items-center gap-0.5">
+                          ⚠️ 異常預警 ({priceWarningsList.length})
                         </span>
                       )}
                     </div>
@@ -1009,25 +1063,25 @@ return (
 
                   {/* Budget Warning Inline Block */}
                   {hasBudgetWarning && (
-                    <div className="bg-rose-50 border border-rose-200 p-2.5 rounded-lg text-[10px] text-rose-800 font-extrabold flex flex-col gap-1.5 leading-relaxed">
+                    <div className="bg-red-50/95 border-2 border-red-500 p-3 rounded-xl text-xs flex flex-col gap-2 leading-relaxed shadow-sm">
                       <button
                         type="button"
                         onClick={() => setExpandedWarnings(prev => ({ ...prev, [p.id]: !prev[p.id] }))}
-                        className="flex items-center justify-between w-full font-black text-rose-950 text-[10.5px] cursor-pointer text-left bg-transparent border-none p-0 focus:outline-none"
+                        className="flex items-center justify-between w-full font-black text-red-950 text-[11px] sm:text-xs cursor-pointer text-left bg-transparent border-none p-0 focus:outline-none"
                       >
-                        <span className="flex items-center gap-1">
-                          <span className="text-xs">⚠️</span>
-                          <span>【牌價成本預警：工料單價或薪資計收未配置】({priceWarningsList.length} 項)</span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-sm">⚠️</span>
+                          <span>【工料與退料計價異常預警】({priceWarningsList.length} 項)</span>
                         </span>
-                        <span className="text-rose-600 font-bold hover:underline shrink-0 ml-2">
-                          {expandedWarnings[p.id] ? '折疊 ▴' : '展開觀看明細 ▾'}
+                        <span className="text-red-700 hover:text-red-900 font-bold hover:underline shrink-0 ml-2">
+                          {expandedWarnings[p.id] ? '收合明細 ▴' : '展開觀看明細 ▾'}
                         </span>
                       </button>
 
                       {expandedWarnings[p.id] && (
-                        <div className="space-y-1 mt-1 pl-1 border-l-2 border-rose-300 animate-fadeIn text-[9.5px]">
+                        <div className="space-y-1.5 mt-2 pl-2 border-l-2 border-red-500 animate-fadeIn text-[10px]">
                           {priceWarningsList.map((err, idx) => (
-                            <div key={idx} className="text-rose-900 font-medium">
+                            <div key={idx} className="text-red-950 font-bold bg-red-100/60 p-2 rounded-lg border border-red-200/60 shadow-3xs leading-relaxed">
                               • {err}
                             </div>
                           ))}

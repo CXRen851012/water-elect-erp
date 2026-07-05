@@ -18,6 +18,7 @@ interface RecordFormProps {
   initialRecordToEdit?: DailyRecord;
   onCancel: () => void;
   setMaterialsPreset?: React.Dispatch<React.SetStateAction<MaterialPreset[]>>;
+  records?: DailyRecord[];
 }
 
 const DEFAULT_SUBCATEGORIES: Record<string, string[]> = {
@@ -39,7 +40,8 @@ export default function RecordForm({
   onOpenNewProjectModal,
   initialRecordToEdit,
   onCancel,
-  setMaterialsPreset
+  setMaterialsPreset,
+  records = []
 }: RecordFormProps) {
   const activeSuppliersPreset = (suppliersPreset || []).filter(s => s.showInMaterialsDatabase !== false);
 
@@ -141,6 +143,153 @@ export default function RecordForm({
   // Filter projects categories
   const activeProjects = projects.filter(p => !p.isCompleted);
   const completedProjects = projects.filter(p => p.isCompleted);
+
+  // Helper checks to determine if a row is completely empty/unfilled (placeholder)
+  const isMaterialRowEmpty = (m: RecordMaterial) => {
+    return !m.materialId && (!m.name || m.name.trim() === '');
+  };
+
+  const isWorkerRowEmpty = (w: RecordWorker) => {
+    return (!w.workerId || w.workerId === '') && (!w.name || w.name.trim() === '');
+  };
+
+  // 智慧自動延展：確保至少有一個空白材料列供使用者點選/輸入
+  useEffect(() => {
+    const hasEmpty = materials.some(isMaterialRowEmpty);
+    if (!hasEmpty) {
+      const item: RecordMaterial = {
+        id: `mat-placeholder-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        materialId: undefined,
+        name: '',
+        quantity: 1,
+        unit: '個',
+        unitPrice: 0,
+        costPrice: 0,
+        isNearbyPurchased: true
+      };
+      setMaterials(prev => [...prev, item]);
+    }
+  }, [materials]);
+
+  // 智慧自動延展：確保至少有一個空白派工列供使用者點選/輸入
+  useEffect(() => {
+    const hasEmpty = workers.some(isWorkerRowEmpty);
+    if (!hasEmpty) {
+      const item: RecordWorker = {
+        id: `crew-placeholder-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        workerId: undefined,
+        name: '',
+        hoursWork: 8,
+        hourlyRate: 250,
+        billingHourlyRate: 250,
+        isSupport: true
+      };
+      setWorkers(prev => [...prev, item]);
+    }
+  }, [workers]);
+
+  // Compute Project Context & History stats for "案場脈絡關聯"
+  const projectStats = React.useMemo(() => {
+    if (!selectedProjectId || !records || records.length === 0) return null;
+
+    const projRecords = records.filter(r => r.projectId === selectedProjectId);
+    
+    // 1. Accumulated costs
+    let totalMaterialsCost = 0;
+    let totalLaborCost = 0;
+    let totalExpenses = 0;
+
+    projRecords.forEach(r => {
+      // Materials cost
+      (r.materials || []).forEach(m => {
+        const qty = m.quantity || 0;
+        const cost = m.costPrice !== undefined ? m.costPrice : (m.unitPrice || 0);
+        totalMaterialsCost += qty * cost;
+      });
+
+      // Labor cost
+      (r.workers || []).forEach(w => {
+        const hours = w.hoursWork || 0;
+        const rate = w.hourlyRate || 0;
+        totalLaborCost += hours * rate;
+      });
+
+      // Expenses
+      (r.expenses || []).forEach(e => {
+        if (e.isProjectExpense !== false) {
+          totalExpenses += e.amount || 0;
+        }
+      });
+    });
+
+    const totalCost = totalMaterialsCost + totalLaborCost + totalExpenses;
+
+    // 2. Most frequent workers in this project
+    const workerCounts: Record<string, { name: string; count: number; presetWorker?: Worker }> = {};
+    projRecords.forEach(r => {
+      (r.workers || []).forEach(w => {
+        if (w.workerId && w.workerId !== 'support_temp') {
+          if (!workerCounts[w.workerId]) {
+            const pWorker = workersPreset.find(wp => wp.id === w.workerId);
+            workerCounts[w.workerId] = { name: w.name, count: 0, presetWorker: pWorker };
+          }
+          workerCounts[w.workerId].count += 1;
+        }
+      });
+    });
+
+    const frequentWorkers = Object.entries(workerCounts)
+      .map(([id, data]) => ({ id, ...data }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 4);
+
+    // 3. Most frequent materials in this project
+    const materialCounts: Record<string, { name: string; count: number; presetMaterial?: MaterialPreset }> = {};
+    projRecords.forEach(r => {
+      (r.materials || []).forEach(m => {
+        const key = m.materialId || `custom-${m.name}`;
+        if (!materialCounts[key]) {
+          const pMat = m.materialId ? sortedMaterialsPreset.find(pm => pm.id === m.materialId) : undefined;
+          materialCounts[key] = { name: m.name, count: 0, presetMaterial: pMat };
+        }
+        materialCounts[key].count += m.quantity;
+      });
+    });
+
+    const frequentMaterials = Object.entries(materialCounts)
+      .map(([key, data]) => ({ key, ...data }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    return {
+      recordCount: projRecords.length,
+      totalMaterialsCost,
+      totalLaborCost,
+      totalExpenses,
+      totalCost,
+      frequentWorkers,
+      frequentMaterials
+    };
+  }, [selectedProjectId, records, workersPreset, sortedMaterialsPreset]);
+
+  // 取得特定材料在此案場的歷史累計正耗量 (排除目前編輯的這份日誌，以計算真正的歷史背景)
+  const getHistoricalQuantityForMaterial = (m: RecordMaterial) => {
+    if (!selectedProjectId || !records || records.length === 0) return 0;
+    let total = 0;
+    records.forEach(r => {
+      // 排除當前編輯的這筆日誌
+      if (r.projectId === selectedProjectId && r.id !== initialRecordToEdit?.id) {
+        (r.materials || []).forEach(historyMat => {
+          const hasSameId = m.materialId && historyMat.materialId === m.materialId;
+          const hasSameName = !m.materialId && historyMat.name && m.name && historyMat.name.trim().toLowerCase() === m.name.trim().toLowerCase();
+          if (hasSameId || hasSameName) {
+            total += historyMat.quantity || 0;
+          }
+        });
+      }
+    });
+    return total;
+  };
 
   const isInitializedRef = React.useRef<string | null>(null);
 
@@ -408,14 +557,18 @@ export default function RecordForm({
     const defaultUnit = preset.unit || '個';
     const activeSupplier = selectedAddSupplier === '全部' ? undefined : selectedAddSupplier;
     const prices = getUnitAndSupplierPrices(preset, defaultUnit, activeSupplier);
-    const existingIndex = materials.findIndex(
+    
+    // 先過濾掉任何空白預設列，避免空白列積壓或卡在中間
+    const cleanedMaterials = materials.filter(m => !isMaterialRowEmpty(m));
+
+    const existingIndex = cleanedMaterials.findIndex(
       m => m.materialId === preset.id && 
       !m.isNearbyPurchased && 
       m.unit === defaultUnit && 
       m.storeName === activeSupplier
     );
     if (existingIndex > -1) {
-      setMaterials(prev => prev.map((m, idx) => idx === existingIndex ? {
+      setMaterials(cleanedMaterials.map((m, idx) => idx === existingIndex ? {
         ...m,
         quantity: m.quantity + 1
       } : m));
@@ -431,7 +584,7 @@ export default function RecordForm({
         isNearbyPurchased: false,
         storeName: activeSupplier
       };
-      setMaterials([...materials, item]);
+      setMaterials([...cleanedMaterials, item]);
     }
   };
 
@@ -747,7 +900,16 @@ export default function RecordForm({
   };
 
   const handleUpdateCrewWorkerType = (rowId: string, choiceId: string) => {
-    if (choiceId === 'support_temp') {
+    if (choiceId === '') {
+      setWorkers(prev => prev.map(w => w.id === rowId ? {
+        ...w,
+        workerId: undefined,
+        name: '',
+        hourlyRate: 250,
+        billingHourlyRate: 250,
+        isSupport: true
+      } : w));
+    } else if (choiceId === 'support_temp') {
       // Outside/additional labor is selected
       setWorkers(prev => prev.map(w => w.id === rowId ? {
         ...w,
@@ -824,8 +986,12 @@ export default function RecordForm({
       return;
     }
 
-    // Validate that support crew names are not left blank
-    const blankSupport = workers.find(w => w.workerId === 'support_temp' && !w.name.trim());
+    // 剔除尚未選取/未填寫的空白預設列
+    const filteredWorkers = workers.filter(w => !isWorkerRowEmpty(w));
+    const filteredMaterials = materials.filter(m => !isMaterialRowEmpty(m));
+
+    // Validate that support crew names are not left blank (excluding already filtered empty placeholders)
+    const blankSupport = filteredWorkers.find(w => w.workerId === 'support_temp' && !w.name.trim());
     if (blankSupport) {
       alert('請填寫外調或額外派遣勞工姓名！');
       return;
@@ -891,9 +1057,9 @@ export default function RecordForm({
       date,
       projectId: selectedProjectId,
       projectName: selectedProjDetails ? getProjectDisplayName(selectedProjDetails) : '未知施工案場',
-      materials,
+      materials: filteredMaterials,
       expenses: finalExpensesList,
-      workers,
+      workers: filteredWorkers,
       notes: notes.trim(),
       markAsCompleted,
       collectedAmount: collectedAmount > 0 ? collectedAmount : undefined,
@@ -1049,6 +1215,49 @@ export default function RecordForm({
                 </div>
               )}
             </div>
+
+            {/* Project Context & Proximity Stats Panel (案場脈絡關聯與累計數據) */}
+            {selectedProjectId && projectStats && (
+              <div className="mt-3 bg-white p-4.5 rounded-xl border border-amber-200/60 shadow-3xs space-y-3.5">
+                <div className="flex items-center justify-between border-b border-neutral-100 pb-2 flex-wrap gap-2">
+                  <div className="flex items-center gap-1.5 text-amber-800 font-extrabold text-xs">
+                    <Sparkles size={14} className="text-amber-500 animate-pulse" />
+                    <span>🎯 案場脈絡累計：【{selectedProjDetails?.companyOrOwner}】累計數據</span>
+                  </div>
+                  <span className="text-[10px] bg-amber-50 text-amber-800 font-black px-2 py-0.5 rounded border border-amber-200/50">
+                    共 {projectStats.recordCount} 筆工務日誌
+                  </span>
+                </div>
+
+                {/* Bento layout for project numbers */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="p-2.5 bg-neutral-50 rounded-lg border border-neutral-150 text-center">
+                    <div className="text-[9px] text-neutral-400 font-bold">🛠️ 累計耗材成本</div>
+                    <div className="text-xs font-mono font-black text-neutral-750 mt-0.5">
+                      ${projectStats.totalMaterialsCost.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="p-2.5 bg-neutral-50 rounded-lg border border-neutral-150 text-center">
+                    <div className="text-[9px] text-neutral-400 font-bold">👷 累計派遣薪資</div>
+                    <div className="text-xs font-mono font-black text-neutral-750 mt-0.5">
+                      ${projectStats.totalLaborCost.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="p-2.5 bg-neutral-50 rounded-lg border border-neutral-150 text-center">
+                    <div className="text-[9px] text-neutral-400 font-bold">🚗 累計雜支開銷</div>
+                    <div className="text-xs font-mono font-black text-neutral-750 mt-0.5">
+                      ${projectStats.totalExpenses.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="p-2.5 bg-amber-50/40 rounded-lg border border-amber-150 text-center">
+                    <div className="text-[9px] text-amber-700 font-bold">💰 累計總支出</div>
+                    <div className="text-xs font-mono font-black text-amber-950 mt-0.5">
+                      ${projectStats.totalCost.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
             {/* Complete marker */}
@@ -1359,22 +1568,17 @@ export default function RecordForm({
           )}
         </div>
 
-        <div className="flex justify-end pt-1">
-          <button
-            type="button"
-            onClick={handleAddMaterialRow}
-            className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 hover:border-amber-300 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-3xs transition cursor-pointer"
-          >
-            <Plus size={14} className="text-amber-600" />
-            新增耗用材料
-          </button>
+        <div className="flex justify-between items-center pt-1.5 flex-wrap gap-2">
+          <p className="text-[10px] text-amber-800 bg-amber-50/60 border border-amber-200/50 px-2.5 py-1 rounded-md font-bold italic">
+            💡 系統已啟用智慧自動延展：在表格中填寫或點選大庫、推薦，將自動為您生成下一行空白材料列。
+          </p>
         </div>
 
-          {materials.length === 0 ? (
-            <div className="text-center py-7 border border-dashed border-neutral-200 rounded-xl bg-neutral-50/20 text-xs text-neutral-400">
-              今日工作無消耗倉庫材料，亦無附近緊急購買！若有使用，請點按上方大庫一鍵速選，或點按下方「新增耗用材料」登記。
-            </div>
-          ) : (
+        {materials.length === 0 ? (
+          <div className="text-center py-7 border border-dashed border-neutral-200 rounded-xl bg-neutral-50/20 text-xs text-neutral-400">
+            請點選上方大庫一鍵速選，或直接在下方空白列填寫。
+          </div>
+        ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs min-w-[650px]">
                 <thead>
@@ -1506,13 +1710,58 @@ export default function RecordForm({
                           {(!m.materialId || m.isNearbyPurchased) && (
                             <input
                               type="text"
-                              required
+                              required={!isMaterialRowEmpty(m)}
                               placeholder="請輸入自打材料品名 (如：廚房止水閥、軟管)"
                               value={m.name}
                               onChange={(e) => handleUpdateMaterialField(m.id, 'name', e.target.value)}
                               className="w-full px-2 py-1 border border-amber-200 focus:border-amber-400 focus:ring-1 focus:ring-amber-200 rounded text-xs bg-amber-50/10 placeholder-neutral-400 text-amber-900"
                             />
                           )}
+
+                          {/* 智慧防呆提醒 (針對退料與扣量進行案場歷史資料交叉比對) */}
+                          {(() => {
+                            if (isMaterialRowEmpty(m) || m.quantity >= 0) return null;
+                            
+                            const totalPrev = getHistoricalQuantityForMaterial(m);
+                            const materialDisplayName = m.materialId 
+                              ? (sortedMaterialsPreset.find(p => p.id === m.materialId)?.name || m.name)
+                              : m.name;
+                            
+                            if (totalPrev <= 0) {
+                              return (
+                                <div className="mt-1.5 p-2 bg-rose-50 border border-rose-200 rounded-lg text-[10px] text-rose-800 space-y-1 font-bold animate-pulse">
+                                  <div className="flex items-center gap-1 text-rose-700">
+                                    <AlertCircle size={12} className="flex-shrink-0 animate-bounce" />
+                                    <span>⚠️ 智慧防呆警示：此案場先前從未登記過此材料！</span>
+                                  </div>
+                                  <p className="font-normal leading-relaxed text-rose-700/90 pl-4.5 text-[9.5px]">
+                                    此案場歷史紀錄中並未登記使用過 <span className="underline font-black">{materialDisplayName}</span>。您是否誤選了別的材料品項？
+                                  </p>
+                                </div>
+                              );
+                            } else if (totalPrev + m.quantity < 0) {
+                              return (
+                                <div className="mt-1.5 p-2 bg-amber-50 border border-amber-200 rounded-lg text-[10px] text-amber-850 space-y-1 font-bold">
+                                  <div className="flex items-center gap-1 text-amber-700">
+                                    <AlertCircle size={12} className="flex-shrink-0" />
+                                    <span>⚠️ 智慧防呆提醒：退料數量大於此案場歷史累計！</span>
+                                  </div>
+                                  <p className="font-normal leading-relaxed text-amber-800/90 pl-4.5 text-[9.5px]">
+                                    此案場歷史累計僅帶入/耗用 <span className="font-mono font-bold text-amber-950">{totalPrev}</span> {m.unit}，但本次登記退料 <span className="font-mono font-bold text-rose-700">{-m.quantity}</span> {m.unit}，將使案場淨耗用變為負數 (<span className="font-mono font-bold text-rose-700">{totalPrev + m.quantity}</span> {m.unit})。請確認是否選錯材料或數量填寫錯誤！
+                                  </p>
+                                </div>
+                              );
+                            } else {
+                              return (
+                                <div className="mt-1.5 p-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-[10px] text-emerald-800 flex items-start gap-1 font-bold">
+                                  <ShieldCheck size={12} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                                  <p className="font-normal leading-normal text-emerald-800/90 text-[9.5px]">
+                                    🛡️ 歷史比對通過：此案場歷史曾帶入/耗用 <span className="font-mono font-bold">{totalPrev}</span> {m.unit}，退回後案場累計淨耗用為 <span className="font-mono font-bold">{totalPrev + m.quantity}</span> {m.unit}。
+                                  </p>
+                                </div>
+                              );
+                            }
+                          })()}
                         </div>
                       </td>
 
@@ -1521,13 +1770,18 @@ export default function RecordForm({
                         <div className="space-y-1">
                           <input
                             type="number"
-                            required
-                            min="0.1"
+                            required={!isMaterialRowEmpty(m)}
+                            min="-9999999"
                             step="any"
                             value={m.quantity}
                             onChange={(e) => handleUpdateMaterialField(m.id, 'quantity', parseFloat(e.target.value) || 0)}
-                            className="w-full px-2 py-1 border border-neutral-200 rounded text-xs text-neutral-750 font-mono text-center font-medium"
+                            className="w-full px-2 py-1 border border-neutral-200 rounded text-xs text-neutral-750 font-mono text-center font-medium focus:border-amber-400 focus:ring-1 focus:ring-amber-200"
                           />
+                          {m.quantity < 0 && (
+                            <div className="text-[9px] text-rose-700 bg-rose-50 border border-rose-200 px-1 py-0.5 rounded text-center font-bold scale-90 origin-center animate-pulse">
+                              ↩️ 退料 / 減耗登記
+                            </div>
+                          )}
                           {(() => {
                             if (!m.materialId) return null;
                             const preset = sortedMaterialsPreset.find(p => p.id === m.materialId);
@@ -1577,7 +1831,7 @@ export default function RecordForm({
                           return (
                             <input
                               type="text"
-                              required
+                              required={!isMaterialRowEmpty(m)}
                               placeholder="個/組/捲"
                               value={m.unit}
                               onChange={(e) => handleUpdateMaterialField(m.id, 'unit', e.target.value)}
@@ -1753,26 +2007,21 @@ export default function RecordForm({
 
         {/* SECTION 3: Labor times */}
         <section className="space-y-3">
-          <div className="flex items-center justify-between pb-1.5 border-b border-neutral-200">
+          <div className="flex items-center justify-between pb-1.5 border-b border-neutral-200 flex-wrap gap-2">
             <div className="flex items-center gap-1.5">
               <HardHat size={16} className="text-amber-600" />
               <h3 className="text-xs sm:text-sm font-extrabold text-neutral-850 font-sans">
                 三、 當日出勤派遣人員與各別工時填報
               </h3>
             </div>
-            <button
-              type="button"
-              onClick={handleAddWorkerRow}
-              className="px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 hover:border-amber-300 text-xs font-bold rounded-lg flex items-center gap-1"
-            >
-              <Plus size={12} />
-              派遣出勤工班
-            </button>
+            <p className="text-[10px] text-amber-800 bg-amber-50/60 border border-amber-200/50 px-2.5 py-1 rounded-md font-bold italic">
+              💡 智慧自動延展：選擇師傅或外部派工後，系統將自動展開下一空白行。
+            </p>
           </div>
 
           {workers.length === 0 ? (
             <div className="text-center py-7 border border-dashed border-neutral-200 rounded-xl bg-neutral-50/20 text-xs text-neutral-400">
-              暫無派遣人員出勤填報！請點按右上方「派遣出勤工班」登記出勤師傅、時數。
+              請直接在下方空白列中選擇出勤師傅或填寫外調人員。
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -1791,10 +2040,11 @@ export default function RecordForm({
                       {/* Worker Picker */}
                       <td className="py-3 px-3">
                         <select
-                          value={w.workerId}
+                          value={w.workerId || ''}
                           onChange={(e) => handleUpdateCrewWorkerType(w.id, e.target.value)}
                           className="w-full p-2 border border-neutral-200 rounded text-xs bg-white text-neutral-800 font-extrabold focus:border-amber-400 focus:ring-1 focus:ring-amber-200"
                         >
+                          <option value="">-- 🔍 請選擇出勤工班 / 人員 --</option>
                           <optgroup label="固定在職人員名單 (快速點選)">
                             {workersPreset
                               .filter(wp => wp.status !== '離職')
@@ -1825,7 +2075,7 @@ export default function RecordForm({
                           <div className="flex items-center gap-1">
                             <input
                               type="number"
-                              required
+                              required={!isWorkerRowEmpty(w)}
                               min="0.5"
                               step="0.5"
                               value={w.hoursWork}
@@ -1864,7 +2114,7 @@ export default function RecordForm({
                                 <label className="block text-[9px] font-black text-neutral-500 mb-0.5">👷 外聘派遣同仁姓名 *</label>
                                 <input
                                   type="text"
-                                  required
+                                  required={!isWorkerRowEmpty(w)}
                                   placeholder="請手填姓名 (如: 陳阿朋)"
                                   value={w.name}
                                   onChange={(e) => handleUpdateCrewSupportName(w.id, e.target.value)}
@@ -1892,7 +2142,7 @@ export default function RecordForm({
                                     <span className="absolute left-1.5 top-0.5 text-neutral-400 font-bold text-[9px]">$</span>
                                     <input
                                       type="number"
-                                      required
+                                      required={!isWorkerRowEmpty(w)}
                                       min="0"
                                       value={w.hourlyRate || 250}
                                       onChange={(e) => handleUpdateCrewSupportRate(w.id, Number(e.target.value) || 0)}
@@ -1912,7 +2162,7 @@ export default function RecordForm({
                                     <span className="absolute left-1.5 top-0.5 text-amber-500 font-bold text-[9px]">$</span>
                                     <input
                                       type="number"
-                                      required
+                                      required={!isWorkerRowEmpty(w)}
                                       min="0"
                                       value={w.billingHourlyRate ?? w.hourlyRate ?? 250}
                                       onChange={(e) => handleUpdateCrewSupportBillingRate(w.id, Number(e.target.value) || 0)}

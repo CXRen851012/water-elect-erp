@@ -1130,6 +1130,7 @@ export default function App() {
                   initialRecordToEdit={recordToEdit}
                   onCancel={() => { setShowRecordForm(false); setRecordToEdit(undefined); }}
                   setMaterialsPreset={setMaterials}
+                  records={records}
                 />
               </motion.div>
             ) : (

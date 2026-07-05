@@ -457,6 +457,33 @@ export default function BillingPanel({
         }
       });
 
+      // 4. 智慧「防呆提醒」材料警示：避免選錯材料 B 導致扣錯 (比對退料與扣量)
+      if (projectRecords.length > 0) {
+        const sortedRecords = [...projectRecords].sort((a, b) => a.date.localeCompare(b.date));
+        const runningTotals: Record<string, number> = {};
+
+        sortedRecords.forEach(r => {
+          (r.materials || []).forEach(m => {
+            const materialId = m.materialId;
+            const key = materialId ? `id_${materialId}` : `name_${(m.name || '').trim().toLowerCase()}`;
+            const displayName = m.name || (materialId ? (materialsPreset.find(preset => preset.id === materialId)?.name || '未指定') : '未命名');
+            const currentQty = m.quantity || 0;
+
+            if (currentQty < 0) {
+              const totalPrev = runningTotals[key] || 0;
+              if (totalPrev <= 0) {
+                priceWarnings.push(`↩️ 施工日誌 (${r.date}) 材料 [${displayName}] 發生退料警示：此案場先前從未登記過此材料！`);
+              } else if (totalPrev + currentQty < 0) {
+                priceWarnings.push(`↩️ 施工日誌 (${r.date}) 材料 [${displayName}] 發生退料警示：退料數量 (${-currentQty}) 大於先前歷史累計耗量 (${totalPrev})！`);
+              }
+            }
+
+            // Update running total
+            runningTotals[key] = (runningTotals[key] || 0) + currentQty;
+          });
+        });
+      }
+
       summaryMap[pId] = {
         id: pId,
         serialNumber: p.serialNumber,
@@ -765,7 +792,7 @@ export default function BillingPanel({
     onSaveToast(`💸 ${workerName} [${addAdvType === 'borrow' ? '預支' : '扣還'}] NT$ ${amount.toLocaleString()} 元登記完成！`);
     
     // reset states
-    setAddAdvWorkerId('');
+    // Keep the selected worker ID so the user can immediately see the updated records and stats in the filtered table
     setAddAdvAmount('');
     setAddAdvDescription('');
   };
@@ -2014,8 +2041,8 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                       {/* 警示按鈕與展開詳情控制 */}
                                       <div className="mt-2 flex flex-wrap gap-1.5">
                                         {hasWarnings && (
-                                          <div className="px-2 py-0.5 bg-rose-500/10 border border-rose-500/30 text-rose-450 rounded text-[9px] font-black flex items-center gap-1 animate-pulse">
-                                            ⚠️ 報價/成本警示 ({proj.priceWarnings.length})
+                                          <div className="px-2 py-0.5 bg-red-600/25 border-2 border-red-500 text-red-200 rounded-md text-[9.5px] font-black flex items-center gap-1 animate-pulse shadow-sm">
+                                            ⚠️ 異常預警 ({proj.priceWarnings.length})
                                           </div>
                                         )}
                                         
@@ -2282,14 +2309,15 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
 
                                             {/* ⚠️ 警示顯示 */}
                                             {hasWarnings ? (
-                                              <div className="bg-rose-950/20 border border-rose-500/20 p-3.5 rounded-xl space-y-2">
-                                                <div className="font-extrabold text-[11px] text-rose-400 flex items-center gap-1">
-                                                  <span>⚠️ 計價與成本對帳異常預警:</span>
+                                              <div className="bg-red-950/40 border-2 border-red-500 p-3.5 rounded-xl space-y-2.5 shadow-sm">
+                                                <div className="font-black text-[11px] text-red-300 flex items-center gap-1.5">
+                                                  <span className="text-xs">⚠️</span>
+                                                  <span>【工料與退料計價異常預警】({proj.priceWarnings.length} 項):</span>
                                                 </div>
-                                                <div className="pl-2 border-l border-rose-500/30 space-y-1.5 text-[10px] text-rose-200">
+                                                <div className="pl-2 border-l-2 border-red-500/50 space-y-1.5 text-[10px]">
                                                   {proj.priceWarnings.map((w, idx) => (
-                                                    <div key={idx} className="flex items-start gap-1">
-                                                      <span className="shrink-0">•</span>
+                                                    <div key={idx} className="flex items-start gap-1 bg-red-950/70 p-2 rounded-lg border border-red-800/40 text-red-100 font-bold leading-normal shadow-3xs">
+                                                      <span className="shrink-0 text-red-400 font-black">•</span>
                                                       <span>{w}</span>
                                                     </div>
                                                   ))}
@@ -3827,266 +3855,321 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
       {/* ---------------------------------------------------- */}
       {/* SECTION 5: WORKER ADVANCES AND LOANS MANAGEMENT */}
       {/* ---------------------------------------------------- */}
-      {activeSubTab === 'worker_advances' && (
-        <div className="space-y-6 animate-fadeIn">
-          {/* Quick Summary Widgets */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-slate-900 text-white p-4.5 rounded-xl border border-slate-950 shadow-3xs flex items-center gap-3.5">
-              <div className="p-3 bg-red-500/10 text-red-400 rounded-lg">
-                <DollarSign size={20} />
+      {activeSubTab === 'worker_advances' && (() => {
+        // Compute statistics for the selected worker using addAdvWorkerId directly
+        const filteredBorrowedTotal = addAdvWorkerId
+          ? workerAdvances
+              .filter(a => a.workerId === addAdvWorkerId && a.type === 'borrow')
+              .reduce((sum, a) => sum + a.amount, 0)
+          : 0;
+
+        const filteredRepaidTotal = addAdvWorkerId
+          ? workerAdvances
+              .filter(a => a.workerId === addAdvWorkerId && (a.type === 'repay' || a.status === 'settled'))
+              .reduce((sum, a) => sum + a.amount, 0)
+          : 0;
+
+        const filteredBalanceTotal = addAdvWorkerId
+          ? (workerAdvancesSummary[addAdvWorkerId]?.balance || 0)
+          : 0;
+
+        const displayedAdvances = addAdvWorkerId
+          ? workerAdvances.filter(adv => adv.workerId === addAdvWorkerId)
+          : [];
+
+        const selectedWorkerObj = workersPreset.find(w => w.id === addAdvWorkerId);
+
+        return (
+          <div className="space-y-6 animate-fadeIn">
+            {/* Quick Summary Widgets */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-slate-900 text-white p-4.5 rounded-xl border border-slate-950 shadow-3xs flex items-center gap-3.5">
+                <div className="p-3 bg-red-500/10 text-red-400 rounded-lg">
+                  <DollarSign size={20} />
+                </div>
+                <div className="font-sans">
+                  <span className="block text-[10px] font-bold text-slate-400 mb-0.5">累計預支借出總額</span>
+                  <span className="text-sm font-black font-mono text-red-400">
+                    {addAdvWorkerId 
+                      ? `NT$ ${filteredBorrowedTotal.toLocaleString()} 元` 
+                      : 'NT$ -- 元 (請選擇同仁)'}
+                  </span>
+                </div>
               </div>
-              <div className="font-sans">
-                <span className="block text-[10px] font-bold text-slate-400 mb-0.5">累計預支借出總額</span>
-                <span className="text-sm font-black font-mono text-red-400">
-                  NT$ {workerAdvances.filter(a => a.type === 'borrow').reduce((sum, a) => sum + a.amount, 0).toLocaleString()} 元
-                </span>
+
+              <div className="bg-slate-900 text-white p-4.5 rounded-xl border border-slate-950 shadow-3xs flex items-center gap-3.5">
+                <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-lg">
+                  <Check size={20} />
+                </div>
+                <div className="font-sans">
+                  <span className="block text-[10px] font-bold text-slate-400 mb-0.5">同仁已扣還薪總額</span>
+                  <span className="text-sm font-black font-mono text-emerald-400">
+                    {addAdvWorkerId 
+                      ? `NT$ ${filteredRepaidTotal.toLocaleString()} 元` 
+                      : 'NT$ -- 元 (請選擇同仁)'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-slate-900 text-white p-4.5 rounded-xl border border-slate-900 shadow-3xs flex items-center gap-3.5">
+                <div className="p-3 bg-amber-500/10 text-amber-500 rounded-lg">
+                  <Scale size={20} />
+                </div>
+                <div className="font-sans">
+                  <span className="block text-[10px] font-bold text-slate-400 mb-0.5">未沖抵同仁借款殘額 (待扣除)</span>
+                  <span className="text-sm font-black font-mono text-amber-500">
+                    {addAdvWorkerId 
+                      ? `NT$ ${filteredBalanceTotal.toLocaleString()} 元` 
+                      : 'NT$ -- 元 (請選擇同仁)'}
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="bg-slate-900 text-white p-4.5 rounded-xl border border-slate-950 shadow-3xs flex items-center gap-3.5">
-              <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-lg">
-                <Check size={20} />
-              </div>
-              <div className="font-sans">
-                <span className="block text-[10px] font-bold text-slate-400 mb-0.5">同仁已扣還薪總額</span>
-                <span className="text-sm font-black font-mono text-emerald-400">
-                  NT$ {workerAdvances.filter(a => a.type === 'repay' || a.status === 'settled').reduce((sum, a) => sum + a.amount, 0).toLocaleString()} 元
-                </span>
-              </div>
-            </div>
-
-            <div className="bg-slate-900 text-white p-4.5 rounded-xl border border-slate-900 shadow-3xs flex items-center gap-3.5">
-              <div className="p-3 bg-amber-500/10 text-amber-500 rounded-lg">
-                <Scale size={20} />
-              </div>
-              <div className="font-sans">
-                <span className="block text-[10px] font-bold text-slate-400 mb-0.5">未沖抵同仁借款殘額 (待扣除)</span>
-                <span className="text-sm font-black font-mono text-amber-500">
-                  NT$ {Object.values(workerAdvancesSummary).reduce((s, v: any) => s + v.balance, 0).toLocaleString()} 元
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Form for registering cash advances / loans */}
-            <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-3xs h-fit space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-neutral-100">
-                <Plus size={16} className="text-amber-500" />
-                <h4 className="text-xs sm:text-sm font-black text-neutral-800">登記同仁預支與還款</h4>
-              </div>
-
-              <form onSubmit={handleCreateWorkerAdvance} className="space-y-3 text-[11px]">
-                <div>
-                  <label className="block text-[11px] font-black text-neutral-600 mb-1">
-                    指定借貸/還款同仁 <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={addAdvWorkerId}
-                    onChange={(e) => setAddAdvWorkerId(e.target.value)}
-                    className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-800 font-bold"
-                    required
-                  >
-                    <option value="">-- 請選擇同仁 --</option>
-                    {workersPreset.map(w => (
-                      <option key={w.id} value={w.id}>👷 {w.name} {w.role ? `(${w.role})` : ''}</option>
-                    ))}
-                  </select>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Form for registering cash advances / loans */}
+              <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-3xs h-fit space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-neutral-100">
+                  <Plus size={16} className="text-amber-500" />
+                  <h4 className="text-xs sm:text-sm font-black text-neutral-800">登記同仁預支與還款</h4>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <form onSubmit={handleCreateWorkerAdvance} className="space-y-3 text-[11px]">
                   <div>
                     <label className="block text-[11px] font-black text-neutral-600 mb-1">
-                      記帳日期 <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={addAdvDate}
-                      onChange={(e) => setAddAdvDate(e.target.value)}
-                      className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white font-semibold"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-black text-neutral-600 mb-1">
-                      款項類型 <span className="text-red-500">*</span>
+                      指定借貸/還款同仁 <span className="text-red-500">*</span>
                     </label>
                     <select
-                      value={addAdvType}
-                      onChange={(e) => setAddAdvType(e.target.value as 'borrow' | 'repay')}
+                      value={addAdvWorkerId}
+                      onChange={(e) => setAddAdvWorkerId(e.target.value)}
                       className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-800 font-bold"
+                      required
                     >
-                      <option value="borrow">💸 預支借款 / 工事借用</option>
-                      <option value="repay">💵 領薪扣還 / 同仁還款</option>
+                      <option value="">-- 請選擇同仁 --</option>
+                      {workersPreset.map(w => (
+                        <option key={w.id} value={w.id}>👷 {w.name} {w.role ? `(${w.role})` : ''}</option>
+                      ))}
                     </select>
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-[11px] font-black text-neutral-600 mb-1">
-                    金額 (新台幣 NT) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    placeholder="如: 1500"
-                    value={addAdvAmount}
-                    onChange={(e) => setAddAdvAmount(e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 0))}
-                    className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs font-mono font-bold text-neutral-900 bg-amber-50/40"
-                    required
-                  />
-                  {/* 快速加計金額按鈕 (水電工程現場極速輸入) */}
-                  <div className="flex flex-wrap gap-1 mt-1.5">
-                    {[500, 1000, 2000, 3000, 5000].map(val => (
-                      <button
-                        key={val}
-                        type="button"
-                        onClick={() => {
-                          const current = Number(addAdvAmount) || 0;
-                          setAddAdvAmount(current + val);
-                        }}
-                        className="text-[9px] bg-neutral-100 hover:bg-neutral-200 text-neutral-700 px-2 py-0.5 rounded-md font-extrabold transition cursor-pointer"
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-black text-neutral-600 mb-1">
+                        記帳日期 <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={addAdvDate}
+                        onChange={(e) => setAddAdvDate(e.target.value)}
+                        className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white font-semibold"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-black text-neutral-600 mb-1">
+                        款項類型 <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={addAdvType}
+                        onChange={(e) => setAddAdvType(e.target.value as 'borrow' | 'repay')}
+                        className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-800 font-bold"
                       >
-                        +{val.toLocaleString()}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setAddAdvAmount('')}
-                      className="text-[9px] bg-rose-50 hover:bg-rose-100 text-rose-600 px-2 py-0.5 rounded-md font-bold transition cursor-pointer"
-                    >
-                      重置
-                    </button>
+                        <option value="borrow">💸 預支借款 / 工事借用</option>
+                        <option value="repay">💵 領薪扣還 / 同仁還款</option>
+                      </select>
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-[11px] font-black text-neutral-600 mb-1">
-                    備註事由說明 (推薦說明)
-                  </label>
-                  <textarea
-                    placeholder="如: 團體團購特種防爆五金工具、預支私人生活支借等事由。"
-                    value={addAdvDescription}
-                    onChange={(e) => setAddAdvDescription(e.target.value)}
-                    className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs h-18 resize-none bg-white text-neutral-800 font-medium"
-                  />
-                  {/* 快速事由事由快捷標籤 (免打字極速選取) */}
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {(addAdvType === 'borrow'
-                      ? ['生活急需支借', '購買電動工具代墊', '中途預支車馬費', '工事現場代墊']
-                      : ['薪資轉帳代扣償還', '同仁現場繳還現金', '材料退回款項扣抵']
-                    ).map(preset => (
+                  <div>
+                    <label className="block text-[11px] font-black text-neutral-600 mb-1">
+                      金額 (新台幣 NT) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="如: 1500"
+                      value={addAdvAmount}
+                      onChange={(e) => setAddAdvAmount(e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 0))}
+                      className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs font-mono font-bold text-neutral-900 bg-amber-50/40"
+                      required
+                    />
+                    {/* 快速加計金額按鈕 (水電工程現場極速輸入) */}
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {[500, 1000, 2000, 3000, 5000].map(val => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => {
+                            const current = Number(addAdvAmount) || 0;
+                            setAddAdvAmount(current + val);
+                          }}
+                          className="text-[9px] bg-neutral-100 hover:bg-neutral-200 text-neutral-700 px-2 py-0.5 rounded-md font-extrabold transition cursor-pointer"
+                        >
+                          +{val.toLocaleString()}
+                        </button>
+                      ))}
                       <button
-                        key={preset}
                         type="button"
-                        onClick={() => setAddAdvDescription(preset)}
-                        className="text-[9px] bg-amber-50 hover:bg-amber-100 text-amber-850 hover:border-amber-400 px-1.5 py-0.5 rounded border border-amber-200/50 font-bold transition cursor-pointer"
+                        onClick={() => setAddAdvAmount('')}
+                        className="text-[9px] bg-rose-50 hover:bg-rose-100 text-rose-600 px-2 py-0.5 rounded-md font-bold transition cursor-pointer"
                       >
-                        📌 {preset}
+                        重置
                       </button>
-                    ))}
+                    </div>
                   </div>
-                </div>
 
-                <button
-                  type="submit"
-                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md mt-2 flex items-center justify-center gap-1 cursor-pointer"
-                >
-                  <Check size={14} className="stroke-[2.5]" />
-                  安全確認登記送出
-                </button>
-              </form>
-            </div>
+                  <div>
+                    <label className="block text-[11px] font-black text-neutral-600 mb-1">
+                      備註事由說明 (推薦說明)
+                    </label>
+                    <textarea
+                      placeholder="如: 團體團購特種防爆五金工具、預支私人生活支借等事由。"
+                      value={addAdvDescription}
+                      onChange={(e) => setAddAdvDescription(e.target.value)}
+                      className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs h-18 resize-none bg-white text-neutral-800 font-medium"
+                    />
+                    {/* 快速事由事由快捷標籤 (免打字極速選取) */}
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {(addAdvType === 'borrow'
+                        ? ['生活急需支借', '購買電動工具代墊', '中途預支車馬費', '工事現場代墊']
+                        : ['薪資轉帳代扣償還', '同仁現場繳還現金', '材料退回款項扣抵']
+                      ).map(preset => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setAddAdvDescription(preset)}
+                          className="text-[9px] bg-amber-50 hover:bg-amber-100 text-amber-850 hover:border-amber-400 px-1.5 py-0.5 rounded border border-amber-200/50 font-bold transition cursor-pointer"
+                        >
+                          📌 {preset}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-            {/* List / Table of raw advances */}
-            <div className="bg-white rounded-2xl border border-neutral-200 shadow-3xs overflow-hidden lg:col-span-2 space-y-4">
-              <div className="px-5 py-4 border-b border-neutral-100 flex items-center justify-between">
-                <h4 className="text-xs sm:text-sm font-black text-neutral-800 flex items-center gap-1.5">
-                  <DollarSign size={16} className="text-rose-500" />
-                  預支借貸與還薪沖扣明細流水簿 (工班借支往來)
-                </h4>
-                <span className="text-[10px] font-mono bg-neutral-100 text-neutral-600 px-2.5 py-1 rounded font-bold">
-                  共 {workerAdvances.length} 筆明細往來
-                </span>
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md mt-2 flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <Check size={14} className="stroke-[2.5]" />
+                    安全確認登記送出
+                  </button>
+                </form>
               </div>
 
-              {workerAdvances.length === 0 ? (
-                <div className="text-center py-12 italic text-neutral-400 text-xs">
-                  目前尚無任何預支借款與還薪扣抵明細。
+              {/* List / Table of raw advances */}
+              <div className="bg-white rounded-2xl border border-neutral-200 shadow-3xs overflow-hidden lg:col-span-2 space-y-4">
+                <div className="px-5 py-4 border-b border-neutral-100 flex items-center justify-between">
+                  <h4 className="text-xs sm:text-sm font-black text-neutral-800 flex items-center gap-1.5">
+                    <DollarSign size={16} className="text-rose-500" />
+                    <span>
+                      {selectedWorkerObj 
+                        ? `👷 【${selectedWorkerObj.name}】預支與扣還明細往來流水簿` 
+                        : '預支借貸與還薪沖扣明細流水簿 (工班借支往來)'}
+                    </span>
+                  </h4>
+                  <span className="text-[10px] font-mono bg-neutral-100 text-neutral-600 px-2.5 py-1 rounded font-bold">
+                    單一篩選共 {displayedAdvances.length} 筆明細
+                  </span>
                 </div>
-              ) : (
-                <div className="overflow-x-auto max-h-[450px]">
-                  <table className="w-full text-left border-collapse text-[11px]">
-                    <thead>
-                      <tr className="bg-neutral-50 text-neutral-500 uppercase tracking-wider text-[10px] font-bold border-b border-neutral-200">
-                        <th className="py-2.5 px-4">對帳日期</th>
-                        <th className="py-2.5 px-4">同仁姓名</th>
-                        <th className="py-2.5 px-4">款項性質</th>
-                        <th className="py-2.5 px-4 text-right">交易金額</th>
-                        <th className="py-2.5 px-4">事由備份</th>
-                        <th className="py-2.5 px-4">財務核銷狀態</th>
-                        <th className="py-2.5 px-4 text-center">操作</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-150">
-                      {workerAdvances.map(adv => (
-                        <tr key={adv.id} className="hover:bg-neutral-50/50">
-                          <td className="py-3 px-4 font-mono font-bold text-neutral-600 whitespace-nowrap">{adv.date}</td>
-                          <td className="py-3 px-4 font-black text-neutral-800 whitespace-nowrap">{adv.workerName}</td>
-                          <td className="py-3 px-4 whitespace-nowrap">
-                            {adv.type === 'borrow' ? (
-                              <span className="text-red-700 font-extrabold bg-red-100/60 px-2 py-0.5 rounded text-[10px]">
-                                💸 預支借用
-                              </span>
-                            ) : (
-                              <span className="text-emerald-700 font-extrabold bg-emerald-100/60 px-2 py-0.5 rounded text-[10px]">
-                                💵 薪資扣還
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-extrabold text-neutral-950 text-xs whitespace-nowrap">
-                            ${adv.amount.toLocaleString()} 元
-                          </td>
-                          <td className="py-3 px-4 text-neutral-500 max-w-[150px] truncate" title={adv.description}>
-                            {adv.description}
-                          </td>
-                          <td className="py-3 px-4 whitespace-nowrap">
-                            {adv.status === 'settled' ? (
-                              <button
-                                onClick={() => toggleAdvanceStatus(adv.id)}
-                                className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full hover:bg-emerald-100 transition text-[9px] cursor-pointer"
-                              >
-                                ● 已抵扣核銷完結
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => toggleAdvanceStatus(adv.id)}
-                                className="text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded-full hover:bg-amber-100 transition text-[9px] cursor-pointer"
-                                title="點擊快速變更為已算薪抵扣完成"
-                              >
-                                ● 待薪資扣除沖抵
-                              </button>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-center whitespace-nowrap">
-                            <button
-                              onClick={() => handleDeleteWorkerAdvance(adv.id)}
-                              className="text-neutral-400 hover:text-red-600 p-1 cursor-pointer"
-                              title="刪除紀錄"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </td>
+
+                {!addAdvWorkerId ? (
+                  <div className="text-center py-16 px-6 space-y-3">
+                    <div className="mx-auto w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
+                      <Users size={20} />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs font-black text-slate-800">⚠️ 預設不顯示任何人員資料</p>
+                      <p className="text-[10.5px] text-slate-500 max-w-sm mx-auto leading-relaxed">
+                        為避免敏感財務資訊暴露，此處預設不主動載入任何同仁資料。請於左側登記表單之「指定借貸/還款同仁」中選擇人員，以利單獨對帳與借貸金額之精準計算。
+                      </p>
+                    </div>
+                  </div>
+                ) : displayedAdvances.length === 0 ? (
+                  <div className="text-center py-16 px-6 space-y-3">
+                    <div className="mx-auto w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                      <DollarSign size={20} />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs font-black text-slate-800">該同仁目前無借還款紀錄</p>
+                      <p className="text-[10.5px] text-slate-500 max-w-sm mx-auto leading-relaxed">
+                        同仁 【{selectedWorkerObj?.name}】 目前尚未登記任何預支借款或薪資扣還明細。您可以於左側表單為其建立新筆交易。
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto max-h-[450px]">
+                    <table className="w-full text-left border-collapse text-[11px]">
+                      <thead>
+                        <tr className="bg-neutral-50 text-neutral-500 uppercase tracking-wider text-[10px] font-bold border-b border-neutral-200">
+                          <th className="py-2.5 px-4">對帳日期</th>
+                          <th className="py-2.5 px-4">同仁姓名</th>
+                          <th className="py-2.5 px-4">款項性質</th>
+                          <th className="py-2.5 px-4 text-right">交易金額</th>
+                          <th className="py-2.5 px-4">事由備份</th>
+                          <th className="py-2.5 px-4">財務核銷狀態</th>
+                          <th className="py-2.5 px-4 text-center">操作</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                      </thead>
+                      <tbody className="divide-y divide-neutral-150">
+                        {displayedAdvances.map(adv => (
+                          <tr key={adv.id} className="hover:bg-neutral-50/50">
+                            <td className="py-3 px-4 font-mono font-bold text-neutral-600 whitespace-nowrap">{adv.date}</td>
+                            <td className="py-3 px-4 font-black text-neutral-800 whitespace-nowrap">{adv.workerName}</td>
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              {adv.type === 'borrow' ? (
+                                <span className="text-red-700 font-extrabold bg-red-100/60 px-2 py-0.5 rounded text-[10px]">
+                                  💸 預支借用
+                                </span>
+                              ) : (
+                                <span className="text-emerald-700 font-extrabold bg-emerald-100/60 px-2 py-0.5 rounded text-[10px]">
+                                  💵 薪資扣還
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right font-mono font-extrabold text-neutral-950 text-xs whitespace-nowrap">
+                              ${adv.amount.toLocaleString()} 元
+                            </td>
+                            <td className="py-3 px-4 text-neutral-500 max-w-[150px] truncate" title={adv.description}>
+                              {adv.description}
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              {adv.status === 'settled' ? (
+                                <button
+                                  onClick={() => toggleAdvanceStatus(adv.id)}
+                                  className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full hover:bg-emerald-100 transition text-[9px] cursor-pointer"
+                                >
+                                  ● 已抵扣核銷完結
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => toggleAdvanceStatus(adv.id)}
+                                  className="text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded-full hover:bg-amber-100 transition text-[9px] cursor-pointer"
+                                  title="點擊快速變更為已算薪抵扣完成"
+                                >
+                                  ● 待薪資扣除沖抵
+                                </button>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              <button
+                                onClick={() => handleDeleteWorkerAdvance(adv.id)}
+                                className="text-neutral-400 hover:text-red-600 p-1 cursor-pointer"
+                                title="刪除紀錄"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ---------------------------------------------------- */}
       {/* SECTION 6: PETTY CASH MANAGEMENT (COINS) */}
