@@ -1216,6 +1216,7 @@ export default function BillingPanel({
     let materialsCost = 0; 
     let materialsActualCost = 0; 
     let laborCost = 0;
+    let laborBillingCost = 0;
     let expensesCost = 0;
     let totalHours = 0;
     
@@ -1223,6 +1224,7 @@ export default function BillingPanel({
       const isClientBilled = !r.internalCostOnly;
       if (isClientBilled) {
         materialsCost += r.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+        laborBillingCost += r.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
       }
       materialsActualCost += r.materials.reduce((sum, m) => sum + ((m.costPrice !== undefined ? m.costPrice : m.unitPrice) * m.quantity), 0);
       laborCost += r.workers.reduce((sum, w) => sum + (w.hourlyRate * w.hoursWork), 0);
@@ -1242,13 +1244,16 @@ export default function BillingPanel({
     let pettyCashExpense = 0;
     filteredPettyCash.forEach(t => {
       if (t.type === 'income') {
-        pettyCashIncome += t.amount;
+        // Exclude 'fund_in' (公司存入) from profit analysis income
+        if (t.category !== 'fund_in') {
+          pettyCashIncome += t.amount;
+        }
       } else if (t.type === 'expense') {
         pettyCashExpense += t.amount;
       }
     });
 
-    const grandTotal = materialsCost + laborCost + expensesCost + pettyCashIncome; 
+    const grandTotal = materialsCost + laborBillingCost + expensesCost + pettyCashIncome; 
     const grandActualCost = materialsActualCost + laborCost + expensesCost + pettyCashExpense; 
     const profitAmount = grandTotal - grandActualCost; 
     const profitMargin = grandTotal > 0 ? Math.round((profitAmount / grandTotal) * 100) : 0;
@@ -1257,6 +1262,7 @@ export default function BillingPanel({
       materialsCost,
       materialsActualCost,
       laborCost,
+      laborBillingCost,
       expensesCost,
       totalHours,
       pettyCashIncome,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Worker, EmergencyContact, SalaryAdjustment } from '../types';
 import { 
   Plus, Trash2, Edit, HardHat, Phone, Mail, CreditCard, MapPin, 
@@ -65,6 +65,12 @@ export default function WorkersPanel({
       return ['專業師傅', '水電工頭', '半技工', '技術工', '粗工/助手', '學徒/助理', '臨時支援'];
     }
   });
+
+  useEffect(() => {
+    if (!newWorkerRole && workerRoles.length > 0) {
+      setNewWorkerRole(workerRoles[0]);
+    }
+  }, [workerRoles, newWorkerRole]);
 
   const saveWorkerRoles = (newRoles: string[]) => {
     setWorkerRoles(newRoles);
@@ -424,7 +430,7 @@ export default function WorkersPanel({
   // Start special promoting or salary adjustments
   const handleStartAdjustment = (w: Worker) => {
     setAdjustingWorkerId(w.id);
-    setAdjNewRole(''); // 預設空白，讓主管可以自由填寫或點選下方快選
+    setAdjNewRole(w.role || workerRoles[0] || ''); // 預設為現有職稱或第一個快選職稱
     setAdjNewRate(w.defaultHourlyRate);
     setAdjReason('配合能力提升調整薪級/認證職稱');
     setAdjType('both');
@@ -505,19 +511,17 @@ export default function WorkersPanel({
 
             <div>
               <label className="block text-[10px] text-neutral-400 font-bold mb-1">派工職稱 / 階級</label>
-              <input
-                type="text"
-                list="new-worker-roles"
+              <select
                 value={newWorkerRole}
                 onChange={(e) => setNewWorkerRole(e.target.value)}
-                placeholder="例如: 專業師傅"
-                className="w-full px-3 py-2 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white font-semibold focus:border-[#D4AF37] focus:outline-none placeholder-neutral-500"
-              />
-              <datalist id="new-worker-roles">
+                className="w-full px-3 py-2 border border-[#3A3A3A] rounded-lg text-xs bg-[#252525] text-white font-semibold focus:border-[#D4AF37] focus:outline-none"
+                required
+              >
+                <option value="" disabled>請選擇職稱 / 階級</option>
                 {workerRoles.map(r => (
-                  <option key={r} value={r} />
+                  <option key={r} value={r}>{r}</option>
                 ))}
-              </datalist>
+              </select>
               <div className="mt-1 flex justify-end">
                 <button
                   type="button"
@@ -1188,19 +1192,17 @@ export default function WorkersPanel({
                         </div>
                         <div>
                           <label className="block text-[10px] text-neutral-500 font-bold mb-0.5">目前職稱 / 階級</label>
-                          <input
-                            type="text"
-                            list="edit-worker-roles"
+                          <select
                             value={editWorkerRole}
                             onChange={(e) => setEditWorkerRole(e.target.value)}
-                            placeholder="例如: 半技工 (可自行命名)"
-                            className="w-full px-2 py-1 border border-neutral-200 rounded text-xs bg-white text-neutral-808 font-bold focus:border-amber-500 focus:outline-none"
-                          />
-                          <datalist id="edit-worker-roles">
+                            className="w-full px-2 py-1 border border-neutral-200 rounded text-xs bg-white text-neutral-800 font-bold focus:border-amber-500 focus:outline-none"
+                            required
+                          >
+                            <option value="" disabled>請選擇目前職稱 / 階級</option>
                             {workerRoles.map(r => (
-                              <option key={r} value={r} />
+                              <option key={r} value={r}>{r}</option>
                             ))}
-                          </datalist>
+                          </select>
                         </div>
                       </div>
 
@@ -1547,19 +1549,17 @@ export default function WorkersPanel({
                       {(adjType === 'both' || adjType === 'role') && (
                         <div>
                           <label className="block text-[10px] text-neutral-400 mb-0.5">晉升/變更後職稱</label>
-                          <input
-                            type="text"
-                            list="adj-worker-roles"
+                          <select
                             value={adjNewRole}
                             onChange={(e) => setAdjNewRole(e.target.value)}
-                            placeholder="例如: 資深技術大工 (可自行命名)"
-                            className="w-full px-2 py-1.5 border border-indigo-200 rounded text-xs bg-white text-neutral-808 font-bold focus:border-indigo-500 focus:outline-none"
-                          />
-                          <datalist id="adj-worker-roles">
+                            className="w-full px-2 py-1.5 border border-indigo-200 rounded text-xs bg-white text-neutral-800 font-bold focus:border-indigo-500 focus:outline-none"
+                            required
+                          >
+                            <option value="" disabled>請選擇晉升/變更後職稱</option>
                             {workerRoles.map(r => (
-                              <option key={r} value={r} />
+                              <option key={r} value={r}>{r}</option>
                             ))}
-                          </datalist>
+                          </select>
                         </div>
                       )}
 

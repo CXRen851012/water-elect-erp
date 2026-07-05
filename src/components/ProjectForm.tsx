@@ -299,6 +299,12 @@ export default function ProjectForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (customerMode === 'existing' && !selectedClient) {
+      alert('請先在搜尋結果中點選欲載入的已有客戶！若要手動輸入，請切換至「手補全新客戶」設定。');
+      return;
+    }
+
     if (!companyOrOwner.trim() || !fullAddress.trim()) {
       alert('請填打必填欄位！');
       return;
@@ -566,10 +572,10 @@ export default function ProjectForm({
               </label>
               <input
                 type="text"
-                placeholder="例如：安捷設計、張先生"
+                placeholder={customerMode === 'existing' ? "請在上方搜尋並點選已有客戶自動帶入..." : "例如：安捷設計、張先生"}
                 value={companyOrOwner}
                 onChange={(e) => setCompanyOrOwner(e.target.value)}
-                disabled={customerMode === 'existing' && selectedClient !== null}
+                disabled={customerMode === 'existing'}
                 className="w-full px-3 py-1.5 border border-[#D4AF37]/25 rounded-lg !text-[#E0E0E0] !bg-[#121212] font-medium placeholder-[#8C8C8C]/80 disabled:opacity-60 disabled:!bg-[#1D1D1D] disabled:!text-[#8C8C8C] disabled:border-[#D4AF37]/10 outline-none focus:border-[#D4AF37]"
                 required
               />
