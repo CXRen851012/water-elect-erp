@@ -153,6 +153,10 @@ export default function RecordForm({
     return (!w.workerId || w.workerId === '') && (!w.name || w.name.trim() === '');
   };
 
+  const isExpenseRowEmpty = (e: RecordExpense) => {
+    return (!e.amount || e.amount === 0) && (!e.description || e.description.trim() === '');
+  };
+
   // 智慧自動延展：確保至少有一個空白材料列供使用者點選/輸入
   useEffect(() => {
     const hasEmpty = materials.some(isMaterialRowEmpty);
@@ -187,6 +191,48 @@ export default function RecordForm({
       setWorkers(prev => [...prev, item]);
     }
   }, [workers]);
+
+  // 智慧自動延展：確保案場內開銷與非案場營運各至少有一個空白列供使用者點選/輸入
+  useEffect(() => {
+    setCustomExpenses(prev => {
+      const projectExpenses = prev.filter(e => e.isProjectExpense !== false);
+      const companyExpenses = prev.filter(e => e.isProjectExpense === false);
+
+      const hasEmptyProject = projectExpenses.some(isExpenseRowEmpty);
+      const hasEmptyCompany = companyExpenses.some(isExpenseRowEmpty);
+
+      if (hasEmptyProject && hasEmptyCompany) {
+        return prev;
+      }
+
+      let updated = false;
+      const newCustomExpenses = [...prev];
+
+      if (!hasEmptyProject) {
+        newCustomExpenses.push({
+          id: `exp-project-placeholder-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          type: 'other',
+          description: '',
+          amount: 0,
+          isProjectExpense: true
+        });
+        updated = true;
+      }
+
+      if (!hasEmptyCompany) {
+        newCustomExpenses.push({
+          id: `exp-company-placeholder-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          type: 'other',
+          description: '',
+          amount: 0,
+          isProjectExpense: false
+        });
+        updated = true;
+      }
+
+      return updated ? newCustomExpenses : prev;
+    });
+  }, [customExpenses]);
 
   // Compute Project Context & History stats for "案場脈絡關聯"
   const projectStats = React.useMemo(() => {
@@ -318,60 +364,11 @@ export default function RecordForm({
         id: m.id || `mat-loaded-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`
       })));
 
-      // Extract meal and parking from expenses if they exist
-      const mealExp = initialRecordToEdit.expenses.find(e => e.type === 'meal' && e.isProjectExpense !== false);
-      if (mealExp) {
-        setMealAmount(mealExp.amount);
-        setMealDesc(mealExp.description);
-      } else {
-        const legacyMeal = initialRecordToEdit.expenses.find(e => e.type === 'meal' && e.isProjectExpense === undefined);
-        if (legacyMeal) {
-          setMealAmount(legacyMeal.amount);
-          setMealDesc(legacyMeal.description);
-        } else {
-          setMealAmount(0);
-          setMealDesc('');
-        }
-      }
-
-      const mealGenExp = initialRecordToEdit.expenses.find(e => e.type === 'meal' && e.isProjectExpense === false);
-      if (mealGenExp) {
-        setGeneralMealAmount(mealGenExp.amount);
-        setGeneralMealDesc(mealGenExp.description);
-      } else {
-        setGeneralMealAmount(0);
-        setGeneralMealDesc('');
-      }
-
-      const parkExp = initialRecordToEdit.expenses.find(e => e.type === 'parking' && e.isProjectExpense !== false);
-      if (parkExp) {
-        setParkingAmount(parkExp.amount);
-        setParkingDesc(parkExp.description);
-      } else {
-        const legacyPark = initialRecordToEdit.expenses.find(e => e.type === 'parking' && e.isProjectExpense === undefined);
-        if (legacyPark) {
-          setParkingAmount(legacyPark.amount);
-          setParkingDesc(legacyPark.description);
-        } else {
-          setParkingAmount(0);
-          setParkingDesc('');
-        }
-      }
-
-      const parkGenExp = initialRecordToEdit.expenses.find(e => e.type === 'parking' && e.isProjectExpense === false);
-      if (parkGenExp) {
-        setGeneralParkingAmount(parkGenExp.amount);
-        setGeneralParkingDesc(parkGenExp.description);
-      } else {
-        setGeneralParkingAmount(0);
-        setGeneralParkingDesc('');
-      }
-
-      // Filter out standard ones to load custom blanks and ensure unique IDs
-      const otherExps = initialRecordToEdit.expenses.filter(e => e.type !== 'meal' && e.type !== 'parking');
-      setCustomExpenses(otherExps.map((ex, idx) => ({
+      // Load all expenses directly into customExpenses
+      setCustomExpenses((initialRecordToEdit.expenses || []).map((ex, idx) => ({
         ...ex,
-        id: ex.id || `exp-loaded-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`
+        id: ex.id || `exp-loaded-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
+        isProjectExpense: ex.isProjectExpense !== false // default to true
       })));
 
       // Load workers and ensure unique IDs
@@ -974,6 +971,23 @@ export default function RecordForm({
     setCustomExpenses(prev => prev.map(ex => ex.id === rowId ? { ...ex, [key]: value } : ex));
   };
 
+  const handleTypeChange = (exId: string, newType: string, currentDesc: string) => {
+    setCustomExpenses(prev => prev.map(ex => {
+      if (ex.id !== exId) return ex;
+      const standardLabels = ['', '停車', '加油', '伙食', '設備', '五金', '其他'];
+      let newDesc = ex.description;
+      if (standardLabels.includes(currentDesc.trim())) {
+        if (newType === 'parking') newDesc = '停車';
+        else if (newType === 'fuel') newDesc = '加油';
+        else if (newType === 'meal') newDesc = '伙食';
+        else if (newType === 'tool') newDesc = '設備';
+        else if (newType === 'hardware') newDesc = '五金';
+        else if (newType === 'other') newDesc = '';
+      }
+      return { ...ex, type: newType, description: newDesc };
+    }));
+  };
+
   const handleRemoveCustomExpenseRow = (rowId: string) => {
     setCustomExpenses(prev => prev.filter(ex => ex.id !== rowId));
   };
@@ -997,58 +1011,18 @@ export default function RecordForm({
       return;
     }
 
-    // Assemble final expenses array (meals, parking, and custom extras)
+    // Assemble final expenses array
     const finalExpensesList: RecordExpense[] = [];
     
-    if (mealAmount > 0) {
-      finalExpensesList.push({
-        id: `exp-meal-${Date.now()}`,
-        type: 'meal',
-        description: mealDesc.trim() || '當日午晚餐伙食費',
-        amount: mealAmount,
-        isProjectExpense: true
-      });
-    }
-
-    if (generalMealAmount > 0) {
-      finalExpensesList.push({
-        id: `exp-gmeal-${Date.now()}`,
-        type: 'meal',
-        description: generalMealDesc.trim() || '行政/非案場伙食費',
-        amount: generalMealAmount,
-        isProjectExpense: false
-      });
-    }
-
-    if (parkingAmount > 0) {
-      finalExpensesList.push({
-        id: `exp-parking-${Date.now()}`,
-        type: 'parking',
-        description: parkingDesc.trim() || '現場車輛停靠/過路車馬資',
-        amount: parkingAmount,
-        isProjectExpense: true
-      });
-    }
-
-    if (generalParkingAmount > 0) {
-      finalExpensesList.push({
-        id: `exp-gparking-${Date.now()}`,
-        type: 'parking',
-        description: generalParkingDesc.trim() || '通勤/一般交通出開銷',
-        amount: generalParkingAmount,
-        isProjectExpense: false
-      });
-    }
-
     // Filter valid custom expenses (exclude empty name/price)
     customExpenses.forEach(ce => {
-      if (ce.amount > 0 || ce.description.trim() !== '') {
+      if (!isExpenseRowEmpty(ce)) {
         finalExpensesList.push({
-          id: ce.id,
-          type: ce.type,
-          description: ce.description.trim() || '其他現場雜費支出',
-          amount: ce.amount,
-          isProjectExpense: ce.isProjectExpense ?? true
+          id: ce.id.includes('placeholder') ? `exp-${Date.now()}-${Math.random().toString(36).substr(2, 4)}` : ce.id,
+          type: ce.type || 'other',
+          description: ce.description.trim(),
+          amount: ce.amount || 0,
+          isProjectExpense: ce.isProjectExpense !== false
         });
       }
     });
@@ -2289,7 +2263,7 @@ export default function RecordForm({
               <h3 className="text-xs sm:text-sm font-extrabold text-neutral-850">四、 案場及公司開銷雜費填報 (分為「算在案場內」與「非案場營運」)</h3>
             </div>
             <p className="text-[10px] text-neutral-400 mt-1 leading-normal italic">
-              * 提示：算在案場內的開銷將列入報表向客戶估算或對帳；非案場一般餐飲與通用車馬費則不計入該專案對外帳目。
+              * 提示：算在案場內的開銷將列入報表向客戶估算或對帳；非案場一般餐飲與通用車馬費則不計入該專案對外帳目。本欄位採用空白列預載與自動展延，並可快速指定細帳分類。
             </p>
           </div>
 
@@ -2306,107 +2280,61 @@ export default function RecordForm({
                   className="px-2 py-0.5 bg-amber-600 text-white hover:bg-amber-700 text-[9px] font-black rounded flex items-center gap-0.5 shadow-3xs"
                 >
                   <Plus size={10} />
-                  新增案場代墊
+                  手動新增一列
                 </button>
               </div>
 
-              {/* Site Meal */}
-              <div className="space-y-1.5 p-2 bg-white rounded border border-neutral-200 text-xs">
-                <span className="font-extrabold text-neutral-700 flex items-center gap-1">🍱 案場施工伙食飲料</span>
-                <div className="grid grid-cols-12 gap-2">
-                  <div className="col-span-4">
-                    <span className="text-[9px] text-neutral-400 font-bold block">金額 ($)</span>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={mealAmount || ''}
-                      onChange={(e) => setMealAmount(parseInt(e.target.value, 10) || 0)}
-                      className="w-full p-1 border border-neutral-200 rounded font-mono font-bold"
-                    />
-                  </div>
-                  <div className="col-span-8">
-                    <span className="text-[9px] text-neutral-400 font-bold block">說明 / 備註</span>
+              <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+                {customExpenses.filter(ce => ce.isProjectExpense !== false).map((ex) => (
+                  <div key={ex.id} className="p-2 bg-white rounded border border-amber-100 flex items-center gap-1.5 text-[11px] hover:border-amber-300 transition-all">
+                    {/* Category Select Dropdown */}
+                    <select
+                      value={ex.type || 'other'}
+                      onChange={(e) => handleTypeChange(ex.id, e.target.value, ex.description)}
+                      className="w-24 p-1 border border-neutral-200 rounded text-[10px] bg-white text-neutral-700 font-medium"
+                    >
+                      <option value="parking">🅿️ 停車</option>
+                      <option value="fuel">⛽ 加油</option>
+                      <option value="meal">🍱 伙食</option>
+                      <option value="tool">⚙️ 設備</option>
+                      <option value="hardware">🔧 五金</option>
+                      <option value="other">💬 其他</option>
+                    </select>
+
+                    {/* Description Text Input */}
                     <input
                       type="text"
-                      placeholder="如：案場午餐及飲料"
-                      value={mealDesc}
-                      onChange={(e) => setMealDesc(e.target.value)}
-                      className="w-full p-1 border border-neutral-200 rounded"
+                      placeholder="說明 / 備註..."
+                      value={ex.description}
+                      onChange={(e) => handleUpdateCustomExpenseField(ex.id, 'description', e.target.value)}
+                      className="flex-1 p-1 border border-neutral-200 rounded text-[10px]"
                     />
-                  </div>
-                </div>
-              </div>
 
-              {/* Site Parking */}
-              <div className="space-y-1.5 p-2 bg-white rounded border border-neutral-200 text-xs">
-                <span className="font-extrabold text-neutral-700 flex items-center gap-1">🅿️ 案場停車與過路費</span>
-                <div className="grid grid-cols-12 gap-2">
-                  <div className="col-span-4">
-                    <span className="text-[9px] text-neutral-400 font-bold block">金額 ($)</span>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={parkingAmount || ''}
-                      onChange={(e) => setParkingAmount(parseInt(e.target.value, 10) || 0)}
-                      className="w-full p-1 border border-neutral-200 rounded font-mono font-bold"
-                    />
-                  </div>
-                  <div className="col-span-8">
-                    <span className="text-[9px] text-neutral-400 font-bold block">說明 / 備註</span>
-                    <input
-                      type="text"
-                      placeholder="如：案場地下停車費"
-                      value={parkingDesc}
-                      onChange={(e) => setParkingDesc(e.target.value)}
-                      className="w-full p-1 border border-neutral-200 rounded"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Custom Site Expenses */}
-              {customExpenses.filter(ce => ce.isProjectExpense !== false).length > 0 && (
-                <div className="space-y-1.5 pt-2 border-t border-dashed border-amber-200">
-                  <span className="text-[9px] font-black text-amber-800 block">其他自填案場代墊費用：</span>
-                  {customExpenses.filter(ce => ce.isProjectExpense !== false).map(ex => (
-                    <div key={ex.id} className="p-2 bg-white rounded border border-amber-100 flex items-center gap-1.5 text-[11px]">
-                      <select
-                        value={ex.type}
-                        onChange={(e) => handleUpdateCustomExpenseField(ex.id, 'type', e.target.value)}
-                        className="w-24 p-0.5 border border-neutral-200 rounded text-[10px] bg-white text-neutral-700"
-                      >
-                        <option value="other">💬 現場耗雜</option>
-                        <option value="tool">🔨 臨時五金</option>
-                        <option value="fuel">⛽ 施工車油</option>
-                      </select>
-                      <input
-                        type="text"
-                        placeholder="項目描述..."
-                        value={ex.description}
-                        onChange={(e) => handleUpdateCustomExpenseField(ex.id, 'description', e.target.value)}
-                        className="flex-1 p-0.5 border border-neutral-200 rounded text-[10px]"
-                      />
+                    {/* Amount Input */}
+                    <div className="flex items-center gap-0.5">
+                      <span className="text-[10px] text-neutral-400 font-mono">$</span>
                       <input
                         type="number"
                         min="0"
-                        placeholder="金額"
+                        placeholder="0"
                         value={ex.amount || ''}
                         onChange={(e) => handleUpdateCustomExpenseField(ex.id, 'amount', parseInt(e.target.value, 10) || 0)}
-                        className="w-14 p-0.5 border border-neutral-200 rounded text-[10px] font-mono font-black text-center"
+                        className="w-16 p-1 border border-neutral-200 rounded text-[10px] font-mono font-black text-center text-amber-900"
                       />
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveCustomExpenseRow(ex.id)}
-                        className="p-1 hover:bg-neutral-100 text-neutral-400 hover:text-red-500 rounded"
-                      >
-                        <Trash2 size={11} />
-                      </button>
                     </div>
-                  ))}
-                </div>
-              )}
+
+                    {/* Delete Icon */}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCustomExpenseRow(ex.id)}
+                      className="p-1 hover:bg-neutral-100 text-neutral-400 hover:text-red-500 rounded transition-colors"
+                      title="刪除此列"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* COLUMN 2: Non-project (非案場開銷) */}
@@ -2421,107 +2349,61 @@ export default function RecordForm({
                   className="px-2 py-0.5 bg-neutral-600 text-white hover:bg-neutral-700 text-[9px] font-black rounded flex items-center gap-0.5 shadow-3xs"
                 >
                   <Plus size={10} />
-                  新增公司自理
+                  手動新增一列
                 </button>
               </div>
 
-              {/* General Meal */}
-              <div className="space-y-1.5 p-2 bg-white rounded border border-neutral-200 text-xs">
-                <span className="font-extrabold text-neutral-700 flex items-center gap-1">🍱 營運辦公伙食交通</span>
-                <div className="grid grid-cols-12 gap-2">
-                  <div className="col-span-4">
-                    <span className="text-[9px] text-neutral-400 font-bold block">金額 ($)</span>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={generalMealAmount || ''}
-                      onChange={(e) => setGeneralMealAmount(parseInt(e.target.value, 10) || 0)}
-                      className="w-full p-1 border border-neutral-200 rounded font-mono font-bold text-neutral-600"
-                    />
-                  </div>
-                  <div className="col-span-8">
-                    <span className="text-[9px] text-neutral-400 font-bold block">說明 / 備註</span>
+              <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+                {customExpenses.filter(ce => ce.isProjectExpense === false).map((ex) => (
+                  <div key={ex.id} className="p-2 bg-white rounded border border-neutral-200 flex items-center gap-1.5 text-[11px] hover:border-neutral-350 transition-all">
+                    {/* Category Select Dropdown */}
+                    <select
+                      value={ex.type || 'other'}
+                      onChange={(e) => handleTypeChange(ex.id, e.target.value, ex.description)}
+                      className="w-24 p-1 border border-neutral-200 rounded text-[10px] bg-white text-neutral-600 font-medium"
+                    >
+                      <option value="parking">🅿️ 停車</option>
+                      <option value="fuel">⛽ 加油</option>
+                      <option value="meal">🍱 伙食</option>
+                      <option value="tool">⚙️ 設備</option>
+                      <option value="hardware">🔧 五金</option>
+                      <option value="other">💬 其他</option>
+                    </select>
+
+                    {/* Description Text Input */}
                     <input
                       type="text"
-                      placeholder="如：內部會議餐盒"
-                      value={generalMealDesc}
-                      onChange={(e) => setGeneralMealDesc(e.target.value)}
-                      className="w-full p-1 border border-neutral-200 rounded text-neutral-600"
+                      placeholder="說明 / 備註..."
+                      value={ex.description}
+                      onChange={(e) => handleUpdateCustomExpenseField(ex.id, 'description', e.target.value)}
+                      className="flex-1 p-1 border border-neutral-200 rounded text-[10px] text-neutral-600"
                     />
-                  </div>
-                </div>
-              </div>
 
-              {/* General Parking */}
-              <div className="space-y-1.5 p-2 bg-white rounded border border-neutral-200 text-xs">
-                <span className="font-extrabold text-neutral-700 flex items-center gap-1">🅿️ 一般通勤與公務停車</span>
-                <div className="grid grid-cols-12 gap-2">
-                  <div className="col-span-4">
-                    <span className="text-[9px] text-neutral-400 font-bold block">金額 ($)</span>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={generalParkingAmount || ''}
-                      onChange={(e) => setGeneralParkingAmount(parseInt(e.target.value, 10) || 0)}
-                      className="w-full p-1 border border-neutral-200 rounded font-mono font-bold text-neutral-600"
-                    />
-                  </div>
-                  <div className="col-span-8">
-                    <span className="text-[9px] text-neutral-400 font-bold block">說明 / 備註</span>
-                    <input
-                      type="text"
-                      placeholder="如：公司公務車一般加油"
-                      value={generalParkingDesc}
-                      onChange={(e) => setGeneralParkingDesc(e.target.value)}
-                      className="w-full p-1 border border-neutral-200 rounded text-neutral-600"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Custom General Expenses */}
-              {customExpenses.filter(ce => ce.isProjectExpense === false).length > 0 && (
-                <div className="space-y-1.5 pt-2 border-t border-dashed border-neutral-350">
-                  <span className="text-[9px] font-black text-neutral-600 block">其他自理及一般營運代墊：</span>
-                  {customExpenses.filter(ce => ce.isProjectExpense === false).map(ex => (
-                    <div key={ex.id} className="p-2 bg-white rounded border border-neutral-200 flex items-center gap-1.5 text-[11px]">
-                      <select
-                        value={ex.type}
-                        onChange={(e) => handleUpdateCustomExpenseField(ex.id, 'type', e.target.value)}
-                        className="w-24 p-0.5 border border-neutral-200 rounded text-[10px] bg-white text-neutral-700"
-                      >
-                        <option value="other">💬 一般營運</option>
-                        <option value="fuel">⛽ 一般車油</option>
-                        <option value="tool">🔨 辦公器具</option>
-                      </select>
-                      <input
-                        type="text"
-                        placeholder="項目描述..."
-                        value={ex.description}
-                        onChange={(e) => handleUpdateCustomExpenseField(ex.id, 'description', e.target.value)}
-                        className="flex-1 p-0.5 border border-neutral-200 rounded text-[10px] text-neutral-600"
-                      />
+                    {/* Amount Input */}
+                    <div className="flex items-center gap-0.5">
+                      <span className="text-[10px] text-neutral-400 font-mono">$</span>
                       <input
                         type="number"
                         min="0"
-                        placeholder="金額"
+                        placeholder="0"
                         value={ex.amount || ''}
                         onChange={(e) => handleUpdateCustomExpenseField(ex.id, 'amount', parseInt(e.target.value, 10) || 0)}
-                        className="w-14 p-0.5 border border-neutral-200 rounded text-[10px] font-mono font-black text-center text-neutral-600"
+                        className="w-16 p-1 border border-neutral-200 rounded text-[10px] font-mono font-black text-center text-neutral-600"
                       />
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveCustomExpenseRow(ex.id)}
-                        className="p-1 hover:bg-neutral-100 text-neutral-400 hover:text-red-500 rounded"
-                      >
-                        <Trash2 size={11} />
-                      </button>
                     </div>
-                  ))}
-                </div>
-              )}
+
+                    {/* Delete Icon */}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCustomExpenseRow(ex.id)}
+                      className="p-1 hover:bg-neutral-100 text-neutral-450 hover:text-red-500 rounded transition-colors"
+                      title="刪除此列"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </section>

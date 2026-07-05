@@ -211,9 +211,10 @@ export interface PettyCashTransaction {
   date: string;           // 收支日期 YYYY-MM-DD
   type: 'income' | 'expense'; // income: 提撥/收/補進零用金, expense: 支出/買雜物
   amount: number;         // 金額
-  category: 'feed' | 'tool' | 'parking' | 'fuel' | 'fund_in' | 'other'; // 分類
+  category: 'feed' | 'tool' | 'parking' | 'fuel' | 'fund_in' | 'hardware' | 'other'; // 分類
   projectNameOrId?: string; // 關聯案場
   description: string;   // 詳細說明
   payerName?: string;     // 經手人/支付人姓名
+  sourceRecordId?: string; // 來源工務日誌ID
   createdAt: string;
 }

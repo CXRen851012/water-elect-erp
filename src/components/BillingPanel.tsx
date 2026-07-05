@@ -244,10 +244,11 @@ export default function BillingPanel({
   const [addPcDate, setAddPcDate] = useState<string>(new Date().toISOString().substring(0, 10));
   const [addPcType, setAddPcType] = useState<'income' | 'expense'>('expense');
   const [addPcAmount, setAddPcAmount] = useState<number | ''>('');
-  const [addPcCategory, setAddPcCategory] = useState<'feed' | 'tool' | 'parking' | 'fuel' | 'fund_in' | 'other'>('feed');
+  const [addPcCategory, setAddPcCategory] = useState<'feed' | 'tool' | 'parking' | 'fuel' | 'fund_in' | 'other' | 'hardware'>('feed');
   const [addPcPayer, setAddPcPayer] = useState<string>('');
   const [addPcProjId, setAddPcProjId] = useState<string>('');
   const [addPcDescription, setAddPcDescription] = useState<string>('');
+  const [pettyCashCategoryFilter, setPettyCashCategoryFilter] = useState<string>('all');
 
   // 統一專案顯示名稱格式化 (確保一體性)
   const getProjectDisplayName = (p: Project): string => {
@@ -835,7 +836,7 @@ export default function BillingPanel({
       date: addPcDate,
       type: addPcType,
       amount,
-      category: addPcType === 'income' ? 'fund_in' : addPcCategory,
+      category: addPcCategory,
       projectNameOrId: addPcProjId || undefined,
       description: addPcDescription.trim(),
       payerName: addPcPayer.trim() || undefined,
@@ -1192,6 +1193,24 @@ export default function BillingPanel({
     }).sort((a, b) => b.date.localeCompare(a.date));
   }, [records, projects, reportSelectedProjectId, reportStartDate, reportEndDate, reportSearchQuery]);
 
+  // Filtered petty cash transactions based on report UI configurations
+  const filteredPettyCash = useMemo(() => {
+    return (pettyCashTransactions || []).filter(t => {
+      if (reportStartDate && t.date < reportStartDate) return false;
+      if (reportEndDate && t.date > reportEndDate) return false;
+      if (reportSelectedProjectId !== 'all' && t.projectNameOrId !== reportSelectedProjectId) return false;
+      
+      if (reportSearchQuery.trim() !== '') {
+        const query = reportSearchQuery.toLowerCase();
+        const matchesDesc = t.description.toLowerCase().includes(query);
+        const matchesCategory = t.category.toLowerCase().includes(query);
+        const matchesPayer = t.payerName?.toLowerCase().includes(query) || false;
+        return matchesDesc || matchesCategory || matchesPayer;
+      }
+      return true;
+    });
+  }, [pettyCashTransactions, reportStartDate, reportEndDate, reportSelectedProjectId, reportSearchQuery]);
+
   // Financial aggregates (UNLOCKED & ALWAYS ACCESSIBLE)
   const reportStats = useMemo(() => {
     let materialsCost = 0; 
@@ -1218,10 +1237,21 @@ export default function BillingPanel({
       return r.expenses;
     }
 
-    const grandTotal = materialsCost + laborCost + expensesCost; 
-    const grandActualCost = materialsActualCost + laborCost + expensesCost; 
+    // Incorporate petty cash
+    let pettyCashIncome = 0;
+    let pettyCashExpense = 0;
+    filteredPettyCash.forEach(t => {
+      if (t.type === 'income') {
+        pettyCashIncome += t.amount;
+      } else if (t.type === 'expense') {
+        pettyCashExpense += t.amount;
+      }
+    });
+
+    const grandTotal = materialsCost + laborCost + expensesCost + pettyCashIncome; 
+    const grandActualCost = materialsActualCost + laborCost + expensesCost + pettyCashExpense; 
     const profitAmount = grandTotal - grandActualCost; 
-    const profitMargin = grandTotal > 0 ? Math.round((profitAmount / grandTotal) * 105) : 0; // optimized factor
+    const profitMargin = grandTotal > 0 ? Math.round((profitAmount / grandTotal) * 100) : 0;
 
     return {
       materialsCost,
@@ -1229,31 +1259,34 @@ export default function BillingPanel({
       laborCost,
       expensesCost,
       totalHours,
+      pettyCashIncome,
+      pettyCashExpense,
       grandTotal,
       grandActualCost,
       profitAmount,
       profitMargin: profitMargin > 100 ? 100 : profitMargin,
       recordCount: filteredRecords.length
     };
-  }, [filteredRecords]);
+  }, [filteredRecords, filteredPettyCash]);
 
   // Aggregate data for Recharts Pie Chart (Cost proportions)
   const pieChartData = useMemo(() => {
     return [
       { name: '材料大宗成本', value: reportStats.materialsActualCost, color: '#f59e0b' },
       { name: '工班時數支出', value: reportStats.laborCost, color: '#0ea5e9' },
-      { name: '伙食及車馬開支', value: reportStats.expensesCost, color: '#ef4444' }
+      { name: '伙食及車馬開支', value: reportStats.expensesCost, color: '#ef4444' },
+      { name: '零用金簿支出', value: reportStats.pettyCashExpense, color: '#ec4899' }
     ].filter(item => item.value > 0);
   }, [reportStats]);
 
   // Aggregate data for Recharts Bar Chart (Expenses by Project)
   const projectComparisonData = useMemo(() => {
-    const projMap: { [key: string]: { name: string, materials: number, labor: number, expenses: number } } = {};
+    const projMap: { [key: string]: { name: string, materials: number, labor: number, expenses: number, pettyCash: number } } = {};
     
     filteredRecords.forEach(r => {
       const name = r.projectName.split('-')[1] || r.projectName.split('-')[0] || r.projectName;
       if (!projMap[r.projectId]) {
-        projMap[r.projectId] = { name, materials: 0, labor: 0, expenses: 0 };
+        projMap[r.projectId] = { name, materials: 0, labor: 0, expenses: 0, pettyCash: 0 };
       }
       
       projMap[r.projectId].materials += r.materials.reduce((sum, m) => sum + (((m.costPrice !== undefined ? m.costPrice : m.unitPrice) * m.quantity)), 0);
@@ -1261,8 +1294,31 @@ export default function BillingPanel({
       projMap[r.projectId].expenses += r.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
     });
 
+    // Also associate project-specific petty cash transactions (expenses only)
+    filteredPettyCash.forEach(t => {
+      if (t.type === 'expense' && t.projectNameOrId) {
+        const pId = t.projectNameOrId;
+        if (!projMap[pId]) {
+          const matchedProj = projects.find(p => p.id === pId);
+          let name = '其他專案';
+          if (matchedProj) {
+            const nameParts = (matchedProj.generatedName || matchedProj.companyOrOwner).split('-');
+            if (nameParts.length >= 4 && nameParts[1] !== '0000') {
+              const company = nameParts[1] || '';
+              const site = nameParts[3] || '';
+              name = site ? `${company} (${site})` : company;
+            } else {
+              name = matchedProj.companyOrOwner;
+            }
+          }
+          projMap[pId] = { name, materials: 0, labor: 0, expenses: 0, pettyCash: 0 };
+        }
+        projMap[pId].pettyCash += t.amount;
+      }
+    });
+
     return Object.values(projMap);
-  }, [filteredRecords]);
+  }, [filteredRecords, filteredPettyCash, projects]);
 
   // Copy standard reports formatted optimally for corporate LINE messenger groups - SENSITIVE WAGE HOURLY RATE HIDDEN!
   const handleCopyReporterLine = (record: DailyRecord) => {
@@ -1733,6 +1789,52 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
 
     return Object.values(summaryMap);
   }, [attendanceList, workerAdvancesSummary, workersPreset]);
+
+
+  // Calculate company-wide financial metrics for the selected period
+  const totalPeriodCashReceived = useMemo(() => {
+    // 1. Transactions in period (filtered by project & date)
+    let list = [...transactions];
+    if (reportSelectedProjectId !== 'all') {
+      list = list.filter(t => t.projectNameOrId === reportSelectedProjectId);
+    }
+    const periodTxReceived = list.filter(t => {
+      if (reportStartDate && t.date < reportStartDate) return false;
+      if (reportEndDate && t.date > reportEndDate) return false;
+      return t.allocationType !== 'round_adjustment';
+    }).reduce((sum, t) => sum + t.amount, 0);
+
+    // 2. Direct site collections in filtered records
+    const periodSiteCollected = filteredRecords.reduce((sum, r) => sum + (r.collectedAmount || 0), 0);
+
+    return periodTxReceived + periodSiteCollected;
+  }, [transactions, reportStartDate, reportEndDate, reportSelectedProjectId, filteredRecords]);
+
+  const companyTotalOutstanding = useMemo(() => {
+    return projectSummariesList.reduce((sum, p) => sum + p.outstandingBalance, 0);
+  }, [projectSummariesList]);
+
+  const analyzedProjects = useMemo(() => {
+    let list = [...projectSummariesList];
+
+    // Filter by project dropdown
+    if (reportSelectedProjectId !== 'all') {
+      list = list.filter(p => p.id === reportSelectedProjectId);
+    }
+
+    // Filter by text search query
+    if (reportSearchQuery.trim() !== '') {
+      const query = reportSearchQuery.toLowerCase();
+      list = list.filter(p => 
+        p.name.toLowerCase().includes(query) || 
+        p.clientName.toLowerCase().includes(query) || 
+        (p.companyOrOwner && p.companyOrOwner.toLowerCase().includes(query)) ||
+        p.serialNumber.toLowerCase().includes(query)
+      );
+    }
+
+    return list;
+  }, [projectSummariesList, reportSelectedProjectId, reportSearchQuery]);
 
 
   return (
@@ -2825,15 +2927,144 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
       {activeSubTab === 'operating_analytics' && (
         <div className="space-y-6">
           
+          {/* 🔍 營運分析與利潤精算專用過濾面板 */}
+          <div className="bg-[#1E1E1E] border border-[#2D2D2D] p-5 rounded-2xl shadow-xl space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between pb-3 border-b border-[#2C2C2C] gap-3">
+              <div className="flex items-center gap-2">
+                <Filter className="text-[#D4AF37] shrink-0" size={18} />
+                <div>
+                  <h4 className="text-sm font-black text-white">📅 當期利潤分析與公司營運篩選大盤</h4>
+                  <p className="text-[10px] text-neutral-400">設定起始與結束日期以精算「當期/整月」的公司收益與各別案場成本</p>
+                </div>
+              </div>
+              
+              {/* Quick Preset Buttons */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => {
+                    const d = new Date();
+                    const year = d.getFullYear();
+                    const month = d.getMonth();
+                    const firstDay = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+                    const lastDayDate = new Date(year, month + 1, 0);
+                    const lastDay = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDayDate.getDate()).padStart(2, '0')}`;
+                    setReportStartDate(firstDay);
+                    setReportEndDate(lastDay);
+                  }}
+                  className="px-2.5 py-1.5 text-[11px] font-black rounded-lg bg-[#2D2D2D] text-amber-400 border border-[#3D3D3D] hover:bg-[#3D3D3D] transition-all cursor-pointer"
+                >
+                  📅 統計本月
+                </button>
+                <button
+                  onClick={() => {
+                    const d = new Date();
+                    d.setMonth(d.getMonth() - 1);
+                    const year = d.getFullYear();
+                    const month = d.getMonth();
+                    const firstDay = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+                    const lastDayDate = new Date(year, month + 1, 0);
+                    const lastDay = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDayDate.getDate()).padStart(2, '0')}`;
+                    setReportStartDate(firstDay);
+                    setReportEndDate(lastDay);
+                  }}
+                  className="px-2.5 py-1.5 text-[11px] font-black rounded-lg bg-[#2D2D2D] text-neutral-300 border border-[#3D3D3D] hover:bg-[#3D3D3D] transition-all cursor-pointer"
+                >
+                  📅 統計上月
+                </button>
+                <button
+                  onClick={() => {
+                    setReportStartDate('');
+                    setReportEndDate('');
+                  }}
+                  className="px-2.5 py-1.5 text-[11px] font-black rounded-lg bg-[#2D2D2D] text-neutral-300 border border-[#3D3D3D] hover:bg-[#3D3D3D] transition-all cursor-pointer"
+                >
+                  🌐 累計至今
+                </button>
+                
+                {/* Reset filters */}
+                {(reportSelectedProjectId !== 'all' || reportStartDate !== '' || reportEndDate !== '' || reportSearchQuery !== '') && (
+                  <button
+                    onClick={() => {
+                      setReportSelectedProjectId('all');
+                      setReportStartDate('');
+                      setReportEndDate('');
+                      setReportSearchQuery('');
+                    }}
+                    className="px-2.5 py-1.5 text-[11px] font-black rounded-lg bg-rose-950/40 text-rose-300 border border-rose-900/40 hover:bg-rose-900/40 transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <RefreshCw size={11} />
+                    重設篩選
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+              {/* Project Select */}
+              <div>
+                <label className="block text-[11px] font-extrabold text-neutral-400 mb-1">對口工地案場</label>
+                <select
+                  value={reportSelectedProjectId}
+                  onChange={(e) => setReportSelectedProjectId(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-[#3D3D3D] rounded-lg bg-[#252525] text-[#E0E0E0] font-medium"
+                >
+                  <option value="all" className="bg-[#1E1E1E]">所有工地案場 (不限)</option>
+                  {projects.map(p => (
+                    <option key={p.id} value={p.id} className="bg-[#1E1E1E]">
+                      {p.isCompleted ? '【已完】' : '【施工】'} {getProjectDisplayName(p)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Start Date */}
+              <div>
+                <label className="block text-[11px] font-extrabold text-neutral-400 mb-1">起始日期</label>
+                <input
+                  type="date"
+                  value={reportStartDate}
+                  onChange={(e) => setReportStartDate(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-[#3D3D3D] rounded-lg bg-[#252525] text-[#E0E0E0] font-medium"
+                />
+              </div>
+
+              {/* End Date */}
+              <div>
+                <label className="block text-[11px] font-extrabold text-neutral-400 mb-1">結束日期</label>
+                <input
+                  type="date"
+                  value={reportEndDate}
+                  onChange={(e) => setReportEndDate(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-[#3D3D3D] rounded-lg bg-[#252525] text-[#E0E0E0] font-medium"
+                />
+              </div>
+
+              {/* Text Search */}
+              <div>
+                <label className="block text-[11px] font-extrabold text-neutral-400 mb-1">原料/工人名/備註檢索</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="輸入南亞管、陳師傅..."
+                    value={reportSearchQuery}
+                    onChange={(e) => setReportSearchQuery(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 border border-[#3D3D3D] rounded-lg bg-[#252525] text-[#E0E0E0] font-medium placeholder-neutral-500"
+                  />
+                  <Search className="absolute left-2.5 top-2 text-neutral-500" size={12} />
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* KPI Dashboard Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             
             <div className="bg-white p-4.5 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3.5">
               <div className="p-3 bg-indigo-50 rounded-lg text-indigo-600">
                 <Coins size={22} />
               </div>
               <div>
-                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">對外估算總值 (牌價小計)</span>
+                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">當期預估收入 (牌價總款)</span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-base sm:text-lg font-black text-neutral-900 font-mono">
                     NT$ {reportStats.grandTotal.toLocaleString()}
@@ -2841,7 +3072,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   <span className="text-[10px] text-neutral-400">元</span>
                 </div>
                 <span className="text-[9px] text-neutral-400 block">
-                  含耗材出廠牌價與工酬
+                  含耗材牌價、工酬與零用金收益
                 </span>
               </div>
             </div>
@@ -2851,7 +3082,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                 <Wallet size={22} />
               </div>
               <div>
-                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">對內工程總支出 (實際成本)</span>
+                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">當期工程總支出 (實際成本)</span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-base sm:text-lg font-black text-neutral-900 font-mono">
                     NT$ {reportStats.grandActualCost.toLocaleString()}
@@ -2859,7 +3090,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   <span className="text-[10px] text-neutral-400">元</span>
                 </div>
                 <span className="text-[9px] text-amber-700 block font-bold">
-                  含材料進價成本與工資
+                  含材料進價、實發工資與營運雜支
                 </span>
               </div>
             </div>
@@ -2869,7 +3100,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                 <UserCheck size={22} />
               </div>
               <div>
-                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">預估工程淨利潤</span>
+                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">當期預估工程淨利潤</span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-base sm:text-lg font-black text-emerald-700 font-mono">
                     NT$ {reportStats.profitAmount.toLocaleString()}
@@ -2877,25 +3108,43 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   <span className="text-[10px] text-emerald-600 font-bold">元</span>
                 </div>
                 <span className="text-[9px] text-emerald-600 block font-bold">
-                  毛利率：{reportStats.profitMargin}% (精算利潤)
+                  利潤率：{reportStats.profitMargin}% (精算毛利)
                 </span>
               </div>
             </div>
 
             <div className="bg-white p-4.5 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3.5">
-              <div className="p-3 bg-sky-50 rounded-lg text-sky-600">
-                <Clock size={22} />
+              <div className="p-3 bg-teal-50 rounded-lg text-teal-600">
+                <DollarSign size={22} />
               </div>
               <div>
-                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">累計派遣出勤總工時</span>
+                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">當期實際收現 (已到款)</span>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-base sm:text-lg font-black text-neutral-900 font-mono">
-                    {reportStats.totalHours}
+                  <span className="text-base sm:text-lg font-black text-teal-700 font-mono">
+                    NT$ {totalPeriodCashReceived.toLocaleString()}
                   </span>
-                  <span className="text-xs text-neutral-500 font-bold">小時</span>
+                  <span className="text-[10px] text-teal-600 font-bold">元</span>
                 </div>
-                <span className="text-[9px] text-neutral-400 block">
-                  累計施工：{reportStats.recordCount} 個工作日誌
+                <span className="text-[9px] text-teal-600 block font-bold">
+                  含當期實收公款與現場直收
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-white p-4.5 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3.5">
+              <div className="p-3 bg-rose-50 rounded-lg text-rose-600">
+                <AlertCircle size={22} />
+              </div>
+              <div>
+                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">全案累計待收款 (應收未收)</span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-base sm:text-lg font-black text-rose-700 font-mono">
+                    NT$ {companyTotalOutstanding.toLocaleString()}
+                  </span>
+                  <span className="text-[10px] text-rose-600 font-bold">元</span>
+                </div>
+                <span className="text-[9px] text-rose-600 block font-bold">
+                  未結清之工程餘款與尾款總額
                 </span>
               </div>
             </div>
@@ -2923,16 +3172,16 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* 1. 總收入 (Income) */}
               <div className="p-4 bg-indigo-950/40 border border-indigo-500/20 rounded-xl space-y-1">
-                <span className="text-[10px] font-bold text-indigo-400 block pb-1 border-b border-indigo-500/10">📈 總預估工程收入 (牌價總款)</span>
+                <span className="text-[10px] font-bold text-indigo-400 block pb-1 border-b border-indigo-500/10">📈 當期預估工程收入 (牌價總款)</span>
                 <div className="text-xl font-mono font-black text-indigo-300">NT$ {reportStats.grandTotal.toLocaleString()} 元</div>
-                <p className="text-[9px] text-indigo-400">以當期施工用料及派遣工酬對外牌價之加總值</p>
+                <p className="text-[9px] text-indigo-400">當期施工用料及派遣工酬對外牌價之加總值</p>
               </div>
 
               {/* 2. 總支出 (Expenses) */}
               <div className="p-4 bg-orange-950/40 border border-orange-500/20 rounded-xl space-y-1">
-                <span className="text-[10px] font-bold text-orange-400 block pb-1 border-b border-orange-500/10">📉 總工程支出 (實際工料成本)</span>
+                <span className="text-[10px] font-bold text-orange-400 block pb-1 border-b border-orange-500/10">📉 當期工程支出 (實際工料成本)</span>
                 <div className="text-xl font-mono font-black text-orange-300">NT$ {reportStats.grandActualCost.toLocaleString()} 元</div>
-                <p className="text-[9px] text-orange-400">材料進口底價成本 + 師傅實際出勤薪資總酬</p>
+                <p className="text-[9px] text-orange-400">材料進價成本 + 師傅實際出勤薪資與零用金</p>
               </div>
 
               {/* 3. 代收款 (Collections on site) */}
@@ -2965,7 +3214,14 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     data={projectSummariesList.map(p => {
                       // Gather site direct collected for this single project
                       const siteCol = filteredRecords.filter(r => r.projectId === p.id).reduce((s, r) => s + (r.collectedAmount || 0), 0);
-                      const profit = p.selectedBilledBasis - p.actualConstructionCost;
+                      
+                      // Gather project-specific petty cash expenses
+                      const projPettyCashExpense = (filteredPettyCash || [])
+                        .filter(t => t.type === 'expense' && t.projectNameOrId === p.id)
+                        .reduce((sum, t) => sum + t.amount, 0);
+
+                      const totalCost = p.actualConstructionCost + projPettyCashExpense;
+                      const profit = p.selectedBilledBasis - totalCost;
 
                       // Extract a beautiful short display name for the chart x-axis
                       const nameParts = p.name.split('-');
@@ -2990,7 +3246,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                       return {
                         name: shortName || '案場',
                         '預估收入 (牌價)': p.selectedBilledBasis,
-                        '工程實際成本': p.actualConstructionCost, // 修正：此處應使用 actualConstructionCost 實際成本，而非請款牌價
+                        '工程實際成本': totalCost,
                         '現場直收代收款': siteCol,
                         '實收工程款': p.receivedPayment,
                         '專案預估淨利': profit // 新增：利潤分析必備的淨利潤指標
@@ -3006,6 +3262,8 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                       contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '8px' }}
                       itemStyle={{ fontSize: '11px', fontWeight: 'bold' }}
                       labelStyle={{ color: '#ffffff', fontWeight: 'bold', fontSize: '12px' }}
+                      cursor={false}
+                      formatter={(value, name) => [`NT$ ${value.toLocaleString()}元`, name]}
                     />
                     <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
                     <Bar dataKey="預估收入 (牌價)" fill="#D4AF37" stroke="#AA7C11" radius={[3, 3, 0, 0]} maxBarSize={30} />
@@ -3050,7 +3308,12 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                               <Cell key={`cell-${index}`} fill={entry.color} />
                             ))}
                           </Pie>
-                          <Tooltip formatter={(value) => [`NT$ ${value.toLocaleString()}元`, '']} />
+                          <Tooltip
+                            formatter={(value, name) => [`NT$ ${value.toLocaleString()}元`, name]}
+                            contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '8px' }}
+                            itemStyle={{ fontSize: '11px', fontWeight: 'bold' }}
+                            labelStyle={{ color: '#ffffff', fontWeight: 'bold', fontSize: '12px' }}
+                          />
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
@@ -3085,11 +3348,18 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="name" tick={{ fontSize: 9 }} />
                       <YAxis tick={{ fontSize: 9 }} />
-                      <Tooltip formatter={(value) => [`NT$ ${value.toLocaleString()}元`, '']} />
+                      <Tooltip
+                        formatter={(value, name) => [`NT$ ${value.toLocaleString()}元`, name]}
+                        contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '8px' }}
+                        itemStyle={{ fontSize: '11px', fontWeight: 'bold' }}
+                        labelStyle={{ color: '#ffffff', fontWeight: 'bold', fontSize: '12px' }}
+                        cursor={false}
+                      />
                       <Legend wrapperStyle={{ fontSize: '10px' }} />
                       <Bar dataKey="materials" name="材料成本支出" fill="#D4AF37" stackId="a" maxBarSize={35} />
                       <Bar dataKey="labor" name="工資支出" fill="#9C804B" stackId="a" maxBarSize={35} />
                       <Bar dataKey="expenses" name="現場報支支出" fill="#7F6C4C" stackId="a" maxBarSize={35} />
+                      <Bar dataKey="pettyCash" name="零用金簿支出" fill="#ec4899" stackId="a" maxBarSize={35} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -3098,9 +3368,150 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
             </div>
           ) : (
             <div className="p-8 bg-neutral-50 rounded-xl border border-neutral-200 text-center italic text-neutral-400 text-xs">
-              ⚠️ 請先在左側過濾器重新選取其他日期範圍，目前查無匹配的直條圖形統計。
+              ⚠️ 請先在上方過濾器重新選取其他日期範圍，目前查無匹配的直條圖形統計。
             </div>
           )}
+
+          {/* 📋 各案場財務精算與累積利潤明細表 */}
+          <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-3xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-neutral-100 gap-2">
+              <div className="flex items-center gap-2">
+                <ClipboardList className="text-amber-500 shrink-0" size={18} />
+                <div>
+                  <h4 className="text-sm font-black text-neutral-800">📋 各案場財務精算與累積利潤明細表</h4>
+                  <p className="text-[10px] text-neutral-400">整合合約總值、用料成本、出勤同仁薪資與零用金支出，即時監控利潤與收付款狀態</p>
+                </div>
+              </div>
+              <div className="text-xs text-neutral-500 font-bold font-mono">
+                共 {analyzedProjects.length} 個案場
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[1000px]">
+                <thead>
+                  <tr className="border-b border-neutral-100 bg-neutral-50/50 text-[11px] font-extrabold text-neutral-400 uppercase tracking-wider">
+                    <th className="py-3 px-4 text-left">案場編號 / 名稱</th>
+                    <th className="py-3 px-4 text-right">對外總報價 (A)</th>
+                    <th className="py-3 px-4 text-right">實際總成本 (B)</th>
+                    <th className="py-3 px-4 text-right">預估淨利潤 (A-B)</th>
+                    <th className="py-3 px-4 text-right">毛利率</th>
+                    <th className="py-3 px-4 text-right">已收工程款</th>
+                    <th className="py-3 px-4 text-right">未收工程餘款</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100 text-xs text-neutral-700">
+                  {analyzedProjects.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-neutral-400 italic">
+                        無匹配此篩選條件之案場，請調整上方篩選器。
+                      </td>
+                    </tr>
+                  ) : (
+                    analyzedProjects.map(p => {
+                      // Calculate components on the fly
+                      const projectRecords = records.filter(r => r.projectId === p.id);
+                      let materialsCostSum = 0;
+                      let laborCostSum = 0;
+                      let expensesSum = 0;
+                      
+                      projectRecords.forEach(r => {
+                        materialsCostSum += r.materials.reduce((sum, m) => sum + ((m.costPrice !== undefined ? m.costPrice : m.unitPrice) * m.quantity), 0);
+                        
+                        laborCostSum += r.workers.reduce((sum, w) => {
+                          const rate = w.hourlyRate;
+                          const reg = Math.min(w.hoursWork, 8);
+                          const ot1 = Math.min(Math.max(w.hoursWork - 8, 0), 2);
+                          const ot2 = Math.max(w.hoursWork - 10, 0);
+                          const wages = (reg * rate) + (ot1 * rate * 1.34) + (ot2 * rate * 1.34);
+                          return sum + Math.round(wages);
+                        }, 0);
+                        
+                        expensesSum += r.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
+                      });
+
+                      const projPettyCashExpense = (pettyCashTransactions || [])
+                        .filter(t => t.type === 'expense' && t.projectNameOrId === p.id)
+                        .reduce((sum, t) => sum + t.amount, 0);
+
+                      const totalCost = p.actualConstructionCost + projPettyCashExpense;
+                      const profit = p.selectedBilledBasis - totalCost;
+                      const profitMargin = p.selectedBilledBasis > 0 ? Math.round((profit / p.selectedBilledBasis) * 100) : 0;
+
+                      // Display styling based on margin
+                      const marginColor = profitMargin >= 20 ? 'text-emerald-700 bg-emerald-50 border-emerald-200/50 font-black' : 'text-amber-800 bg-amber-50 border-amber-200/50 font-black';
+
+                      // Status Badge
+                      const isEst = p.isEstimation;
+                      const statusBadge = p.isCompleted ? (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          已結案
+                        </span>
+                      ) : isEst ? (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-purple-100 text-purple-800 border border-purple-200">
+                          估價中
+                        </span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-sky-100 text-sky-800 border border-sky-200 animate-pulse">
+                          施作中
+                        </span>
+                      );
+
+                      return (
+                        <tr key={p.id} className="hover:bg-neutral-50/50 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-1.5">
+                              {statusBadge}
+                              <span className="font-mono text-[10px] text-neutral-400">#{p.serialNumber}</span>
+                            </div>
+                            <div className="font-extrabold text-neutral-900 mt-1 max-w-[280px] truncate" title={p.name}>
+                              {p.name}
+                            </div>
+                            <div className="text-[10px] text-neutral-400 font-semibold mt-0.5">
+                              業主: {p.clientName || '公用 / 貨車備註'}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-bold text-indigo-700">
+                            NT$ {p.selectedBilledBasis.toLocaleString()}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <div className="font-mono font-bold text-neutral-800">
+                              NT$ {totalCost.toLocaleString()}
+                            </div>
+                            <div className="text-[9px] text-neutral-400 font-semibold space-x-1.5 mt-0.5">
+                              <span>🪵材料:${materialsCostSum.toLocaleString()}</span>
+                              <span>👷工資:${laborCostSum.toLocaleString()}</span>
+                              <span>⚙️其他:${(expensesSum + projPettyCashExpense).toLocaleString()}</span>
+                            </div>
+                          </td>
+                          <td className={`py-3 px-4 text-right font-mono font-black ${profit > 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                            {profit > 0 ? '+' : ''}{profit.toLocaleString()}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <span className={`px-2 py-0.5 rounded text-[10px] border ${marginColor}`}>
+                              {profitMargin}%
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-bold text-emerald-700">
+                            NT$ {p.receivedPayment.toLocaleString()}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono">
+                            {p.outstandingBalance > 0 ? (
+                              <span className="font-black text-rose-600">
+                                NT$ {p.outstandingBalance.toLocaleString()}
+                              </span>
+                            ) : (
+                              <span className="text-neutral-400 font-bold">已結清</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
         </div>
       )}
@@ -4301,27 +4712,28 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     <label className="block text-[11px] font-black text-neutral-600 mb-1">
                       對應細帳分類
                     </label>
-                    {addPcType === 'income' ? (
-                      <select
-                        value="fund_in"
-                        disabled
-                        className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs bg-neutral-100 text-neutral-500 cursor-not-allowed font-semibold"
-                      >
-                        <option value="fund_in">領補公用預存基金 📥</option>
-                      </select>
-                    ) : (
-                      <select
-                        value={addPcCategory}
-                        onChange={(e) => setAddPcCategory(e.target.value as any)}
-                        className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-850 font-bold"
-                      >
-                        <option value="feed">🍱 現場消暑伙食茶飲</option>
-                        <option value="tool">🔨 臨採急用五金零配件</option>
-                        <option value="parking">🚗 工事路邊收費停車費</option>
-                        <option value="fuel">⛽ 工程貨車油資採購</option>
-                        <option value="other">💬 其他急採現場開支</option>
-                      </select>
-                    )}
+                    <select
+                      value={addPcCategory}
+                      onChange={(e) => setAddPcCategory(e.target.value as any)}
+                      className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white text-neutral-850 font-bold"
+                    >
+                      {addPcType === 'income' ? (
+                        <>
+                          <option value="fund_in">🏢 公司存入</option>
+                          <option value="tool">⚙️ 設備</option>
+                          <option value="hardware">🔧 五金</option>
+                          <option value="other">💬 其他</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="parking">🅿️ 停車</option>
+                          <option value="fuel">⛽ 加油</option>
+                          <option value="feed">🍱 伙食</option>
+                          <option value="tool">⚙️ 設備</option>
+                          <option value="other">💬 其他</option>
+                        </>
+                      )}
+                    </select>
                   </div>
                 </div>
 
@@ -4424,6 +4836,37 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                 </span>
               </div>
 
+              {/* Quick filter tabs */}
+              <div className="px-5 pb-2 flex flex-wrap gap-1.5 border-b border-[#D4AF37]/10">
+                {[
+                  { id: 'all', label: '🌍 全部收支' },
+                  { id: 'income', label: '📥 基金存入' },
+                  { id: 'expense', label: '💸 營運支出' },
+                  { id: 'parking', label: '🅿️ 停車' },
+                  { id: 'fuel', label: '⛽ 加油' },
+                  { id: 'feed', label: '🍱 伙食' },
+                  { id: 'tool', label: '⚙️ 設備' },
+                  { id: 'hardware', label: '🔧 五金' },
+                  { id: 'other', label: '💬 其他' },
+                ].map(tab => {
+                  const isActive = pettyCashCategoryFilter === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setPettyCashCategoryFilter(tab.id)}
+                      className={`px-3 py-1.5 text-[10px] font-black rounded-lg transition-all border cursor-pointer ${
+                        isActive
+                          ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-sm shadow-[#D4AF37]/20'
+                          : 'bg-[#121212] text-[#A0A0A0] border-[#D4AF37]/15 hover:border-[#D4AF37]/40 hover:text-white'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+
               {pettyCashTransactions.length === 0 ? (
                 <div className="text-center py-12 italic text-neutral-400 text-xs">
                   目前零用金出入記錄中尚無數據。
@@ -4443,51 +4886,61 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#D4AF37]/10">
-                      {pettyCashTransactions.map(t => {
-                        const relProj = projects.find(p => p.id === t.projectNameOrId);
-                        const relProjName = relProj ? (relProj.addressAbbreviated || relProj.companyOrOwner) : '🚚 貨車公備';
-                        
-                        return (
-                          <tr key={t.id} className="hover:bg-[#D4AF37]/5">
-                            <td className="py-3 px-4 font-mono font-bold text-[#E0E0E0] whitespace-nowrap">{t.date}</td>
-                            <td className="py-3 px-4 whitespace-nowrap">
-                              {t.type === 'income' ? (
-                                <span className="text-emerald-400 bg-emerald-950/45 border border-emerald-900/40 font-extrabold px-2 py-0.5 rounded text-[10px]">
-                                  📥 存入公金
-                                </span>
-                              ) : (
-                                <span className="text-rose-400 bg-rose-950/45 border border-rose-900/40 font-extrabold px-2 py-0.5 rounded text-[10px]">
-                                  {t.category === 'feed' ? '🍱 伙食涼水' :
-                                   t.category === 'tool' ? '🔨 臨採五金' :
-                                   t.category === 'parking' ? '🚗 停車代墊' :
-                                   t.category === 'fuel' ? '⛽ 車用油資' : '💬 其它雜支'}
-                                </span>
-                              )}
-                            </td>
-                            <td className={`py-3 px-4 text-right font-mono font-extrabold text-xs border-r border-[#D4AF37]/10 pr-4 whitespace-nowrap ${
-                              t.type === 'income' ? 'text-emerald-400' : 'text-[#E5E5E5]'
-                            }`}>
-                              {t.type === 'income' ? '+' : '-'}${t.amount.toLocaleString()} 元
-                            </td>
-                            <td className="py-3 px-4 text-[#E0E0E0] font-medium max-w-[170px] truncate" title={t.description}>
-                              {t.description}
-                            </td>
-                            <td className="py-3 px-4 text-[#E0E0E0] font-extrabold whitespace-nowrap">{t.payerName || <span className="text-neutral-500">系統提撥</span>}</td>
-                            <td className="py-3 px-4 text-xs font-semibold text-neutral-400 max-w-[120px] truncate whitespace-nowrap" title={relProj ? getProjectDisplayName(relProj) : ''}>
-                              {relProjName}
-                            </td>
-                            <td className="py-3 px-4 text-center whitespace-nowrap">
-                              <button
-                                onClick={() => handleDeletePettyCashTransaction(t.id)}
-                                className="text-neutral-400 hover:text-rose-500 p-1 cursor-pointer transition"
-                                title="移除帳目"
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {pettyCashTransactions
+                        .filter(t => {
+                          if (pettyCashCategoryFilter === 'all') return true;
+                          if (pettyCashCategoryFilter === 'income') return t.type === 'income';
+                          if (pettyCashCategoryFilter === 'expense') return t.type === 'expense';
+                          return t.category === pettyCashCategoryFilter;
+                        })
+                        .map(t => {
+                          const relProj = projects.find(p => p.id === t.projectNameOrId);
+                          const relProjName = relProj ? getProjectDisplayName(relProj) : '';
+                          
+                          return (
+                            <tr key={t.id} className="hover:bg-[#D4AF37]/5">
+                              <td className="py-3 px-4 font-mono font-bold text-[#E0E0E0] whitespace-nowrap">{t.date}</td>
+                              <td className="py-3 px-4 whitespace-nowrap">
+                                {t.type === 'income' ? (
+                                  <span className="text-emerald-400 bg-emerald-950/45 border border-emerald-900/40 font-extrabold px-2 py-0.5 rounded text-[10px]">
+                                    {t.category === 'fund_in' ? '🏢 公司存入' :
+                                     t.category === 'tool' ? '⚙️ 設備(存)' :
+                                     t.category === 'hardware' ? '🔧 五金(存)' : '💬 其他'}
+                                  </span>
+                                ) : (
+                                  <span className="text-rose-400 bg-rose-950/45 border border-rose-900/40 font-extrabold px-2 py-0.5 rounded text-[10px]">
+                                    {t.category === 'feed' ? '🍱 伙食' :
+                                     t.category === 'tool' ? '⚙️ 設備' :
+                                     t.category === 'parking' ? '🅿️ 停車' :
+                                     t.category === 'fuel' ? '⛽ 加油' :
+                                     t.category === 'hardware' ? '🔧 五金' : '💬 其他'}
+                                  </span>
+                                )}
+                              </td>
+                              <td className={`py-3 px-4 text-right font-mono font-extrabold text-xs border-r border-[#D4AF37]/10 pr-4 whitespace-nowrap ${
+                                t.type === 'income' ? 'text-emerald-400' : 'text-[#E5E5E5]'
+                              }`}>
+                                {t.type === 'income' ? '+' : '-'}${t.amount.toLocaleString()} 元
+                              </td>
+                              <td className="py-3 px-4 text-[#E0E0E0] font-medium max-w-[170px] truncate" title={t.description}>
+                                {t.description}
+                              </td>
+                              <td className="py-3 px-4 text-[#E0E0E0] font-extrabold whitespace-nowrap">{t.payerName || <span className="text-neutral-500">系統提撥</span>}</td>
+                              <td className="py-3 px-4 text-xs font-semibold text-neutral-400 max-w-[280px] sm:max-w-[380px] md:max-w-[480px] lg:max-w-[580px] truncate whitespace-nowrap" title={relProj ? getProjectDisplayName(relProj) : ''}>
+                                {relProjName || <span className="text-neutral-600 font-bold">—</span>}
+                              </td>
+                              <td className="py-3 px-4 text-center whitespace-nowrap">
+                                <button
+                                  onClick={() => handleDeletePettyCashTransaction(t.id)}
+                                  className="text-neutral-400 hover:text-rose-500 p-1 cursor-pointer transition"
+                                  title="移除帳目"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                     </tbody>
                   </table>
                 </div>

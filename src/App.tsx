@@ -804,6 +804,8 @@ export default function App() {
 
   // ---- 4. Save Record handler (New or Edit) ----
   const handleSaveRecord = (recordData: Omit<DailyRecord, 'id' | 'createdAt'>) => {
+    const targetId = recordToEdit ? recordToEdit.id : `rec-${Date.now()}`;
+
     if (recordToEdit) {
       // Edit existing
       setRecords(prev => prev.map(r => r.id === recordToEdit.id ? {
@@ -817,13 +819,41 @@ export default function App() {
       // New record
       const newRec: DailyRecord = {
         ...recordData,
-        id: `rec-${Date.now()}`,
+        id: targetId,
         createdAt: new Date().toISOString()
       };
       setRecords(prev => [newRec, ...prev]);
 
       triggerToast('✅ 工務日誌已順利成功送出登錄！');
     }
+
+    // Auto-sync non-project expenses to petty cash transactions
+    const nonProjExpenses = (recordData.expenses || []).filter(e => e.isProjectExpense === false);
+    const newPcTransactions: PettyCashTransaction[] = nonProjExpenses.map((exp, index) => {
+      let cat: PettyCashTransaction['category'] = 'other';
+      if (exp.type === 'meal') cat = 'feed';
+      else if (exp.type === 'parking') cat = 'parking';
+      else if (exp.type === 'tool') cat = 'tool';
+      else if (exp.type === 'fuel') cat = 'fuel';
+      else if (exp.type === 'hardware') cat = 'hardware';
+
+      return {
+        id: `pc-from-rec-${targetId}-${exp.id || index}`,
+        date: recordData.date,
+        type: 'expense',
+        amount: exp.amount,
+        category: cat,
+        projectNameOrId: recordData.projectId,
+        description: `[公司營運日誌開銷] ${exp.description || '非案場公務開銷'}`,
+        sourceRecordId: targetId,
+        createdAt: new Date().toISOString()
+      };
+    });
+
+    setPettyCashTransactions(prev => {
+      const filtered = prev.filter(t => t.sourceRecordId !== targetId);
+      return [...newPcTransactions, ...filtered];
+    });
 
     // Synchronize project status: Update completion and auto-convert estimation to formal project
     setProjects(prev => prev.map(p => {
@@ -944,6 +974,7 @@ export default function App() {
 
   const handleDeleteRecord = (recordId: string) => {
     setRecords(prev => prev.filter(r => r.id !== recordId));
+    setPettyCashTransactions(prev => prev.filter(t => t.sourceRecordId !== recordId));
     triggerToast('🗑️ 本日施作紀錄日誌已永久清除抹消');
   };
 
@@ -1474,7 +1505,7 @@ export default function App() {
                                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                                                     {record.materials.map((m, idx) => (
                                                       <div key={idx} className="bg-[#252525] p-1.5 rounded border border-[#333] flex justify-between items-center text-neutral-300">
-                                                        <span>{m.materialName} ({m.quantity} {m.unit})</span>
+                                                        <span>{m.name || m.materialName || '未命名材料'} ({m.quantity} {m.unit})</span>
                                                         <span className="text-[10.5px] font-mono text-[#D4AF37]">${(m.unitPrice * m.quantity).toLocaleString()} 元</span>
                                                       </div>
                                                     ))}
@@ -1491,7 +1522,7 @@ export default function App() {
                                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                                                     {record.expenses.map((e, idx) => (
                                                       <div key={idx} className="bg-[#252525] p-1.5 rounded border border-[#333] flex justify-between items-center text-neutral-300">
-                                                        <span>{e.expenseName} ({e.isProjectExpense ? '案場雜項' : '內部費用'})</span>
+                                                        <span>{e.description || '工程雜支'} ({e.isProjectExpense ? '案場雜項' : '內部費用'})</span>
                                                         <span className="text-[10.5px] font-mono text-emerald-400">${e.amount.toLocaleString()} 元</span>
                                                       </div>
                                                     ))}
@@ -1910,7 +1941,7 @@ export default function App() {
                                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                                                 {record.materials.map((m, idx) => (
                                                   <div key={idx} className="bg-white p-1.5 rounded border border-neutral-200 flex justify-between items-center text-neutral-700">
-                                                    <span>{m.materialName} ({m.quantity} {m.unit})</span>
+                                                    <span>{m.name || m.materialName || '未命名材料'} ({m.quantity} {m.unit})</span>
                                                     <span className="text-[10.5px] font-mono text-amber-800 font-black">${(m.unitPrice * m.quantity).toLocaleString()} 元</span>
                                                   </div>
                                                 ))}
@@ -1927,7 +1958,7 @@ export default function App() {
                                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                                                 {record.expenses.map((e, idx) => (
                                                   <div key={idx} className="bg-white p-1.5 rounded border border-neutral-200 flex justify-between items-center text-neutral-700">
-                                                    <span>{e.expenseName} ({e.isProjectExpense ? '案場雜項' : '內部費用'})</span>
+                                                    <span>{e.description || '工程雜支'} ({e.isProjectExpense ? '案場雜項' : '內部費用'})</span>
                                                     <span className="text-[10.5px] font-mono text-emerald-700 font-black">${e.amount.toLocaleString()} 元</span>
                                                   </div>
                                                 ))}
