@@ -16,6 +16,7 @@ interface RecordFormProps {
   onSaveRecord: (record: Omit<DailyRecord, 'id' | 'createdAt'>) => void;
   onOpenNewProjectModal: () => void;
   initialRecordToEdit?: DailyRecord;
+  initialProjectId?: string;
   onCancel: () => void;
   setMaterialsPreset?: React.Dispatch<React.SetStateAction<MaterialPreset[]>>;
   records?: DailyRecord[];
@@ -39,6 +40,7 @@ export default function RecordForm({
   onSaveRecord,
   onOpenNewProjectModal,
   initialRecordToEdit,
+  initialProjectId,
   onCancel,
   setMaterialsPreset,
   records = []
@@ -99,7 +101,7 @@ export default function RecordForm({
   const [date, setDate] = useState<string>(
     new Date().toISOString().substring(0, 10)
   );
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectId || '');
   const [showCompletedInSelect, setShowCompletedInSelect] = useState<boolean>(false);
   const [prevProjIds, setPrevProjIds] = useState<string[]>([]);
   const [notes, setNotes] = useState<string>('');
@@ -345,7 +347,7 @@ export default function RecordForm({
     if (isInitializedRef.current === currentInitKey) {
       // Avoid resetting any of the user entered logs if we are already initialized
       if (!initialRecordToEdit && activeProjects.length > 0 && !selectedProjectId) {
-        setSelectedProjectId(activeProjects[0].id);
+        setSelectedProjectId(initialProjectId || activeProjects[0].id);
       }
       return;
     }
@@ -379,7 +381,7 @@ export default function RecordForm({
     } else {
       // Default initialization
       if (activeProjects.length > 0 && !selectedProjectId) {
-        setSelectedProjectId(activeProjects[0].id);
+        setSelectedProjectId(initialProjectId || activeProjects[0].id);
       }
       setMealAmount(0);
       setMealDesc('');
@@ -496,6 +498,9 @@ export default function RecordForm({
     }
 
     const baseName = `${dateFormatted}-${clientPart}-${addressPart}-${serial}`;
+    if (p.isBooking) {
+      return `⏰ [預約待辦] ${baseName}`;
+    }
     return (p.isEstimation || p.generatedName?.startsWith('[估]')) ? `[估]${baseName}` : baseName;
   };
 

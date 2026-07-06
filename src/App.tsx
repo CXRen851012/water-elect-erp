@@ -7,7 +7,7 @@ import {
   Check, Info, FileSpreadsheet, Sparkles, Building2, Calendar, HardHat,
   ShoppingBag, FolderLock, Store, Coins, History,
   Database, AlertTriangle, Download, Upload, Trash2, Settings, ShieldAlert,
-  Cloud, CloudOff, RefreshCw, LogOut, LogIn, Search, ArrowUpDown, SlidersHorizontal
+  Cloud, CloudOff, RefreshCw, LogOut, LogIn, Search, ArrowUpDown, SlidersHorizontal, Clock
 } from 'lucide-react';
 
 import { onAuthStateChanged } from 'firebase/auth';
@@ -22,6 +22,8 @@ import ProjectsPanel from './components/ProjectsPanel';
 import SuppliersPanel from './components/SuppliersPanel';
 import BillingPanel from './components/BillingPanel';
 import FirebaseSyncPanel from './components/FirebaseSyncPanel';
+import BookingForm from './components/BookingForm';
+import BookingsPanel from './components/BookingsPanel';
 
 export default function App() {
   // ---- 1. Initialize State with Local Storage fallback ----
@@ -514,7 +516,10 @@ export default function App() {
 
   // ---- 3. Navigation Controls & Modal states ----
   const [activeTab, setActiveTab] = useState<'construction' | 'billing' | 'workers' | 'materials' | 'supabase-excel'>('construction');
-  const [recordsSubTab, setRecordsSubTab] = useState<'today' | 'projects' | 'history' | 'customers'>('today');
+  const [recordsSubTab, setRecordsSubTab] = useState<'today' | 'projects' | 'bookings' | 'history' | 'customers'>('today');
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [bookingToEdit, setBookingToEdit] = useState<Project | undefined>(undefined);
+  const [preselectedProjectId, setPreselectedProjectId] = useState<string | undefined>(undefined);
   const [progressSelectedDate, setProgressSelectedDate] = useState<string>(() => {
     const local = new Date();
     const offset = local.getTimezoneOffset();
@@ -836,6 +841,21 @@ export default function App() {
       triggerToast('✅ 工務日誌已順利成功送出登錄！');
     }
 
+    // Convert booking to active project if needed
+    if (recordData.projectId) {
+      const matchedProj = projects.find(p => p.id === recordData.projectId);
+      if (matchedProj && matchedProj.isBooking) {
+        setProjects(prev => prev.map(p => p.id === recordData.projectId ? {
+          ...p,
+          isBooking: false,
+          bookingStatus: 'converted',
+          isCompleted: false,
+          isEstimation: false
+        } : p));
+        triggerToast(`🎉 預約案場已成功轉換為「施工進行中案場」，並已從預約待辦池移出！`);
+      }
+    }
+
     // Auto-sync non-project expenses to petty cash transactions
     const nonProjExpenses = (recordData.expenses || []).filter(e => e.isProjectExpense === false);
     const newPcTransactions: PettyCashTransaction[] = nonProjExpenses.map((exp, index) => {
@@ -966,6 +986,50 @@ export default function App() {
     setShowProjectModal(false);
     setPreSelCustomer(null);
     setPreSelAddress(undefined);
+  };
+
+  const handleSaveBooking = (
+    bookingData: Omit<Project, 'id' | 'createdAt'> & { id?: string; createdAt?: string },
+    updatedCustomer?: Customer
+  ) => {
+    if (!bookingData.id) {
+      const duplicated = projects.find(p => p.generatedName === bookingData.generatedName);
+      if (duplicated) {
+        triggerToast('⚠️ 警告：相同工程名稱已存在，請微動內容以作區分！');
+        return;
+      }
+    }
+
+    if (bookingData.id) {
+      setProjects(prev => prev.map(p => p.id === bookingData.id ? {
+        ...p,
+        ...bookingData,
+        createdAt: bookingData.createdAt || p.createdAt
+      } as Project : p));
+      triggerToast(`💾 預約排程【${bookingData.companyOrOwner}】已成功更新修改！`);
+    } else {
+      const newBooking: Project = {
+        ...bookingData,
+        id: `proj-booking-${Date.now()}`,
+        createdAt: bookingData.createdAt || new Date().toISOString()
+      } as Project;
+      setProjects(prev => [newBooking, ...prev]);
+      triggerToast(`📅 已順利將【${bookingData.companyOrOwner}】新增加入預約待辦池！`);
+    }
+
+    if (updatedCustomer) {
+      setCustomers(prev => {
+        const foundIdx = prev.findIndex(c => c.id === updatedCustomer.id);
+        if (foundIdx > -1) {
+          return prev.map(c => c.id === updatedCustomer.id ? updatedCustomer : c);
+        } else {
+          return [updatedCustomer, ...prev];
+        }
+      });
+    }
+
+    setShowBookingModal(false);
+    setBookingToEdit(undefined);
   };
 
   // Quick dispatch action keys
@@ -1168,7 +1232,8 @@ export default function App() {
                   onSaveRecord={handleSaveRecord}
                   onOpenNewProjectModal={() => setShowProjectModal(true)}
                   initialRecordToEdit={recordToEdit}
-                  onCancel={() => { setShowRecordForm(false); setRecordToEdit(undefined); }}
+                  initialProjectId={preselectedProjectId}
+                  onCancel={() => { setShowRecordForm(false); setRecordToEdit(undefined); setPreselectedProjectId(undefined); }}
                   setMaterialsPreset={setMaterials}
                   records={records}
                 />
@@ -1244,6 +1309,21 @@ export default function App() {
                           <span>
                             <span className="hidden sm:inline">工程案場總覽</span>
                             <span className="inline sm:hidden">案場總覽</span>
+                          </span>
+                        </button>
+
+                        <button
+                          onClick={() => { setRecordsSubTab('bookings'); setShowRecordForm(false); }}
+                          className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
+                            recordsSubTab === 'bookings'
+                              ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-3xs font-extrabold'
+                              : 'bg-[#252525] text-neutral-300 border-[#3A3A3A] hover:text-[#D4AF37] hover:bg-[#2C2C2C] font-semibold'
+                          }`}
+                        >
+                          <Clock size={15} className="shrink-0 stroke-[2.5]" />
+                          <span>
+                            <span className="hidden sm:inline">預約工作排程</span>
+                            <span className="inline sm:hidden">預約待辦</span>
                           </span>
                         </button>
 
@@ -1609,6 +1689,32 @@ export default function App() {
                           onDeleteRecord={handleDeleteRecord}
                           materialsPreset={materials}
                           suppliers={suppliers}
+                        />
+                      </div>
+                    )}
+
+                    {/* SUB-TAB: BOOKINGS LIST PANEL */}
+                    {recordsSubTab === 'bookings' && (
+                      <div className="animate-fadeIn">
+                        <BookingsPanel
+                          projects={projects}
+                          setProjects={setProjects}
+                          customers={customers}
+                          onSaveToast={triggerToast}
+                          onConvertBookingToRecord={(booking) => {
+                            setPreselectedProjectId(booking.id);
+                            setShowRecordForm(true);
+                            setRecordsSubTab('today');
+                            triggerToast(`🎯 已自動加載預約案場【${booking.companyOrOwner}】至本次工務日誌中！`);
+                          }}
+                          onEditBooking={(booking) => {
+                            setBookingToEdit(booking);
+                            setShowBookingModal(true);
+                          }}
+                          onAddBooking={() => {
+                            setBookingToEdit(undefined);
+                            setShowBookingModal(true);
+                          }}
                         />
                       </div>
                     )}
@@ -2270,6 +2376,20 @@ export default function App() {
           customers={customers}
           preSelectedCustomer={preSelCustomer}
           preSelectedAddress={preSelAddress}
+        />
+      )}
+
+      {/* 7. BOOKING FORM CREATION/EDITING MODAL */}
+      {showBookingModal && (
+        <BookingForm
+          onSave={handleSaveBooking}
+          onClose={() => {
+            setShowBookingModal(false);
+            setBookingToEdit(undefined);
+          }}
+          existingProjects={projects}
+          customers={customers}
+          existingBooking={bookingToEdit}
         />
       )}
     </div>

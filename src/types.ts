@@ -125,6 +125,11 @@ export interface Project {
   estimationMaterials?: RecordMaterial[]; // 預估耗材項目
   estimationQuoteAmount?: number; // 報價金額 (預算總合報價)
   estimationStatus?: '估價中' | '進行中施工' | '報價未成'; // 估價案場專用狀態
+  isBooking?: boolean; // 是否為預約/待辦池項目
+  bookingDate?: string; // 預約日期 (YYYY-MM-DD，非必填)
+  bookingTime?: string; // 預約時間 (HH:MM，非必填)
+  bookingWorkContent?: string; // 預約施作工作內容 (單次工作紀錄，非客戶常規備註)
+  bookingStatus?: 'pending' | 'converted' | 'lost'; // 預約狀態：pending(預約中)、converted(已登錄日誌轉施工)、lost(轉為未成)
   createdAt: string;
 }
 
