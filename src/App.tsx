@@ -282,6 +282,15 @@ export default function App() {
     setRawRecords(prev => trackStateChanges(prev, typeof val === 'function' ? (val as any)(prev) : val, 'records'));
   };
 
+  const getWorkerTotalHoursForDate = (workerName: string, dateStr: string) => {
+    return records
+      .filter(r => r.date === dateStr)
+      .reduce((sum, r) => {
+        const w = r.workers?.find(wk => wk.name === workerName);
+        return sum + (w ? w.hoursWork : 0);
+      }, 0);
+  };
+
   // ---- 2. Synchronization effects to clients Local Storage ----
   useEffect(() => {
     localStorage.setItem('engineering_workers', JSON.stringify(workers));
@@ -1376,6 +1385,49 @@ export default function App() {
                           );
                         })()}
 
+                        {/* Today Worker Attendance Hours Summary */}
+                        {(() => {
+                          const targetDate = progressSelectedDate;
+                          const todayRecords = records.filter(r => r.date === targetDate);
+                          
+                          const workerHoursMap: Record<string, number> = {};
+                          todayRecords.forEach(r => {
+                            r.workers?.forEach(w => {
+                              workerHoursMap[w.name] = (workerHoursMap[w.name] || 0) + w.hoursWork;
+                            });
+                          });
+
+                          const workersList = Object.entries(workerHoursMap);
+                          if (workersList.length === 0) return null;
+
+                          return (
+                            <div className="bg-[#1E1E1E] border border-[#2D2D2D] p-5 rounded-2xl shadow-sm space-y-3.5 select-none">
+                              <div className="flex items-center gap-2">
+                                <span className="p-1.5 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg">
+                                  <Users size={16} className="stroke-[2.5]" />
+                                </span>
+                                <div>
+                                  <span className="block text-xs font-black text-[#D4AF37] uppercase tracking-wider">
+                                    👥 本日各別同仁累計派工總時數
+                                  </span>
+                                  <span className="text-[10px] text-neutral-400 block font-bold mt-0.5">
+                                    統計選定日期在所有施工日誌中的累積出勤時數 (用以核對加班/考勤)
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {workersList.map(([name, hours]) => (
+                                  <div key={name} className="flex items-center gap-2 bg-[#252525] hover:bg-[#2C2C2C] border border-[#3A3A3A] px-3.5 py-1.5 rounded-xl transition-all">
+                                    <span className="text-xs font-extrabold text-[#F3E5AB]">{name}</span>
+                                    <span className="h-3 w-[1px] bg-neutral-700"></span>
+                                    <span className="text-[#10B981] font-mono text-xs font-black">{hours} hr</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
                         {/* Today Records List */}
                         <div className="space-y-3">
 
@@ -1451,7 +1503,7 @@ export default function App() {
                                               {record.workers && record.workers.length > 0 ? (
                                                 record.workers.map((w, idx) => (
                                                   <span key={idx} className="bg-[#2a2a2a] px-2 py-0.5 rounded border border-neutral-800 font-mono text-xs font-semibold text-neutral-200">
-                                                    {w.name} ({w.hoursWork}h)
+                                                    <span><span className="font-extrabold text-[#F3E5AB]">{w.name}</span> <span className="text-neutral-400">({w.hoursWork}h)</span>{getWorkerTotalHoursForDate(w.name, record.date) > w.hoursWork && <span className="text-[10px] text-[#10B981] font-bold bg-[#10B981]/10 px-1.5 py-0.5 rounded ml-1.5" title="當天個人累計總時數">本日累計 {getWorkerTotalHoursForDate(w.name, record.date)}h</span>}</span>
                                                   </span>
                                                 ))
                                               ) : (
@@ -1887,7 +1939,7 @@ export default function App() {
                                           {record.workers && record.workers.length > 0 ? (
                                             record.workers.map((w, idx) => (
                                               <span key={idx} className="bg-neutral-100 px-2 py-0.5 rounded border border-neutral-200 font-mono text-xs font-bold text-neutral-800">
-                                                {w.name} ({w.hoursWork}h)
+                                                <span><span className="font-extrabold text-neutral-800">{w.name}</span> <span className="text-neutral-500">({w.hoursWork}h)</span>{getWorkerTotalHoursForDate(w.name, record.date) > w.hoursWork && <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 ml-1.5" title="當天個人累計總時數">本日累計 {getWorkerTotalHoursForDate(w.name, record.date)}h</span>}</span>
                                               </span>
                                             ))
                                           ) : (
@@ -2011,6 +2063,8 @@ export default function App() {
                           setCustomers={setCustomers}
                           projects={projects}
                           setProjects={setProjects}
+                          records={records}
+                          setRecords={setRecords}
                           onAddProjectForCustomer={handleAddProjectForCustomer}
                           onSaveToast={triggerToast}
                         />

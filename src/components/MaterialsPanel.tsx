@@ -3158,6 +3158,19 @@ export default function MaterialsPanel({
                                   {(() => {
                                     if (m.isRealPrice) return null;
                                     const isSupExpanded = expandedSuppliers[uo.id] || false;
+                                    const filteredSuppliersForUnit = activeSuppliers.filter(s => {
+                                      if (s.allowedCategories && s.allowedCategories.length > 0) {
+                                        if (m.category && !s.allowedCategories.includes(m.category)) {
+                                          return false;
+                                        }
+                                      }
+                                      if (s.allowedSubcategories && s.allowedSubcategories.length > 0) {
+                                        if (m.subcategory && !s.allowedSubcategories.includes(m.subcategory)) {
+                                          return false;
+                                        }
+                                      }
+                                      return true;
+                                    });
                                     return (
                                       <>
                                         <div className="flex items-center justify-between">
@@ -3169,7 +3182,7 @@ export default function MaterialsPanel({
                                           >
                                             <span>🏬 特約材料行合約對照價</span>
                                             <span className="text-[9px] px-1.5 py-0.2 !bg-[var(--bg-main)] !text-[var(--text-secondary)] border border-[#D4AF37]/30 rounded-full font-mono">
-                                              {activeSuppliers.length} 家特約
+                                              {filteredSuppliersForUnit.length} 家配合
                                             </span>
                                             {isSupExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                                           </button>
@@ -3181,13 +3194,13 @@ export default function MaterialsPanel({
                                         {isSupExpanded && (
                                           <div className="animate-fadeIn space-y-1.5 pt-1.5">
                                             <span className="text-[9px] text-neutral-400 font-bold block">💡 直接輸入後方特約牌進價，系統自動於上方「系統牌價與系統進價」取特約最高實值：</span>
-                                            {activeSuppliers.length === 0 ? (
+                                            {filteredSuppliersForUnit.length === 0 ? (
                                               <p className="text-[10px] text-neutral-400 py-1.5 italic leading-relaxed pl-2 !bg-[var(--bg-main)] rounded border border-neutral-800">
-                                                💡 提示：您尚未在系統建置任何「特約材料行」。如需對照不同店家的合約報價，請先利用右上角名冊功能建立材料行。
+                                                💡 提示：目前沒有特約材料行設定配合此耗材之大分類【{m.category || '未分類'}】與次分類【{m.subcategory || '未分類'}】。
                                               </p>
                                             ) : (
                                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 !bg-[var(--bg-main)] p-2.5 rounded-xl border border-[#D4AF37]/15 border-dashed">
-                                                {activeSuppliers.map(s => {
+                                                {filteredSuppliersForUnit.map(s => {
                                                   const record = uo.suppliers?.find(sup => sup.storeName === s.name);
                                                   const listPrice = record ? record.listPrice : '';
                                                   const costPrice = record ? record.costPrice : '';

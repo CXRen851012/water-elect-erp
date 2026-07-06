@@ -13,12 +13,19 @@ interface CustomerPanelProps {
   projects?: any[];
   setProjects?: any;
   onAddProjectForCustomer?: any;
+  records?: any[];
+  setRecords?: any;
 }
 
 export default function CustomerPanel({
   customers,
   setCustomers,
-  onSaveToast
+  onSaveToast,
+  projects,
+  setProjects,
+  onAddProjectForCustomer,
+  records,
+  setRecords
 }: CustomerPanelProps) {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -130,15 +137,114 @@ export default function CustomerPanel({
 
     if (editingCustomer) {
       // Editing
+      const updatedCustName = customerName.trim();
+      const updatedContactPerson = contactPerson.trim() || undefined;
+      const updatedContactPhone = phone.trim() || undefined;
+
       setCustomers(prev => prev.map(c => c.id === editingCustomer.id ? {
         ...c,
-        name: customerName.trim(),
-        contactPerson: contactPerson.trim() || undefined,
-        phone: phone.trim() || undefined,
+        name: updatedCustName,
+        contactPerson: updatedContactPerson,
+        phone: updatedContactPhone,
         notes: notes.trim() || undefined,
         addresses: filteredAddresses
       } : c));
-      onSaveToast(`💾 客戶【${customerName}】資料已成功保存！`);
+
+      // Link and update associated projects and daily records
+      if (setProjects && projects) {
+        const updatedProjectNamesMap: { [projectId: string]: string } = {};
+
+        setProjects((prevProjects: any[]) => prevProjects.map(p => {
+          if (p.clientId === editingCustomer.id) {
+            let dateFormatted = '';
+            if (p.createdAt) {
+              dateFormatted = p.createdAt.substring(0, 10).replace(/-/g, '');
+            } else {
+              dateFormatted = new Date().toISOString().substring(0, 10).replace(/-/g, '');
+            }
+
+            let newFullAddress = p.fullAddress;
+            let newAddressAbbreviated = p.addressAbbreviated;
+
+            // Look up if this project's address was edited in the customer panel
+            let matchedOldAddr = editingCustomer.addresses.find(
+              oldAddr => oldAddr.fullAddress.trim().toLowerCase() === p.fullAddress.trim().toLowerCase()
+            );
+            // Fallback: if there is only 1 address in editingCustomer, assume it corresponds to this project
+            if (!matchedOldAddr && editingCustomer.addresses.length === 1) {
+              matchedOldAddr = editingCustomer.addresses[0];
+            }
+
+            if (matchedOldAddr) {
+              const matchedNewAddr = filteredAddresses.find(newAddr => newAddr.id === matchedOldAddr.id);
+              if (matchedNewAddr) {
+                newFullAddress = matchedNewAddr.fullAddress;
+                newAddressAbbreviated = matchedNewAddr.addressAbbreviated;
+              }
+            }
+
+            let clientPart = updatedCustName;
+            const person = (updatedContactPerson || '').trim();
+            const phoneNum = (updatedContactPhone || '').trim();
+
+            if (person && person !== '本人' && person !== updatedCustName) {
+              if (phoneNum) {
+                clientPart += `(${person}:${phoneNum})`;
+              } else {
+                clientPart += `(${person})`;
+              }
+            } else {
+              if (phoneNum) {
+                clientPart += `(${phoneNum})`;
+              }
+            }
+
+            const abbrev = (newAddressAbbreviated || '').trim();
+            const addressPart = abbrev ? `(${abbrev})${newFullAddress.trim()}` : newFullAddress.trim();
+
+            let serial = p.serialNumber || '001';
+            if (serial.includes('-')) {
+              const parts = serial.split('-');
+              serial = parts[parts.length - 1];
+            }
+            if (/^\d+$/.test(serial)) {
+              serial = serial.padStart(3, '0');
+            }
+
+            const baseName = `${dateFormatted}-${clientPart}-${addressPart}-${serial}`;
+            const newGeneratedName = (p.isEstimation || p.generatedName?.startsWith('[估]')) ? `[估]${baseName}` : baseName;
+
+            updatedProjectNamesMap[p.id] = newGeneratedName;
+
+            return {
+              ...p,
+              companyOrOwner: updatedCustName,
+              contactPerson: updatedContactPerson,
+              contactPhone: updatedContactPhone,
+              fullAddress: newFullAddress,
+              addressAbbreviated: newAddressAbbreviated,
+              generatedName: newGeneratedName
+            };
+          }
+          return p;
+        }));
+
+        // Keep daily records' backup projectName in sync with the new standard project identifier
+        if (setRecords && records) {
+          setRecords((prevRecords: any[]) => prevRecords.map(r => {
+            const updatedName = updatedProjectNamesMap[r.projectId];
+            if (updatedName) {
+              return {
+                ...r,
+                projectName: updatedName
+              };
+            }
+            return r;
+          }));
+        }
+      }
+
+      onSaveToast(`💾 客戶【${customerName}】資料與相關案場專案名稱已成功連動轉變！`);
     } else {
       // New Customer
       const newCustomer: Customer = {
@@ -334,8 +440,8 @@ export default function CustomerPanel({
 
       {/* 4. MODAL ADD / EDIT */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-neutral-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-[#1E1E1E] rounded-2xl border border-[#2C2C2C] shadow-2xl max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh] text-white">
+        <div className="fixed inset-0 bg-neutral-950/60 backdrop-blur-sm z-50 flex items-start justify-center p-4 md:py-12 overflow-y-auto">
+          <div className="bg-[#1E1E1E] rounded-2xl border border-[#2C2C2C] shadow-2xl max-w-xl w-full overflow-hidden flex flex-col max-h-[85vh] md:max-h-[90vh] text-white my-auto">
             {/* Header */}
             <div className="p-5 border-b border-[#2C2C2C] flex items-center justify-between bg-[#212121]">
               <div className="flex items-center gap-2.5">

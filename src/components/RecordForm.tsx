@@ -1415,7 +1415,19 @@ export default function RecordForm({
                 >
                   🏬 全部聯配行
                 </button>
-                {activeSuppliersPreset.map(sup => {
+                {activeSuppliersPreset.filter(sup => {
+                  if (selectedAddCategory !== '全部') {
+                    if (sup.allowedCategories && sup.allowedCategories.length > 0 && !sup.allowedCategories.includes(selectedAddCategory)) {
+                      return false;
+                    }
+                  }
+                  if (selectedAddSubcategory !== '全部' && selectedAddSubcategory !== '未分類') {
+                    if (sup.allowedSubcategories && sup.allowedSubcategories.length > 0 && !sup.allowedSubcategories.includes(selectedAddSubcategory)) {
+                      return false;
+                    }
+                  }
+                  return true;
+                }).map(sup => {
                   // Count matches dynamically
                   const matchedCount = sortedMaterialsPreset
                     .filter(p => {
@@ -1635,8 +1647,21 @@ export default function RecordForm({
                               const activeSuppliers = relevantSuppliers.filter(s => s.listPrice > 0 || s.costPrice > 0);
                               const activeSupplierNames = activeSuppliers.map(s => s.storeName);
 
-                              // All other system suppliers that are not already active for this material/unit
-                              const otherSuppliers = activeSuppliersPreset.filter(s => !activeSupplierNames.includes(s.name));
+                              // All other system suppliers that are not already active for this material/unit, filtered by category and subcategory limits
+                              const otherSuppliers = activeSuppliersPreset.filter(s => {
+                                if (activeSupplierNames.includes(s.name)) return false;
+                                if (s.allowedCategories && s.allowedCategories.length > 0) {
+                                  if (preset.category && !s.allowedCategories.includes(preset.category)) {
+                                    return false;
+                                  }
+                                }
+                                if (s.allowedSubcategories && s.allowedSubcategories.length > 0) {
+                                  if (preset.subcategory && !s.allowedSubcategories.includes(preset.subcategory)) {
+                                    return false;
+                                  }
+                                }
+                                return true;
+                              });
 
                               const currentStore = m.storeName || 'default';
                               return (
@@ -1829,13 +1854,21 @@ export default function RecordForm({
                           </label>
 
                           {m.isNearbyPurchased && (
-                            <input
-                              type="text"
-                              placeholder="買辦店家（如大永五金）"
-                              value={m.storeName || ''}
-                              onChange={(e) => handleUpdateMaterialField(m.id, 'storeName', e.target.value)}
-                              className="w-full px-2 py-1 border border-neutral-200 rounded text-[10px] text-neutral-600"
-                            />
+                            <div className="space-y-1">
+                              <input
+                                type="text"
+                                list={`nearby-suppliers-${m.id}`}
+                                placeholder="選擇特約店家或自行輸入"
+                                value={m.storeName || ''}
+                                onChange={(e) => handleUpdateMaterialField(m.id, 'storeName', e.target.value)}
+                                className="w-full px-2 py-1 border border-neutral-200 rounded text-[10px] text-neutral-600 outline-none focus:border-amber-500"
+                              />
+                              <datalist id={`nearby-suppliers-${m.id}`}>
+                                {(suppliersPreset || []).map(s => (
+                                  <option key={s.id} value={s.name}>{s.name}</option>
+                                ))}
+                              </datalist>
+                            </div>
                           )}
                         </div>
                       </td>

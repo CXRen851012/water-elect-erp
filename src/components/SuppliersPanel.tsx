@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Supplier, MaterialPreset } from '../types';
 import { Plus, Trash2, Edit, Store, Phone, MapPin, User, FileText, Info, Layers, Camera, Image, Eye, EyeOff, Check, X } from 'lucide-react';
+import { getSubcategories } from '../utils/billingUtils';
 
 interface SuppliersPanelProps {
   suppliers: Supplier[];
@@ -23,6 +24,22 @@ export default function SuppliersPanel({
   const [newTaxId, setNewTaxId] = useState(''); // 統一編號
   const [newPhotoUrl, setNewPhotoUrl] = useState(''); // 相片/名片 (Base64)
   const [newShowInMaterialsDatabase, setNewShowInMaterialsDatabase] = useState(true); // 是否在大庫中顯示為特約行
+
+  const categoriesList = (() => {
+    try {
+      const stored = localStorage.getItem('engineering_material_categories');
+      return stored ? JSON.parse(stored) : ['電路電材類', '水路管材類', '廚衛設備類', '五金緊固類', '工具與雜耗'];
+    } catch {
+      return ['電路電材類', '水路管材類', '廚衛設備類', '五金緊固類', '工具與雜耗'];
+    }
+  })();
+  const subcategoriesMap = getSubcategories();
+
+  const [newAllowedCategories, setNewAllowedCategories] = useState<string[]>([]);
+  const [newAllowedSubcategories, setNewAllowedSubcategories] = useState<string[]>([]);
+
+  const [editAllowedCategories, setEditAllowedCategories] = useState<string[]>([]);
+  const [editAllowedSubcategories, setEditAllowedSubcategories] = useState<string[]>([]);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editStoreName, setEditStoreName] = useState('');
@@ -74,7 +91,9 @@ export default function SuppliersPanel({
       notes: newNotes.trim() || undefined,
       taxId: newTaxId.trim() || undefined,
       photoUrl: newPhotoUrl || undefined,
-      showInMaterialsDatabase: newShowInMaterialsDatabase
+      showInMaterialsDatabase: newShowInMaterialsDatabase,
+      allowedCategories: newAllowedCategories,
+      allowedSubcategories: newAllowedSubcategories
     };
 
     setSuppliers([...suppliers, item]);
@@ -86,6 +105,8 @@ export default function SuppliersPanel({
     setNewTaxId('');
     setNewPhotoUrl('');
     setNewShowInMaterialsDatabase(true);
+    setNewAllowedCategories([]);
+    setNewAllowedSubcategories([]);
     onSaveToast(`🏬 已成功將【${item.name}】登錄至特約材料行名冊！`);
   };
 
@@ -99,6 +120,8 @@ export default function SuppliersPanel({
     setEditTaxId(s.taxId || '');
     setEditPhotoUrl(s.photoUrl || '');
     setEditShowInMaterialsDatabase(s.showInMaterialsDatabase !== false);
+    setEditAllowedCategories(s.allowedCategories || []);
+    setEditAllowedSubcategories(s.allowedSubcategories || []);
   };
 
   const handleSaveEdit = () => {
@@ -115,7 +138,9 @@ export default function SuppliersPanel({
           notes: editNotes.trim() || undefined,
           taxId: editTaxId.trim() || undefined,
           photoUrl: editPhotoUrl || undefined,
-          showInMaterialsDatabase: editShowInMaterialsDatabase
+          showInMaterialsDatabase: editShowInMaterialsDatabase,
+          allowedCategories: editAllowedCategories,
+          allowedSubcategories: editAllowedSubcategories
         };
       }
       return s;
@@ -124,6 +149,8 @@ export default function SuppliersPanel({
     setEditingId(null);
     setEditTaxId('');
     setEditPhotoUrl('');
+    setEditAllowedCategories([]);
+    setEditAllowedSubcategories([]);
     onSaveToast('✅ 材料行資訊更新成功！');
   };
 
@@ -206,20 +233,91 @@ export default function SuppliersPanel({
           {/* Photo & Material Library Config Box */}
           <div className="col-span-12 grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#1E1E1E] p-3.5 border border-[#2C2C2C] rounded-xl">
             {/* Show in Materials list */}
-            <div className="flex flex-col justify-center space-y-1">
-              <label className="block text-[11px] font-black text-[#D4AF37]">⚙️ 大庫材料配合設定</label>
-              <p className="text-[10px] text-neutral-400">若不勾選，該商家僅保留於通訊名冊以供查詢，不會干擾或顯示在大庫新增規格或工務日誌登錄之選單中。</p>
-              <label className="inline-flex items-center gap-2 pt-1.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={newShowInMaterialsDatabase}
-                  onChange={(e) => setNewShowInMaterialsDatabase(e.target.checked)}
-                  className="w-4 h-4 rounded border-[#3A3A3A] bg-[#252525] text-[#D4AF37] focus:ring-[#D4AF37] cursor-pointer"
-                />
-                <span className="text-xs font-bold text-white">
-                  {newShowInMaterialsDatabase ? '🟢 預設於「材料大庫、日誌材料行」選單中顯示此特約商' : '⚪ 僅保留在名冊中，不於材料大庫選項內顯示'}
-                </span>
-              </label>
+            <div className="flex flex-col space-y-3.5 bg-[#252525] p-3 rounded-xl border border-[#3A3A3A] text-left">
+              <div className="space-y-1">
+                <label className="block text-[11px] font-black text-[#D4AF37]">⚙️ 大庫材料配合設定</label>
+                <p className="text-[10px] text-neutral-400">設定此店家僅在特定的材料大分類或次分類選單中顯示。若不勾選，則該商家不顯示在任何大庫選單中。</p>
+                <label className="inline-flex items-center gap-2 pt-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newShowInMaterialsDatabase}
+                    onChange={(e) => setNewShowInMaterialsDatabase(e.target.checked)}
+                    className="w-4 h-4 rounded border-[#3A3A3A] bg-[#252525] text-[#D4AF37] focus:ring-[#D4AF37] cursor-pointer"
+                  />
+                  <span className="text-xs font-bold text-white">
+                    {newShowInMaterialsDatabase ? '🟢 啟用大庫與日誌材料選單顯示' : '⚪ 僅保留在名冊中，不於材料選單內顯示'}
+                  </span>
+                </label>
+              </div>
+
+              {newShowInMaterialsDatabase && (
+                <div className="border-t border-[#3A3A3A] pt-3 space-y-3 animate-fadeIn text-left">
+                  <div>
+                    <span className="block text-[10px] font-black text-neutral-400 mb-1.5">📂 限定材料大分類 (未勾選則預設全選)</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {categoriesList.map(cat => {
+                        const isChecked = newAllowedCategories.includes(cat);
+                        return (
+                          <button
+                            type="button"
+                            key={cat}
+                            onClick={() => {
+                              if (isChecked) {
+                                setNewAllowedCategories(prev => prev.filter(c => c !== cat));
+                                const subsOfCat = subcategoriesMap[cat] || [];
+                                setNewAllowedSubcategories(prev => prev.filter(s => !subsOfCat.includes(s)));
+                              } else {
+                                setNewAllowedCategories(prev => [...prev, cat]);
+                              }
+                            }}
+                            className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer border ${
+                              isChecked 
+                                ? 'bg-[#D4AF37]/15 text-[#D4AF37] border-[#D4AF37]/45' 
+                                : 'bg-[#1E1E1E] text-neutral-400 border-[#2C2C2C] hover:text-neutral-200'
+                            }`}
+                          >
+                            {cat}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {newAllowedCategories.length > 0 && (
+                    <div className="border-t border-[#2C2C2C] pt-2.5 animate-fadeIn">
+                      <span className="block text-[10px] font-black text-neutral-400 mb-1.5">📂 限定材料二級次分類 (未勾選則預設全選)</span>
+                      <div className="flex flex-wrap gap-1.5 max-h-[140px] overflow-y-auto pr-1">
+                        {newAllowedCategories.map(cat => {
+                          const subs = subcategoriesMap[cat] || [];
+                          return subs.map(sub => {
+                            const isChecked = newAllowedSubcategories.includes(sub);
+                            return (
+                              <button
+                                type="button"
+                                key={`${cat}-${sub}`}
+                                onClick={() => {
+                                  if (isChecked) {
+                                    setNewAllowedSubcategories(prev => prev.filter(s => s !== sub));
+                                  } else {
+                                    setNewAllowedSubcategories(prev => [...prev, sub]);
+                                  }
+                                }}
+                                className={`px-2 py-0.5 text-[11px] font-medium rounded-md transition-all cursor-pointer border ${
+                                  isChecked 
+                                    ? 'bg-amber-400/20 text-amber-300 border-amber-400/40' 
+                                    : 'bg-[#1E1E1E] text-neutral-400 border-[#2C2C2C] hover:text-neutral-200'
+                                }`}
+                              >
+                                {sub}
+                              </button>
+                            );
+                          });
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Photo Card Upload */}
@@ -353,8 +451,8 @@ export default function SuppliersPanel({
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#252525] p-2.5 rounded-lg border border-[#2C2C2C]">
                         {/* Edit Show in materials library */}
-                        <div className="flex flex-col justify-center">
-                          <label className="block text-[9px] font-bold text-neutral-400 mb-1">大庫與日誌配合</label>
+                        <div className="flex flex-col space-y-2 text-left">
+                          <label className="block text-[9px] font-bold text-neutral-400">大庫與日誌配合設定</label>
                           <label className="inline-flex items-center gap-1.5 cursor-pointer">
                             <input
                               type="checkbox"
@@ -363,9 +461,78 @@ export default function SuppliersPanel({
                               className="w-3.5 h-3.5 rounded border-[#3A3A3A] bg-[#1E1E1E] text-[#D4AF37] focus:ring-[#D4AF37] cursor-pointer"
                             />
                             <span className="text-[10px] font-bold text-white">
-                              {editShowInMaterialsDatabase ? '在大庫/施工日誌選單中顯示' : '僅列在名錄，不在大庫顯示'}
+                              {editShowInMaterialsDatabase ? '🟢 在選定分類中顯示此特約商' : '⚪ 不在任何大庫選單顯示'}
                             </span>
                           </label>
+
+                          {editShowInMaterialsDatabase && (
+                            <div className="border-t border-[#3A3A3A] pt-2 space-y-2 animate-fadeIn text-left">
+                              <div>
+                                <span className="block text-[9px] font-bold text-neutral-400 mb-1">📂 限定大分類 (未選則預設全選)</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {categoriesList.map(cat => {
+                                    const isChecked = editAllowedCategories.includes(cat);
+                                    return (
+                                      <button
+                                        type="button"
+                                        key={cat}
+                                        onClick={() => {
+                                          if (isChecked) {
+                                            setEditAllowedCategories(prev => prev.filter(c => c !== cat));
+                                            const subsOfCat = subcategoriesMap[cat] || [];
+                                            setEditAllowedSubcategories(prev => prev.filter(s => !subsOfCat.includes(s)));
+                                          } else {
+                                            setEditAllowedCategories(prev => [...prev, cat]);
+                                          }
+                                        }}
+                                        className={`px-1.5 py-0.5 text-[9px] font-bold rounded transition-all cursor-pointer border ${
+                                          isChecked 
+                                            ? 'bg-[#D4AF37]/15 text-[#D4AF37] border-[#D4AF37]/45' 
+                                            : 'bg-[#252525] text-neutral-400 border-[#2C2C2C] hover:text-neutral-200'
+                                        }`}
+                                      >
+                                        {cat}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {editAllowedCategories.length > 0 && (
+                                <div className="border-t border-[#2C2C2C] pt-2 animate-fadeIn">
+                                  <span className="block text-[9px] font-bold text-neutral-400 mb-1">📂 限定次分類 (未選則預設全選)</span>
+                                  <div className="flex flex-wrap gap-1 max-h-[100px] overflow-y-auto pr-1">
+                                    {editAllowedCategories.map(cat => {
+                                      const subs = subcategoriesMap[cat] || [];
+                                      return subs.map(sub => {
+                                        const isChecked = editAllowedSubcategories.includes(sub);
+                                        return (
+                                          <button
+                                            type="button"
+                                            key={`${cat}-${sub}`}
+                                            onClick={() => {
+                                              if (isChecked) {
+                                                setEditAllowedSubcategories(prev => prev.filter(s => s !== sub));
+                                              } else {
+                                                setEditAllowedSubcategories(prev => [...prev, sub]);
+                                              }
+                                            }}
+                                            className={`px-1.5 py-0.5 text-[9px] font-medium rounded transition-all cursor-pointer border ${
+                                              isChecked 
+                                                ? 'bg-amber-400/20 text-amber-300 border-amber-400/40' 
+                                                : 'bg-[#252525] text-neutral-400 border-[#2C2C2C] hover:text-neutral-200'
+                                            }`}
+                                          >
+                                            {sub}
+                                          </button>
+                                        );
+                                      });
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                         {/* Edit Photo Card / upload */}
                         <div>
@@ -459,9 +626,21 @@ export default function SuppliersPanel({
                                 🏬 本統特約配合材料行
                               </span>
                               {s.showInMaterialsDatabase !== false ? (
-                                <span className="inline-flex items-center gap-1 text-[9px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md font-bold">
-                                  🟢 大庫特約連動中
-                                </span>
+                                <>
+                                  <span className="inline-flex items-center gap-1 text-[9px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md font-bold">
+                                    🟢 大庫特約連動中
+                                  </span>
+                                  {s.allowedCategories && s.allowedCategories.length > 0 && (
+                                    <span className="inline-flex items-center gap-1 text-[9px] text-[#D4AF37] bg-[#D4AF37]/10 border border-[#D4AF37]/20 px-2 py-0.5 rounded-md font-mono font-bold" title={s.allowedCategories.join(', ')}>
+                                      📁 限定大類: {s.allowedCategories.join(', ')}
+                                    </span>
+                                  )}
+                                  {s.allowedSubcategories && s.allowedSubcategories.length > 0 && (
+                                    <span className="inline-flex items-center gap-1 text-[9px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md font-mono font-bold" title={s.allowedSubcategories.join(', ')}>
+                                      📁 限定次類: {s.allowedSubcategories.length}個
+                                    </span>
+                                  )}
+                                </>
                               ) : (
                                 <span className="inline-flex items-center gap-1 text-[9px] text-neutral-400 bg-[#1E1E1E] border border-[#2C2C2C] px-2 py-0.5 rounded-md font-bold" title="已剔除在大庫匹配名單，僅保留名片與基本資訊">
                                   🔒 僅在通訊錄備用

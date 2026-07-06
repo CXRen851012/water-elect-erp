@@ -1220,24 +1220,64 @@ export default function BillingPanel({
     let expensesCost = 0;
     let totalHours = 0;
     
+    // Group filteredRecords by project to handle the estimated revenue calculation properly
+    const projectRecordsMap: Record<string, typeof filteredRecords> = {};
     filteredRecords.forEach(r => {
-      const isClientBilled = !r.internalCostOnly;
-      if (isClientBilled) {
-        materialsCost += r.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
-        laborBillingCost += r.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
+      if (!projectRecordsMap[r.projectId]) {
+        projectRecordsMap[r.projectId] = [];
       }
-      materialsActualCost += r.materials.reduce((sum, m) => sum + ((m.costPrice !== undefined ? m.costPrice : m.unitPrice) * m.quantity), 0);
-      laborCost += r.workers.reduce((sum, w) => sum + (w.hourlyRate * w.hoursWork), 0);
-      expensesSumCheck(r);
-      if (isClientBilled) {
-        expensesCost += r.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
-      }
-      totalHours += r.workers.reduce((sum, w) => sum + w.hoursWork, 0);
+      projectRecordsMap[r.projectId].push(r);
     });
 
-    function expensesSumCheck(r: any) {
-      return r.expenses;
-    }
+    let projectBilledTotal = 0;
+
+    Object.entries(projectRecordsMap).forEach(([pId, rList]) => {
+      const p = projects.find(proj => proj.id === pId);
+      const hasQuote = p && p.estimationQuoteAmount !== undefined && p.estimationQuoteAmount > 0;
+      
+      let pMaterialsCost = 0;
+      let pLaborBillingCost = 0;
+      let pExpensesCost = 0;
+
+      rList.forEach(r => {
+        const isClientBilled = !r.internalCostOnly;
+        if (isClientBilled) {
+          pMaterialsCost += r.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+          pLaborBillingCost += r.workers.reduce((sum, w) => {
+            const rate = w.billingHourlyRate ?? w.hourlyRate;
+            const reg = Math.min(w.hoursWork, 8);
+            const ot1 = Math.min(Math.max(w.hoursWork - 8, 0), 2);
+            const ot2 = Math.max(w.hoursWork - 10, 0);
+            const wages = (reg * rate) + (ot1 * rate * 1.34) + (ot2 * rate * 1.34);
+            return sum + Math.round(wages);
+          }, 0);
+          pExpensesCost += r.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
+        }
+        
+        // Always accumulate these for cost & general stats
+        materialsActualCost += r.materials.reduce((sum, m) => sum + ((m.costPrice !== undefined ? m.costPrice : m.unitPrice) * m.quantity), 0);
+        laborCost += r.workers.reduce((sum, w) => {
+          const rate = w.hourlyRate;
+          const reg = Math.min(w.hoursWork, 8);
+          const ot1 = Math.min(Math.max(w.hoursWork - 8, 0), 2);
+          const ot2 = Math.max(w.hoursWork - 10, 0);
+          const wages = (reg * rate) + (ot1 * rate * 1.34) + (ot2 * rate * 1.34);
+          return sum + Math.round(wages);
+        }, 0);
+        totalHours += r.workers.reduce((sum, w) => sum + w.hoursWork, 0);
+      });
+
+      // Accumulate standard list values anyway
+      materialsCost += pMaterialsCost;
+      laborBillingCost += pLaborBillingCost;
+      expensesCost += pExpensesCost;
+
+      if (hasQuote && p) {
+        projectBilledTotal += p.estimationQuoteAmount!;
+      } else {
+        projectBilledTotal += (pMaterialsCost + pLaborBillingCost + pExpensesCost);
+      }
+    });
 
     // Incorporate petty cash
     let pettyCashIncome = 0;
@@ -1253,7 +1293,7 @@ export default function BillingPanel({
       }
     });
 
-    const grandTotal = materialsCost + laborBillingCost + expensesCost + pettyCashIncome; 
+    const grandTotal = projectBilledTotal + pettyCashIncome; 
     const grandActualCost = materialsActualCost + laborCost + expensesCost + pettyCashExpense; 
     const profitAmount = grandTotal - grandActualCost; 
     const profitMargin = grandTotal > 0 ? Math.round((profitAmount / grandTotal) * 100) : 0;
@@ -1273,7 +1313,7 @@ export default function BillingPanel({
       profitMargin: profitMargin > 100 ? 100 : profitMargin,
       recordCount: filteredRecords.length
     };
-  }, [filteredRecords, filteredPettyCash]);
+  }, [filteredRecords, filteredPettyCash, projects]);
 
   // Aggregate data for Recharts Pie Chart (Cost proportions)
   const pieChartData = useMemo(() => {
@@ -3070,7 +3110,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                 <Coins size={22} />
               </div>
               <div>
-                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">當期預估收入 (牌價總款)</span>
+                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">當期預估收入 (工程款基數/牌價)</span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-base sm:text-lg font-black text-neutral-900 font-mono">
                     NT$ {reportStats.grandTotal.toLocaleString()}
@@ -3078,7 +3118,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   <span className="text-[10px] text-neutral-400">元</span>
                 </div>
                 <span className="text-[9px] text-neutral-400 block">
-                  含耗材牌價、工酬與零用金收益
+                  含工程款基數(有設定時)、牌價、工酬與零用金收益
                 </span>
               </div>
             </div>
@@ -3178,9 +3218,9 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* 1. 總收入 (Income) */}
               <div className="p-4 bg-indigo-950/40 border border-indigo-500/20 rounded-xl space-y-1">
-                <span className="text-[10px] font-bold text-indigo-400 block pb-1 border-b border-indigo-500/10">📈 當期預估工程收入 (牌價總款)</span>
+                <span className="text-[10px] font-bold text-indigo-400 block pb-1 border-b border-indigo-500/10">📈 當期預估工程收入 (工程款基數/牌價)</span>
                 <div className="text-xl font-mono font-black text-indigo-300">NT$ {reportStats.grandTotal.toLocaleString()} 元</div>
-                <p className="text-[9px] text-indigo-400">當期施工用料及派遣工酬對外牌價之加總值</p>
+                <p className="text-[9px] text-indigo-400">當期施工用料及派遣工酬之對外報價 (有設定工程款基數時優先採用)</p>
               </div>
 
               {/* 2. 總支出 (Expenses) */}

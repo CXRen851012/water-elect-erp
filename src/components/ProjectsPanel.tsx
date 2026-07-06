@@ -2357,13 +2357,21 @@ return (
                                   </label>
 
                                   {row.isNearbyPurchased && (
-                                    <input
-                                      type="text"
-                                      placeholder="填寫採購店家 (自選)"
-                                      value={row.storeName || ''}
-                                      onChange={(e) => handleUpdateEstMaterialField(row.id, 'storeName', e.target.value)}
-                                      className="w-full px-1 bg-white border border-neutral-200 rounded text-[9px] text-neutral-600 focus:ring-1 focus:ring-amber-500"
-                                    />
+                                    <div className="space-y-1">
+                                      <input
+                                        type="text"
+                                        list={`est-nearby-suppliers-${row.id}`}
+                                        placeholder="選擇特約店家或自行輸入"
+                                        value={row.storeName || ''}
+                                        onChange={(e) => handleUpdateEstMaterialField(row.id, 'storeName', e.target.value)}
+                                        className="w-full px-1 bg-white border border-neutral-200 rounded text-[9px] text-neutral-600 focus:ring-1 focus:ring-amber-500 outline-none"
+                                      />
+                                      <datalist id={`est-nearby-suppliers-${row.id}`}>
+                                        {(suppliers || []).map(s => (
+                                          <option key={s.id} value={s.name}>{s.name}</option>
+                                        ))}
+                                      </datalist>
+                                    </div>
                                   )}
                                 </div>
                               </td>

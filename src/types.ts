@@ -72,6 +72,8 @@ export interface Supplier {
   taxId?: string; // 統一編號 (統編，非必填)
   photoUrl?: string; // 名片或商家相片 (Base64 或圖片路徑)
   showInMaterialsDatabase?: boolean; // 勾選是否顯示在材料大庫內中的特約材料行
+  allowedCategories?: string[]; // 限定顯示之材料大分類
+  allowedSubcategories?: string[]; // 限定顯示之材料次分類
 }
 
 export interface MaterialSupplier {
