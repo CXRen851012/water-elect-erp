@@ -366,11 +366,13 @@ export default function CustomerPanel({
                       <span className="text-[11px] uppercase font-bold text-neutral-400 block tracking-wider mb-2 font-mono">📍 常用工地派工地址名冊 ({customer.addresses.length})</span>
                       {customer.addresses.map((addr) => (
                         <div key={addr.id} className="p-2.5 bg-[#252525] border border-[#2C2C2C] rounded-xl hover:bg-[#2C2C2C] transition-colors">
-                          <p className="text-xs font-bold text-white flex items-start gap-1 leading-normal">
-                            <span className="text-[9px] bg-[#D4AF37] text-black font-black px-1.5 rounded scale-90 whitespace-nowrap mt-0.5">
-                              {addr.addressAbbreviated || '派'}
-                            </span>
-                            {addr.fullAddress}
+                          <p className="text-xs font-bold text-white flex items-start gap-1.5 leading-normal">
+                            {addr.addressAbbreviated && addr.addressAbbreviated.trim() !== '' && (
+                              <span className="text-[10px] bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/45 font-black px-1.5 py-0.5 rounded-md whitespace-nowrap mt-0.5 inline-flex items-center">
+                                {addr.addressAbbreviated.trim()}
+                              </span>
+                            )}
+                            <span className="mt-0.5">{addr.fullAddress}</span>
                           </p>
                           {(addr.contactPerson || addr.contactPhone) && (
                             <p className="text-[10px] text-neutral-400 font-bold font-mono mt-0.5 pl-4">

@@ -88,7 +88,8 @@ export default function BookingsPanel({
           isBooking: false,
           bookingStatus: 'lost' as const,
           isEstimation: true,
-          estimationStatus: '報價未成' as const
+          estimationStatus: '報價未成' as const,
+          isCompleted: true
         };
       }
       return p;

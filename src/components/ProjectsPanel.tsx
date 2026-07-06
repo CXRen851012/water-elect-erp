@@ -537,11 +537,11 @@ export default function ProjectsPanel({
   };
 
   // Stats calculation
-  const countAll = projects.length;
-  const countQuote = projects.filter(p => p.isEstimation && p.estimationStatus === '估價中').length;
-  const countOngoing = projects.filter(p => !p.isCompleted && (!p.isEstimation || p.estimationStatus === '進行中施工')).length;
-  const countCompleted = projects.filter(p => p.isCompleted).length;
-  const countFailed = projects.filter(p => p.isEstimation && p.estimationStatus === '報價未成').length;
+  const countAll = projects.filter(p => !p.isBooking).length;
+  const countQuote = projects.filter(p => !p.isBooking && p.isEstimation && p.estimationStatus === '估價中').length;
+  const countOngoing = projects.filter(p => !p.isBooking && !p.isCompleted && (!p.isEstimation || p.estimationStatus === '進行中施工')).length;
+  const countCompleted = projects.filter(p => !p.isBooking && p.isCompleted).length;
+  const countFailed = projects.filter(p => !p.isBooking && p.isEstimation && p.estimationStatus === '報價未成').length;
 
   const getProjectWarnings = (p: Project) => {
     const priceWarningsList: string[] = [];
@@ -653,6 +653,9 @@ export default function ProjectsPanel({
 
   // Filtered and sorted projects
   const filteredProjects = projects.filter(p => {
+    // Exclude active bookings (they are managed in BookingsPanel)
+    if (p.isBooking) return false;
+
     // 0. Only warnings filter
     if (showOnlyWithWarnings) {
       const warnings = getProjectWarnings(p);
