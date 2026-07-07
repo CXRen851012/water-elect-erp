@@ -29,6 +29,7 @@ export default function CustomerPanel({
 }: CustomerPanelProps) {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
   
   // Modal controllers
   const [showAddModal, setShowAddModal] = useState(false);
@@ -387,6 +388,59 @@ export default function CustomerPanel({
                         </div>
                       ))}
                     </div>
+
+                    {/* Associated projects display (collapsible) */}
+                    {(() => {
+                      const custProjects = projects ? projects.filter((p: any) => p.clientId === customer.id) : [];
+                      const isProjExpanded = !!expandedProjects[customer.id];
+                      return (
+                        <div className="space-y-1.5 border-t border-[#2C2C2C] pt-3.5 mt-2 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedProjects(prev => ({ ...prev, [customer.id]: !prev[customer.id] }))}
+                            className="w-full flex items-center justify-between text-[11px] font-bold text-neutral-400 hover:text-white transition-colors cursor-pointer text-left"
+                          >
+                            <span className="flex items-center gap-1.5 font-mono uppercase tracking-wider">
+                              💼 歷史施作案場數量 ({custProjects.length})
+                            </span>
+                            <span className="text-[10px] text-[#D4AF37] font-extrabold bg-[#D4AF37]/10 px-2 py-0.5 rounded border border-[#D4AF37]/20 hover:bg-[#D4AF37]/25 transition-all">
+                              {isProjExpanded ? '收合' : '點開查看'}
+                            </span>
+                          </button>
+                          {isProjExpanded && (
+                            <div className="space-y-1.5 mt-2 max-h-[140px] overflow-y-auto pr-1 animate-fadeIn">
+                              {custProjects.length === 0 ? (
+                                <p className="text-[10px] text-neutral-500 italic pl-1 py-1">目前尚無旗下施工中或已完工之案場專案</p>
+                              ) : (
+                                custProjects.map((proj: any) => (
+                                  <div key={proj.id} className="p-2.5 bg-[#252525] border border-[#2C2C2C] rounded-xl hover:border-[#D4AF37]/30 transition-all">
+                                    <p className="text-[11px] font-mono font-bold text-neutral-300 leading-normal select-all break-all">
+                                      {proj.generatedName}
+                                    </p>
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                      {proj.isCompleted ? (
+                                        <span className="text-[9px] bg-emerald-950/25 text-emerald-400 border border-emerald-900/40 px-1.5 py-0.5 rounded-md font-bold">
+                                          ✓ 已完工
+                                        </span>
+                                      ) : (
+                                        <span className="text-[9px] bg-amber-950/25 text-amber-400 border border-amber-900/40 px-1.5 py-0.5 rounded-md font-bold">
+                                          ⚙ 施作中
+                                        </span>
+                                      )}
+                                      {proj.isEstimation && (
+                                        <span className="text-[9px] bg-sky-950/25 text-sky-400 border border-sky-900/40 px-1.5 py-0.5 rounded-md font-bold">
+                                          估價單
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Actions footer options */}
