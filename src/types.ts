@@ -143,6 +143,8 @@ export interface RecordMaterial {
   isNearbyPurchased: boolean; // 是否為附近臨採
   storeName?: string; // 採購店家 / 材料行名稱
   costPrice?: number; // 實際採購成本單價
+  note?: string; // 材料備註/備忘
+  isAutoFilled?: boolean; // 是否由常備大庫自動帶入牌價/成本
 }
 
 export interface RecordExpense {

@@ -584,7 +584,8 @@ export default function RecordForm({
         unitPrice: prices.unitPrice,
         costPrice: prices.costPrice,
         isNearbyPurchased: false,
-        storeName: activeSupplier
+        storeName: activeSupplier,
+        isAutoFilled: true
       };
       setMaterials([...cleanedMaterials, item]);
     }
@@ -614,7 +615,8 @@ export default function RecordForm({
           unitPrice: prices.unitPrice,
           costPrice: prices.costPrice,
           isNearbyPurchased: false,
-          storeName: undefined
+          storeName: undefined,
+          isAutoFilled: true
         } : m));
       }
     }
@@ -628,7 +630,8 @@ export default function RecordForm({
           ...m,
           unit: unitStr,
           unitPrice: prices.unitPrice,
-          costPrice: prices.costPrice
+          costPrice: prices.costPrice,
+          isAutoFilled: true
         };
       }
       return m;
@@ -643,7 +646,8 @@ export default function RecordForm({
           ...m,
           storeName: storeName === 'default' ? undefined : storeName,
           unitPrice: prices.unitPrice,
-          costPrice: prices.costPrice
+          costPrice: prices.costPrice,
+          isAutoFilled: true
         };
       }
       return m;
@@ -836,7 +840,16 @@ export default function RecordForm({
   };
 
   const handleUpdateMaterialField = (rowId: string, key: keyof RecordMaterial, value: any) => {
-    setMaterials(prev => prev.map(m => m.id === rowId ? { ...m, [key]: value } : m));
+    setMaterials(prev => prev.map(m => {
+      if (m.id === rowId) {
+        const updated = { ...m, [key]: value };
+        if (key === 'unitPrice' || key === 'costPrice') {
+          updated.isAutoFilled = false;
+        }
+        return updated;
+      }
+      return m;
+    }));
   };
 
   const handleRemoveMaterialRow = (rowId: string) => {
@@ -1575,12 +1588,13 @@ export default function RecordForm({
                 <thead>
                   <tr className="bg-neutral-50 border-b border-neutral-200 text-neutral-500 font-bold">
                     <td className="py-2 px-3">材料品項預設選擇</td>
-                    <td className="py-2 px-3 w-[15%]">數量</td>
-                    <td className="py-2 px-3 w-[12%]">單位</td>
-                    <td className="py-2 px-3 w-[18%]">緊急臨時採購</td>
-                    <td className="py-2 px-3 w-[20%]">
+                    <td className="py-2 px-3 w-[10%]">數量</td>
+                    <td className="py-2 px-3 w-[10%]">單位</td>
+                    <td className="py-2 px-3 w-[15%]">緊急臨時採購</td>
+                    <td className="py-2 px-3 w-[18%]">
                       {overridePricingMode ? "出庫報帳對客牌價 (微調覆寫)" : "臨購購買單價 (非必填)"}
                     </td>
+                    <td className="py-2 px-3 w-[20%]">材料備註</td>
                     <td className="py-2 px-3 w-[50px] text-center"></td>
                   </tr>
                 </thead>
@@ -1996,6 +2010,17 @@ export default function RecordForm({
                         ) : (
                           <span className="text-[11px] text-neutral-400 italic block pt-1.5 font-bold">倉庫出庫 (已加密隱藏)</span>
                         )}
+                      </td>
+
+                      {/* 材料備註 */}
+                      <td className="py-2.5 px-3">
+                        <input
+                          type="text"
+                          placeholder="材料備註 (如：自備、特殊規格)"
+                          value={m.note || ''}
+                          onChange={(e) => handleUpdateMaterialField(m.id, 'note', e.target.value)}
+                          className="w-full px-2.5 py-1.5 border border-neutral-200 rounded text-xs bg-white text-neutral-700 outline-none focus:border-amber-500 font-medium"
+                        />
                       </td>
 
                       {/* Remove Row */}

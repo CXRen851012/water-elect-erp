@@ -411,6 +411,125 @@ export default function App() {
     localStorage.setItem('engineering_transactions', JSON.stringify(transactions));
   }, [transactions]);
 
+  // 當常備資材大庫的牌價或成本設定/更新時，自動幫未設定且未結清的日誌材料帶入
+  useEffect(() => {
+    const completedPaidIds = new Set<string>();
+    projects.forEach(p => {
+      if (!p.isCompleted) return;
+      
+      let journalCollectedSum = 0;
+      records.forEach(r => {
+        if (r.projectId === p.id && !r.internalCostOnly && r.collectedAmount) {
+          journalCollectedSum += r.collectedAmount;
+        }
+      });
+      
+      const contractQuote = p.estimationQuoteAmount ?? 0;
+      let actualCalculated = 0;
+      const projRecords = records.filter(r => r.projectId === p.id && !r.internalCostOnly);
+      
+      projRecords.forEach(r => {
+        r.workers.forEach(w => {
+          actualCalculated += (w.hoursWork || 0) * (w.billingHourlyRate || w.hourlyRate || 0);
+        });
+        r.materials.forEach(m => {
+          actualCalculated += (m.quantity || 0) * (m.unitPrice || 0);
+        });
+        r.expenses.forEach(exp => {
+          if (exp.isProjectExpense !== false) {
+            actualCalculated += exp.amount || 0;
+          }
+        });
+      });
+      
+      let selectedBilledBasis = 0;
+      if (journalCollectedSum > 0) {
+        selectedBilledBasis = journalCollectedSum;
+      } else if (p.isEstimation || p.generatedName?.startsWith('[估]') || contractQuote > 0) {
+        selectedBilledBasis = contractQuote;
+      } else {
+        selectedBilledBasis = actualCalculated;
+      }
+      
+      let receivedPayment = 0;
+      let roundingPaid = 0;
+      
+      records.forEach(r => {
+        if (r.projectId === p.id && !r.internalCostOnly && r.collectedAmount && r.collectedAmount > 0) {
+          receivedPayment += r.collectedAmount;
+        }
+      });
+      
+      transactions.forEach(t => {
+        if (t.projectNameOrId === p.id) {
+          if (t.allocationType === 'round_adjustment') {
+            roundingPaid += t.amount;
+          } else {
+            receivedPayment += t.amount;
+          }
+        }
+      });
+      
+      const outstandingBalance = selectedBilledBasis - receivedPayment - roundingPaid;
+      if (outstandingBalance <= 0) {
+        completedPaidIds.add(p.id);
+      }
+    });
+
+    let hasChanged = false;
+    const nextRecords = records.map(r => {
+      if (completedPaidIds.has(r.projectId)) return r;
+      
+      let rChanged = false;
+      const nextMaterials = r.materials.map(m => {
+        const preset = materials.find(pMat => pMat.name.trim() === m.name.trim());
+        if (!preset) return m;
+
+        const targetPrice = preset.defaultUnitPrice ?? 0;
+        const targetCost = preset.defaultCostPrice ?? 0;
+
+        // 判斷是否符合自動同步資格：
+        // 1. 從未設定過價格/成本 (皆為 0 或不存在)
+        // 2. 或者，該品項是由系統自動帶入 (isAutoFilled === true)，代表使用者尚未手動覆寫該日誌價格
+        const isEligible = (!m.unitPrice && !m.costPrice) || m.isAutoFilled === true;
+
+        if (!isEligible) return m;
+
+        let updatedM = { ...m };
+        let mChanged = false;
+
+        if (m.unitPrice !== targetPrice) {
+          updatedM.unitPrice = targetPrice;
+          mChanged = true;
+        }
+        if (m.costPrice !== targetCost) {
+          updatedM.costPrice = targetCost;
+          mChanged = true;
+        }
+
+        if (mChanged) {
+          updatedM.isAutoFilled = true; // 標記為自動帶入，以便後續繼續保持同步
+          rChanged = true;
+          return updatedM;
+        }
+        return m;
+      });
+
+      if (rChanged) {
+        hasChanged = true;
+        return {
+          ...r,
+          materials: nextMaterials
+        };
+      }
+      return r;
+    });
+
+    if (hasChanged) {
+      setRecords(nextRecords);
+    }
+  }, [materials, projects, records, transactions]);
+
   // Worker Cash Advances (預支借支管理)
   const [workerAdvances, setRawWorkerAdvances] = useState<WorkerAdvance[]>(() => {
     try {
