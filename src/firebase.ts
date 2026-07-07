@@ -525,14 +525,19 @@ export async function syncIncrementalWithFirebase(
     // ==========================================
     let remoteTombstones: any[] = [];
     try {
-      let qTomb = query(collection(db, 'tombstones'), where('ownerUid', '==', ownerUid));
-      if (lastSyncTime > 0 && lastSyncStr) {
-        // 安全增量：只查詢比上次同步時間更晚的墓碑
-        qTomb = query(collection(db, 'tombstones'), where('ownerUid', '==', ownerUid), where('deletedAt', '>', lastSyncStr));
-      }
+      // 僅使用單一欄位 ownerUid 查詢以避免觸發複合索引 (Composite Index) 限制
+      const qTomb = query(collection(db, 'tombstones'), where('ownerUid', '==', ownerUid));
       const tSnap = await getDocs(qTomb);
       tSnap.forEach(docSnap => {
-        remoteTombstones.push(docSnap.data());
+        const data = docSnap.data();
+        if (lastSyncTime > 0 && lastSyncStr) {
+          // 在客端進行過濾，防範未設定 composite index 的錯誤
+          if (data.deletedAt && data.deletedAt > lastSyncStr) {
+            remoteTombstones.push(data);
+          }
+        } else {
+          remoteTombstones.push(data);
+        }
       });
     } catch (err: any) {
       console.warn("📥 讀取雲端刪除墓碑失敗（可能是首次設定，尚無該集合），將自動跳過他端刪除合併：", err);
@@ -562,15 +567,20 @@ export async function syncIncrementalWithFirebase(
     let remoteUpdateCount = 0;
     for (const [key, mapping] of Object.entries(collectionsMapping)) {
       try {
-        let q = query(collection(db, mapping.name), where('ownerUid', '==', ownerUid));
-        if (lastSyncTime > 0 && lastSyncStr) {
-          // 只請求大於上次同步更新日期的雲端異動，節省 90% 以上的讀取用量！
-          q = query(collection(db, mapping.name), where('ownerUid', '==', ownerUid), where('updatedAt', '>', lastSyncStr));
-        }
+        // 僅使用單一欄位 ownerUid 查詢以避免觸發複合索引 (Composite Index) 限制
+        const q = query(collection(db, mapping.name), where('ownerUid', '==', ownerUid));
         const qSnap = await getDocs(q);
         
         qSnap.forEach(docSnap => {
           const remoteItem = { ...docSnap.data() };
+          
+          // 客端進行增量時間戳過濾，防範未設定 composite index 的錯誤
+          if (lastSyncTime > 0 && lastSyncStr) {
+            if (!remoteItem.updatedAt || remoteItem.updatedAt <= lastSyncStr) {
+              return; // 跳過未更新的項目
+            }
+          }
+
           delete remoteItem.ownerUid; // 移除包裝欄位避免影響 UI
 
           const localList = mergedData[mapping.key];
