@@ -2353,7 +2353,6 @@ export default function RecordForm({
                       <span className="text-[10px] text-neutral-400 font-mono">$</span>
                       <input
                         type="number"
-                        min="0"
                         placeholder="0"
                         value={ex.amount || ''}
                         onChange={(e) => handleUpdateCustomExpenseField(ex.id, 'amount', parseInt(e.target.value, 10) || 0)}
@@ -2422,7 +2421,6 @@ export default function RecordForm({
                       <span className="text-[10px] text-neutral-400 font-mono">$</span>
                       <input
                         type="number"
-                        min="0"
                         placeholder="0"
                         value={ex.amount || ''}
                         onChange={(e) => handleUpdateCustomExpenseField(ex.id, 'amount', parseInt(e.target.value, 10) || 0)}

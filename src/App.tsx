@@ -326,85 +326,65 @@ export default function App() {
         const projectRecords = records.filter(r => r.projectId === p.id);
         const hasRecords = projectRecords.length > 0;
 
-        // 若正值估價案場，且已經開始登錄施工紀錄（工務日誌），系統自動將其結轉為正式施工專案，擺脫手動結轉
-        if (p.isEstimation && hasRecords) {
-          changed = true;
-          const prefixDate = p.createdAt ? p.createdAt.substring(0, 10).replace(/-/g, '') : new Date().toISOString().substring(0, 10).replace(/-/g, '');
-          let clientPart = p.companyOrOwner.trim();
-          const p_name = (p.contactPerson || '').trim();
-          const ph = (p.contactPhone || '').trim();
+        // 判斷此專案是否為或曾經是估價案場
+        const isOrWasEstimation = p.isEstimation || 
+                                  p.generatedName.startsWith('[估]') || 
+                                  (p.estimationLabor && p.estimationLabor.length > 0) || 
+                                  (p.estimationMaterials && p.estimationMaterials.length > 0) || 
+                                  (p.estimationQuoteAmount !== undefined && p.estimationQuoteAmount > 0);
 
-          if (p_name && p_name !== '本人' && p_name !== p.companyOrOwner.trim()) {
-            if (ph) {
-              clientPart += `(${p_name}:${ph})`;
-            } else {
-              clientPart += `(${p_name})`;
-            }
-          } else {
-            if (ph) {
-              clientPart += `(${ph})`;
-            }
-          }
-
-          const addrAbbrev = (p.addressAbbreviated || '').trim();
-          const addressPart = addrAbbrev ? `(${addrAbbrev})${p.fullAddress.trim()}` : p.fullAddress.trim();
-
-          let serial = p.serialNumber || '001';
-          if (serial.includes('-')) {
-            const parts = serial.split('-');
-            serial = parts[parts.length - 1];
-          }
-          if (/^\d+$/.test(serial)) {
-            serial = serial.padStart(3, '0');
-          }
-
-          const baseName = `${prefixDate}-${clientPart}-${addressPart}-${serial}`;
-          const finalEstName = `[估]${baseName}`;
-
-          return {
-            ...p,
-            isEstimation: false,
-            estimationStatus: undefined,
-            generatedName: finalEstName,
-            isCompleted: projectRecords.some(r => r.markAsCompleted)
-          };
-        }
-
-        if (!p.isEstimation) return p;
+        if (!isOrWasEstimation) return p;
 
         const anyRecordCompleted = projectRecords.some(r => r.markAsCompleted);
 
-        let nextEstimationStatus = p.estimationStatus || '估價中';
+        let nextIsEstimation = p.isEstimation;
+        let nextEstimationStatus = p.estimationStatus;
         let nextIsCompleted = p.isCompleted;
+        let nextGenName = p.generatedName;
 
         if (!hasRecords) {
           // 若沒有施工紀錄：
-          // - 如果當前是 '進行中施工'，自動跳回 '估價中'
-          // - 報價未成則維持報價未成，已完工則還原
-          if (nextEstimationStatus === '進行中施工') {
+          // - 除非當前是 '報價未成'，否則自動跳回 '估價中'
+          if (nextEstimationStatus === '報價未成') {
+            nextIsEstimation = true;
+            nextIsCompleted = true; // 保持已完工 (未成) 狀態
+          } else {
+            nextIsEstimation = true;
             nextEstimationStatus = '估價中';
             nextIsCompleted = false;
-          } else if (nextEstimationStatus === '估價中') {
-            nextIsCompleted = false;
+            if (!nextGenName.startsWith('[估]')) {
+              nextGenName = `[估]${nextGenName}`;
+            }
           }
         } else {
           // 若有施工紀錄：
-          // - 自動轉為 '進行中施工'
-          if (nextEstimationStatus === '估價中' || nextEstimationStatus === '報價未成') {
-            nextEstimationStatus = '進行中施工';
+          // - 自動結轉為正式施作案場
+          nextIsEstimation = false;
+          nextEstimationStatus = undefined;
+          
+          if (nextGenName.startsWith('[估]')) {
+            nextGenName = nextGenName.substring(3); // 移除 [估]
           }
+
           // - 若施工紀錄勾選今日已完工，則標記為已完工
           if (anyRecordCompleted) {
             nextIsCompleted = true;
           }
         }
 
-        if (p.estimationStatus !== nextEstimationStatus || p.isCompleted !== nextIsCompleted) {
+        if (
+          p.isEstimation !== nextIsEstimation || 
+          p.estimationStatus !== nextEstimationStatus || 
+          p.isCompleted !== nextIsCompleted ||
+          p.generatedName !== nextGenName
+        ) {
           changed = true;
           return {
             ...p,
+            isEstimation: nextIsEstimation,
             estimationStatus: nextEstimationStatus,
-            isCompleted: nextIsCompleted
+            isCompleted: nextIsCompleted,
+            generatedName: nextGenName
           };
         }
         return p;
@@ -613,6 +593,7 @@ export default function App() {
   }, [showRecordForm]);
   const [recordToEdit, setRecordToEdit] = useState<DailyRecord | undefined>(undefined);
   const [collapsedRecordDetails, setCollapsedRecordDetails] = useState<Record<string, boolean>>({});
+  const [deleteConfirmRecordId, setDeleteConfirmRecordId] = useState<string | null>(null);
   const [showProjectModal, setShowProjectModal] = useState<boolean>(false);
 
   const handleJumpToProjectLogs = (projectId: string) => {
@@ -859,21 +840,29 @@ export default function App() {
     // Auto-sync non-project expenses to petty cash transactions
     const nonProjExpenses = (recordData.expenses || []).filter(e => e.isProjectExpense === false);
     const newPcTransactions: PettyCashTransaction[] = nonProjExpenses.map((exp, index) => {
+      const isNegative = exp.amount < 0;
+      
       let cat: PettyCashTransaction['category'] = 'other';
-      if (exp.type === 'meal') cat = 'feed';
-      else if (exp.type === 'parking') cat = 'parking';
-      else if (exp.type === 'tool') cat = 'tool';
-      else if (exp.type === 'fuel') cat = 'fuel';
-      else if (exp.type === 'hardware') cat = 'hardware';
+      if (isNegative) {
+        cat = 'fund_in';
+      } else {
+        if (exp.type === 'meal') cat = 'feed';
+        else if (exp.type === 'parking') cat = 'parking';
+        else if (exp.type === 'tool') cat = 'tool';
+        else if (exp.type === 'fuel') cat = 'fuel';
+        else if (exp.type === 'hardware') cat = 'hardware';
+      }
 
       return {
         id: `pc-from-rec-${targetId}-${exp.id || index}`,
         date: recordData.date,
-        type: 'expense',
-        amount: exp.amount,
+        type: isNegative ? 'income' : 'expense',
+        amount: Math.abs(exp.amount),
         category: cat,
         projectNameOrId: recordData.projectId,
-        description: `[公司營運日誌開銷] ${exp.description || '非案場公務開銷'}`,
+        description: isNegative 
+          ? (exp.description || '非案場公務存入')
+          : (exp.description || '非案場公務開銷'),
         sourceRecordId: targetId,
         createdAt: new Date().toISOString()
       };
@@ -1606,6 +1595,33 @@ export default function App() {
                                               >
                                                 詳細與修改
                                               </button>
+                                              {deleteConfirmRecordId === record.id ? (
+                                                <div className="flex items-center gap-1.5 bg-rose-950/40 p-1 px-2 rounded-xl border border-rose-900/50 animate-fadeIn">
+                                                  <span className="text-[10px] text-rose-400 font-extrabold shrink-0">確認刪除及對應帳目？</span>
+                                                  <button
+                                                    onClick={() => {
+                                                      handleDeleteRecord(record.id);
+                                                      setDeleteConfirmRecordId(null);
+                                                    }}
+                                                    className="px-2 py-1 bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-[10px] rounded-lg transition-all cursor-pointer shrink-0"
+                                                  >
+                                                    確定
+                                                  </button>
+                                                  <button
+                                                    onClick={() => setDeleteConfirmRecordId(null)}
+                                                    className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-extrabold text-[10px] rounded-lg transition-all cursor-pointer shrink-0"
+                                                  >
+                                                    取消
+                                                  </button>
+                                                </div>
+                                              ) : (
+                                                <button
+                                                  onClick={() => setDeleteConfirmRecordId(record.id)}
+                                                  className="px-3 py-1.5 bg-rose-950/25 hover:bg-rose-900/40 text-rose-400 border border-rose-900/30 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                                                >
+                                                  刪除日誌
+                                                </button>
+                                              )}
                                             </div>
                                           </div>
                                         </div>

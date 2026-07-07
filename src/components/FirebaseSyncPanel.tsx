@@ -99,13 +99,31 @@ export default function FirebaseSyncPanel({
       modified: string[] 
     }[] = [];
 
-    const cleanForCompare = (obj: any): any => {
-      if (!obj || typeof obj !== 'object') return obj;
-      const copy = { ...obj };
-      delete copy.updatedAt;
-      delete copy.createdAt;
-      delete copy.lastSyncTime;
-      return copy;
+    const isDeepEqual = (a: any, b: any): boolean => {
+      if (a === b) return true;
+      if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null) {
+        return false;
+      }
+
+      const keysA = Object.keys(a).filter(k => k !== 'updatedAt' && k !== 'createdAt' && k !== 'lastSyncTime' && a[k] !== undefined && a[k] !== null);
+      const keysB = Object.keys(b).filter(k => k !== 'updatedAt' && k !== 'createdAt' && k !== 'lastSyncTime' && b[k] !== undefined && b[k] !== null);
+
+      if (keysA.length !== keysB.length) return false;
+
+      for (const k of keysA) {
+        if (!(k in b)) return false;
+        
+        const valA = a[k];
+        const valB = b[k];
+
+        if (typeof valA === 'object' && typeof valB === 'object') {
+          if (!isDeepEqual(valA, valB)) return false;
+        } else if (valA !== valB) {
+          return false;
+        }
+      }
+
+      return true;
     };
 
     categories.forEach(cat => {
@@ -125,9 +143,7 @@ export default function FirebaseSyncPanel({
           added.push(cat.getName(item));
         } else {
           const snapItem = snapMap.get(id);
-          const cleanSnapStr = JSON.stringify(cleanForCompare(snapItem));
-          const cleanCurrStr = JSON.stringify(cleanForCompare(item));
-          if (cleanSnapStr !== cleanCurrStr) {
+          if (!isDeepEqual(snapItem, item)) {
             modified.push(cat.getName(item));
           }
         }

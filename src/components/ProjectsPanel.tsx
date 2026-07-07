@@ -268,12 +268,12 @@ export default function ProjectsPanel({
 
          return {
            ...p,
-           isEstimation: true,
-           generatedName: updatedName,
-           estimationLabor: estLabor,
-           estimationMaterials: estMaterials,
-           estimationQuoteAmount: estQuoteAmount,
-           estimationStatus: estStatus
+           isEstimation: p.isEstimation,
+            generatedName: p.isEstimation ? updatedName : p.generatedName,
+            estimationLabor: estLabor,
+            estimationMaterials: estMaterials,
+            estimationQuoteAmount: estQuoteAmount,
+            estimationStatus: p.isEstimation ? estStatus : p.estimationStatus
          };
        }
        return p;
@@ -1774,22 +1774,7 @@ return (
                 </label>
               </div>
 
-              {editIsEstimation && (
-                <div className="p-3.5 bg-amber-50/50 rounded-xl border border-amber-200 flex flex-col gap-2 animate-fadeIn">
-                  <label className="block text-xs font-bold text-amber-900">
-                    📈 案場施工估價狀態
-                  </label>
-                  <select
-                    value={editEstimationStatus}
-                    onChange={(e) => setEditEstimationStatus(e.target.value as any)}
-                    className="w-full text-xs p-2 border border-amber-205 rounded-lg bg-white font-bold text-neutral-850 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                  >
-                    <option value="估價中">⏳ 報價中 (比價/初擬階段)</option>
-                    <option value="進行中施工">🏗️ 進行中施工 (已簽約施作為成本參考)</option>
-                    <option value="報價未成">❌ 報價未成 (不同意施作 - 本案不納入請款和數據統計)</option>
-                  </select>
-                </div>
-              )}
+
             </div>
 
             {/* Footer */}
@@ -1868,21 +1853,7 @@ return (
               </div>
 
               {/* Status and Active Quoted Amount inputs */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white p-4 rounded-xl border border-neutral-200/60 shadow-xs">
-                <div>
-                  <label className="block text-[11px] font-bold text-neutral-700 mb-1">
-                    📈 案場施工估價狀態
-                  </label>
-                  <select
-                    value={estStatus}
-                    onChange={(e) => setEstStatus(e.target.value as any)}
-                    className="w-full text-xs p-2 border border-neutral-200 rounded-lg bg-white font-medium"
-                  >
-                    <option value="估價中">⏳ 估價中 (預設狀態)</option>
-                    <option value="進行中施工">🏗️ 進行中施工 (作為實際成本參考)</option>
-                    <option value="報價未成">❌ 報價未成 (不同意施作 - 本案不列入請款和數據統計)</option>
-                  </select>
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-4 rounded-xl border border-neutral-200/60 shadow-xs">
                 <div>
                   <label className="block text-[11px] font-bold text-neutral-700 mb-1">
                     💵 總體對外報價總金額 (元)

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Customer, Project, DailyRecord, PaymentTransaction, Worker, MaterialPreset, WorkerAdvance, PettyCashTransaction } from '../types';
+import { Customer, Project, DailyRecord, PaymentTransaction, Worker, MaterialPreset, WorkerAdvance, PettyCashTransaction, RecordExpense } from '../types';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell 
 } from 'recharts';
@@ -7,7 +7,7 @@ import {
   Landmark, Plus, Trash2, ArrowRightLeft, DollarSign, Wallet, 
   Percent, ArrowUpDown, ChevronDown, ChevronUp, AlertCircle, 
   Check, Info, Calendar, Sparkles, Building2, UserCheck, Scale,
-  TrendingUp, HardHat, FileText, Search, RefreshCw, Eye, Printer, Copy, Clock, Filter, Users, ClipboardList, Coins
+  TrendingUp, HardHat, FileText, Search, RefreshCw, Eye, Printer, Copy, Clock, Filter, Users, ClipboardList, Coins, Edit
 } from 'lucide-react';
 
 interface ProjectSummaryItem {
@@ -148,8 +148,55 @@ export default function BillingPanel({
 
   // Daily Engineering reports filters
   const [reportSelectedProjectId, setReportSelectedProjectId] = useState<string>('all');
-  const [reportStartDate, setReportStartDate] = useState<string>('');
-  const [reportEndDate, setReportEndDate] = useState<string>('');
+  const [reportStartDate, setReportStartDate] = useState<string>(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}-01`;
+  });
+  const [reportEndDate, setReportEndDate] = useState<string>(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+    return `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+  });
+
+  const handleReportCurrentMonth = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+    setReportStartDate(`${year}-${month}-01`);
+    setReportEndDate(`${year}-${month}-${String(lastDay).padStart(2, '0')}`);
+  };
+
+  const handleReportPrevMonth = () => {
+    let current = new Date();
+    if (reportStartDate) {
+      current = new Date(reportStartDate);
+    }
+    current.setMonth(current.getMonth() - 1);
+    const year = current.getFullYear();
+    const month = String(current.getMonth() + 1).padStart(2, '0');
+    const lastDay = new Date(year, current.getMonth() + 1, 0).getDate();
+    setReportStartDate(`${year}-${month}-01`);
+    setReportEndDate(`${year}-${month}-${String(lastDay).padStart(2, '0')}`);
+  };
+
+  const handleReportNextMonth = () => {
+    let current = new Date();
+    if (reportStartDate) {
+      current = new Date(reportStartDate);
+    }
+    current.setMonth(current.getMonth() + 1);
+    const year = current.getFullYear();
+    const month = String(current.getMonth() + 1).padStart(2, '0');
+    const lastDay = new Date(year, current.getMonth() + 1, 0).getDate();
+    setReportStartDate(`${year}-${month}-01`);
+    setReportEndDate(`${year}-${month}-${String(lastDay).padStart(2, '0')}`);
+  };
+
   const [reportSearchQuery, setReportSearchQuery] = useState<string>('');
   const [reportExpandedId, setReportExpandedId] = useState<string | null>(null);
   const [reportCopiedId, setReportCopiedId] = useState<string | null>(null);
@@ -249,6 +296,11 @@ export default function BillingPanel({
   const [addPcProjId, setAddPcProjId] = useState<string>('');
   const [addPcDescription, setAddPcDescription] = useState<string>('');
   const [pettyCashCategoryFilter, setPettyCashCategoryFilter] = useState<string>('all');
+
+  // Petty Cash Editing States
+  const [editingPcTxId, setEditingPcTxId] = useState<string | null>(null);
+  const [editPcAmount, setEditPcAmount] = useState<string>('');
+  const [editPcDescription, setEditPcDescription] = useState<string>('');
 
   // 統一專案顯示名稱格式化 (確保一體性)
   const getProjectDisplayName = (p: Project): string => {
@@ -843,8 +895,66 @@ export default function BillingPanel({
       createdAt: new Date().toISOString()
     };
 
+    // Synchronize to daily log (施工日誌) if a project is selected
+    if (addPcProjId && setRecords) {
+      const matchedProj = projects.find(p => p.id === addPcProjId);
+      const projName = matchedProj ? matchedProj.generatedName || matchedProj.companyOrOwner : '未知案場';
+      
+      setRecords((prev: DailyRecord[]) => {
+        const existingRec = prev.find(r => r.projectId === addPcProjId && r.date === addPcDate);
+        
+        // Match petty cash categories to daily record expense types
+        let expType = 'other';
+        if (addPcCategory === 'feed') expType = 'meal';
+        else if (addPcCategory === 'parking') expType = 'parking';
+        else if (addPcCategory === 'tool') expType = 'tool';
+        else if (addPcCategory === 'fuel') expType = 'fuel';
+        else if (addPcCategory === 'hardware') expType = 'hardware';
+
+        const newExpense: RecordExpense = {
+          id: `exp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          type: expType,
+          amount: addPcType === 'income' ? -amount : amount,
+          description: addPcDescription.trim(),
+          isProjectExpense: false // Sync as non-project company/overhead expense
+        };
+
+        const recordId = existingRec ? existingRec.id : `rec-${Date.now()}`;
+        
+        // Link the petty cash transaction with the record expense
+        newPc.sourceRecordId = recordId;
+        newPc.id = `pc-from-rec-${recordId}-${newExpense.id}`;
+
+        if (existingRec) {
+          return prev.map(r => {
+            if (r.id === existingRec.id) {
+              return {
+                ...r,
+                expenses: [...r.expenses, newExpense]
+              };
+            }
+            return r;
+          });
+        } else {
+          const newRec: DailyRecord = {
+            id: recordId,
+            date: addPcDate,
+            projectId: addPcProjId,
+            projectName: projName,
+            materials: [],
+            expenses: [newExpense],
+            workers: [],
+            notes: `⚠️ 由零用金簿自動同步建立之公務開銷紀錄`,
+            markAsCompleted: false,
+            createdAt: new Date().toISOString()
+          };
+          return [newRec, ...prev];
+        }
+      });
+    }
+
     setPettyCashTransactions(prev => [newPc, ...prev]);
-    onSaveToast(`🪙 [${addPcType === 'income' ? '補進零用金' : '零用金支出'}] NT$ ${amount.toLocaleString()} 元登記成功！`);
+    onSaveToast(`🪙 [${addPcType === 'income' ? '補進零用金' : '零用金支出'}] NT$ ${amount.toLocaleString()} 元登記成功並同步至施工日誌！`);
     
     // reset states
     setAddPcAmount('');
@@ -855,10 +965,91 @@ export default function BillingPanel({
 
   // 刪除零用金紀錄
   const handleDeletePettyCashTransaction = (id: string) => {
-    triggerConfirm('確認刪除零用金帳目', '您確定要刪除此筆零用金帳目收支嗎？', () => {
+    triggerConfirm('確認刪除零用金帳目', '您確定要刪除此筆零用金帳目收支嗎？\n若此款項是由施工日誌同步而來，對應的施工日誌開銷也將一併被移除。', () => {
+      const tx = pettyCashTransactions.find(t => t.id === id);
+      if (tx && tx.sourceRecordId && setRecords) {
+        const recordId = tx.sourceRecordId;
+        setRecords((prev: DailyRecord[]) => prev.map(r => {
+          if (r.id === recordId) {
+            // Filter out the expense that matches
+            const updatedExpenses = r.expenses.filter((exp, idx) => {
+              const expId = exp.id || idx;
+              const expectedPcId = `pc-from-rec-${recordId}-${expId}`;
+              return expectedPcId !== id;
+            });
+            return {
+              ...r,
+              expenses: updatedExpenses
+            };
+          }
+          return r;
+        }));
+      }
+
       setPettyCashTransactions(prev => prev.filter(t => t.id !== id));
-      onSaveToast('🗑️ 零用金帳目已安全移除。');
+      onSaveToast('🗑️ 零用金帳目及對應日誌開銷已安全移除。');
     });
+  };
+
+  const handleStartEditPc = (t: PettyCashTransaction) => {
+    setEditingPcTxId(t.id);
+    setEditPcAmount(t.amount.toString());
+    setEditPcDescription(t.description);
+  };
+
+  const handleSavePettyCashEdit = (originalTx: PettyCashTransaction) => {
+    const nextAmount = Number(editPcAmount);
+    if (isNaN(nextAmount) || nextAmount <= 0) {
+      alert('請輸入有效的大於 0 的金額！');
+      return;
+    }
+    if (!editPcDescription.trim()) {
+      alert('請輸入交易名目規格敘事！');
+      return;
+    }
+
+    // Update in petty cash book
+    setPettyCashTransactions((prev: PettyCashTransaction[]) => prev.map(t => {
+      if (t.id === originalTx.id) {
+        return {
+          ...t,
+          amount: nextAmount,
+          description: editPcDescription.trim()
+        };
+      }
+      return t;
+    }));
+
+    // Synchronize to daily record (施工日誌) if linked
+    if (originalTx.sourceRecordId && setRecords) {
+      const recordId = originalTx.sourceRecordId;
+      setRecords((prev: DailyRecord[]) => prev.map(r => {
+        if (r.id === recordId) {
+          // Find and update the corresponding expense
+          const updatedExpenses = r.expenses.map((exp, idx) => {
+            const expId = exp.id || idx;
+            const expectedPcId = `pc-from-rec-${recordId}-${expId}`;
+            if (expectedPcId === originalTx.id) {
+              const actualAmount = originalTx.type === 'income' ? -nextAmount : nextAmount;
+              return {
+                ...exp,
+                amount: actualAmount,
+                description: editPcDescription.trim()
+              };
+            }
+            return exp;
+          });
+          return {
+            ...r,
+            expenses: updatedExpenses
+          };
+        }
+        return r;
+      }));
+    }
+
+    setEditingPcTxId(null);
+    onSaveToast('🪙 零用金帳目已成功修改，相關施工日誌亦同步更新！');
   };
 
   // 1. Core action: Add Payment transaction with Simplified Allocation Mechanism
@@ -1879,8 +2070,17 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
       );
     }
 
+    // If a date range is active, only show projects that have actual records OR petty cash transactions within the selected date range!
+    if (reportStartDate || reportEndDate) {
+      list = list.filter(p => {
+        const hasRecs = filteredRecords.some(r => r.projectId === p.id);
+        const hasPetty = filteredPettyCash.some(t => t.projectNameOrId === p.id);
+        return hasRecs || hasPetty;
+      });
+    }
+
     return list;
-  }, [projectSummariesList, reportSelectedProjectId, reportSearchQuery]);
+  }, [projectSummariesList, reportSelectedProjectId, reportSearchQuery, reportStartDate, reportEndDate, filteredRecords, filteredPettyCash]);
 
 
   return (
@@ -3045,7 +3245,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-xs">
               {/* Project Select */}
               <div>
                 <label className="block text-[11px] font-extrabold text-neutral-400 mb-1">對口工地案場</label>
@@ -3083,6 +3283,37 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   onChange={(e) => setReportEndDate(e.target.value)}
                   className="w-full px-2.5 py-1.5 border border-[#3D3D3D] rounded-lg bg-[#252525] text-[#E0E0E0] font-medium"
                 />
+              </div>
+
+              {/* Quick Month Toggle */}
+              <div>
+                <label className="block text-[11px] font-extrabold text-neutral-400 mb-1">快速切換月份</label>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={handleReportPrevMonth}
+                    className="flex-1 py-1.5 border border-[#3D3D3D] bg-[#252525] hover:bg-[#323232] text-[#E0E0E0] hover:text-white rounded-lg text-[11px] font-bold transition-all text-center cursor-pointer"
+                    title="上個月"
+                  >
+                    ◀ 上月
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleReportCurrentMonth}
+                    className="flex-1 py-1.5 border border-[#3D3D3D] bg-[#252525] hover:bg-[#323232] text-amber-500 hover:text-amber-400 rounded-lg text-[11px] font-bold transition-all text-center cursor-pointer"
+                    title="回到本月"
+                  >
+                    本月
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleReportNextMonth}
+                    className="flex-1 py-1.5 border border-[#3D3D3D] bg-[#252525] hover:bg-[#323232] text-[#E0E0E0] hover:text-white rounded-lg text-[11px] font-bold transition-all text-center cursor-pointer"
+                    title="下個月"
+                  >
+                    下月 ▶
+                  </button>
+                </div>
               </div>
 
               {/* Text Search */}
@@ -3250,7 +3481,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
             {/* Graphical representation: A multi-colored custom Bar chart comparing Income, Cost, Collections, Received Payments */}
             <div className="bg-neutral-950/60 p-4 border border-neutral-800 rounded-xl">
               <div className="text-xs font-bold text-neutral-300 mb-3 flex items-center gap-1.5 justify-between">
-                <span>📊 各案場 收入 vs 支出 vs 現場直收 vs 實收工程款 (營業對比分析)</span>
+                <span>📊 各案場 預估收入 vs 實際成本 vs 專案預估淨利 (營業對比分析)</span>
                 <span className="text-[10px] text-neutral-500 font-mono">單位：新台幣 (NTD)</span>
               </div>
               
@@ -3293,8 +3524,6 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                         name: shortName || '案場',
                         '預估收入 (牌價)': p.selectedBilledBasis,
                         '工程實際成本': totalCost,
-                        '現場直收代收款': siteCol,
-                        '實收工程款': p.receivedPayment,
                         '專案預估淨利': profit // 新增：利潤分析必備的淨利潤指標
                       };
                     })}
@@ -3314,8 +3543,6 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
                     <Bar dataKey="預估收入 (牌價)" fill="#D4AF37" stroke="#AA7C11" radius={[3, 3, 0, 0]} maxBarSize={30} />
                     <Bar dataKey="工程實際成本" fill="#8C7040" stroke="#684F25" radius={[3, 3, 0, 0]} maxBarSize={30} />
-                    <Bar dataKey="現場直收代收款" fill="#E6CA65" stroke="#BF9A30" radius={[3, 3, 0, 0]} maxBarSize={30} />
-                    <Bar dataKey="實收工程款" fill="#EAD2AC" stroke="#B89765" radius={[3, 3, 0, 0]} maxBarSize={30} />
                     <Bar dataKey="專案預估淨利" fill="#10B981" stroke="#059669" radius={[3, 3, 0, 0]} maxBarSize={30} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -3455,8 +3682,8 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     </tr>
                   ) : (
                     analyzedProjects.map(p => {
-                      // Calculate components on the fly
-                      const projectRecords = records.filter(r => r.projectId === p.id);
+                      // Calculate components on the fly (period filtered)
+                      const projectRecords = filteredRecords.filter(r => r.projectId === p.id);
                       let materialsCostSum = 0;
                       let laborCostSum = 0;
                       let expensesSum = 0;
@@ -3476,13 +3703,47 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                         expensesSum += r.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
                       });
 
-                      const projPettyCashExpense = (pettyCashTransactions || [])
+                      const projPettyCashExpense = (filteredPettyCash || [])
                         .filter(t => t.type === 'expense' && t.projectNameOrId === p.id)
                         .reduce((sum, t) => sum + t.amount, 0);
 
-                      const totalCost = p.actualConstructionCost + projPettyCashExpense;
-                      const profit = p.selectedBilledBasis - totalCost;
-                      const profitMargin = p.selectedBilledBasis > 0 ? Math.round((profit / p.selectedBilledBasis) * 100) : 0;
+                      const totalCost = materialsCostSum + laborCostSum + expensesSum + projPettyCashExpense;
+
+                      const p_materialsBilled = projectRecords.reduce((sum, r) => sum + r.materials.reduce((s, m) => s + (m.unitPrice * m.quantity), 0), 0);
+                      const p_laborBilled = projectRecords.reduce((sum, r) => sum + r.workers.reduce((s, w) => {
+                        const rate = w.billingHourlyRate ?? w.hourlyRate;
+                        const reg = Math.min(w.hoursWork, 8);
+                        const ot1 = Math.min(Math.max(w.hoursWork - 8, 0), 2);
+                        const ot2 = Math.max(w.hoursWork - 10, 0);
+                        return s + Math.round((reg * rate) + (ot1 * rate * 1.34) + (ot2 * rate * 1.34));
+                      }, 0), 0);
+                      const p_expensesBilled = projectRecords.reduce((sum, r) => sum + r.expenses.filter(e => e.isProjectExpense !== false).reduce((s, e) => s + e.amount, 0), 0);
+                      const p_siteCol = projectRecords.reduce((s, r) => s + (r.collectedAmount || 0), 0);
+
+                      let billedBasis = 0;
+                      if (p_siteCol > 0) {
+                        billedBasis = p_siteCol;
+                      } else if (p.isEstimation && p.contractQuote > 0) {
+                        if (!reportStartDate && !reportEndDate) {
+                          billedBasis = p.contractQuote;
+                        } else {
+                          billedBasis = p_materialsBilled + p_laborBilled + p_expensesBilled;
+                        }
+                      } else {
+                        billedBasis = p.contractQuote > 0 && !reportStartDate && !reportEndDate ? p.contractQuote : (p_materialsBilled + p_laborBilled + p_expensesBilled);
+                      }
+
+                      // Received Payment in the selected period
+                      const p_txs = transactions.filter(t => t.projectNameOrId === p.id && t.allocationType !== 'round_adjustment');
+                      const periodReceived = p_txs.filter(t => {
+                        if (reportStartDate && t.date < reportStartDate) return false;
+                        if (reportEndDate && t.date > reportEndDate) return false;
+                        return true;
+                      }).reduce((sum, t) => sum + t.amount, 0) + p_siteCol;
+
+                      const profit = billedBasis - totalCost;
+                      const profitMargin = billedBasis > 0 ? Math.round((profit / billedBasis) * 100) : 0;
+                      const outstandingBalance = Math.max(billedBasis - periodReceived, 0);
 
                       // Display styling based on margin
                       const marginColor = profitMargin >= 20 ? 'text-emerald-700 bg-emerald-50 border-emerald-200/50 font-black' : 'text-amber-800 bg-amber-50 border-amber-200/50 font-black';
@@ -3518,7 +3779,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                             </div>
                           </td>
                           <td className="py-3 px-4 text-right font-mono font-bold text-indigo-700">
-                            NT$ {p.selectedBilledBasis.toLocaleString()}
+                            NT$ {billedBasis.toLocaleString()}
                           </td>
                           <td className="py-3 px-4 text-right">
                             <div className="font-mono font-bold text-neutral-800">
@@ -3539,12 +3800,12 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                             </span>
                           </td>
                           <td className="py-3 px-4 text-right font-mono font-bold text-emerald-700">
-                            NT$ {p.receivedPayment.toLocaleString()}
+                            NT$ {periodReceived.toLocaleString()}
                           </td>
                           <td className="py-3 px-4 text-right font-mono">
-                            {p.outstandingBalance > 0 ? (
+                            {outstandingBalance > 0 ? (
                               <span className="font-black text-rose-600">
-                                NT$ {p.outstandingBalance.toLocaleString()}
+                                NT$ {outstandingBalance.toLocaleString()}
                               </span>
                             ) : (
                               <span className="text-neutral-400 font-bold">已結清</span>
@@ -4942,9 +5203,10 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                         .map(t => {
                           const relProj = projects.find(p => p.id === t.projectNameOrId);
                           const relProjName = relProj ? getProjectDisplayName(relProj) : '';
+                          const isEditing = editingPcTxId === t.id;
                           
                           return (
-                            <tr key={t.id} className="hover:bg-[#D4AF37]/5">
+                            <tr key={t.id} className={isEditing ? "bg-[#D4AF37]/10" : "hover:bg-[#D4AF37]/5"}>
                               <td className="py-3 px-4 font-mono font-bold text-[#E0E0E0] whitespace-nowrap">{t.date}</td>
                               <td className="py-3 px-4 whitespace-nowrap">
                                 {t.type === 'income' ? (
@@ -4966,23 +5228,73 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                               <td className={`py-3 px-4 text-right font-mono font-extrabold text-xs border-r border-[#D4AF37]/10 pr-4 whitespace-nowrap ${
                                 t.type === 'income' ? 'text-emerald-400' : 'text-[#E5E5E5]'
                               }`}>
-                                {t.type === 'income' ? '+' : '-'}${t.amount.toLocaleString()} 元
+                                {isEditing ? (
+                                  <div className="flex items-center justify-end gap-1">
+                                    <span className="text-[10px] text-neutral-400">{t.type === 'income' ? '+' : '-'}</span>
+                                    <input
+                                      type="number"
+                                      value={editPcAmount}
+                                      onChange={(e) => setEditPcAmount(e.target.value)}
+                                      className="w-16 px-1.5 py-0.5 bg-[#121212] border border-[#D4AF37]/35 text-[#E5E5E5] text-[10px] font-bold font-mono rounded text-right outline-none focus:border-[#D4AF37]"
+                                    />
+                                    <span className="text-[10px] text-[#E0E0E0]">元</span>
+                                  </div>
+                                ) : (
+                                  <span>{t.type === 'income' ? '+' : '-'}${t.amount.toLocaleString()} 元</span>
+                                )}
                               </td>
-                              <td className="py-3 px-4 text-[#E0E0E0] font-medium max-w-[170px] truncate" title={t.description}>
-                                {t.description}
+                              <td className="py-3 px-4 text-[#E0E0E0] font-medium max-w-[170px]">
+                                {isEditing ? (
+                                  <input
+                                    type="text"
+                                    value={editPcDescription}
+                                    onChange={(e) => setEditPcDescription(e.target.value)}
+                                    className="w-full px-1.5 py-0.5 bg-[#121212] border border-[#D4AF37]/35 text-[#E5E5E5] text-[10px] rounded outline-none focus:border-[#D4AF37]"
+                                  />
+                                ) : (
+                                  <div className="truncate" title={t.description}>{t.description}</div>
+                                )}
                               </td>
                               <td className="py-3 px-4 text-[#E0E0E0] font-extrabold whitespace-nowrap">{t.payerName || <span className="text-neutral-500">系統提撥</span>}</td>
                               <td className="py-3 px-4 text-xs font-semibold text-neutral-400 max-w-[280px] sm:max-w-[380px] md:max-w-[480px] lg:max-w-[580px] truncate whitespace-nowrap" title={relProj ? getProjectDisplayName(relProj) : ''}>
                                 {relProjName || <span className="text-neutral-600 font-bold">—</span>}
                               </td>
                               <td className="py-3 px-4 text-center whitespace-nowrap">
-                                <button
-                                  onClick={() => handleDeletePettyCashTransaction(t.id)}
-                                  className="text-neutral-400 hover:text-rose-500 p-1 cursor-pointer transition"
-                                  title="移除帳目"
-                                >
-                                  <Trash2 size={12} />
-                                </button>
+                                {isEditing ? (
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <button
+                                      onClick={() => handleSavePettyCashEdit(t)}
+                                      className="text-emerald-400 hover:text-emerald-350 font-bold text-[10px] px-1 rounded transition cursor-pointer"
+                                      title="儲存變更"
+                                    >
+                                      儲存
+                                    </button>
+                                    <button
+                                      onClick={() => setEditingPcTxId(null)}
+                                      className="text-neutral-400 hover:text-white font-bold text-[10px] px-1 rounded transition cursor-pointer"
+                                      title="取消"
+                                    >
+                                      取消
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <button
+                                      onClick={() => handleStartEditPc(t)}
+                                      className="text-neutral-400 hover:text-[#D4AF37] p-1 cursor-pointer transition"
+                                      title="編輯金額與規格名目"
+                                    >
+                                      <Edit size={12} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeletePettyCashTransaction(t.id)}
+                                      className="text-neutral-400 hover:text-rose-500 p-1 cursor-pointer transition"
+                                      title="移除帳目"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </div>
+                                )}
                               </td>
                             </tr>
                           );

@@ -27,6 +27,7 @@ export default function BookingsPanel({
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'createdAt' | 'bookingDate'>('bookingDate');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [lostConfirmBooking, setLostConfirmBooking] = useState<{ id: string; company: string } | null>(null);
 
   // Filter active bookings
   const activeBookings = projects.filter(p => 
@@ -76,13 +77,15 @@ export default function BookingsPanel({
 
   // Handle conversion to unaccomplished project (未成案)
   const handleConvertToLost = (bookingId: string, company: string) => {
-    const confirmMove = window.confirm(
-      `❓ 您確定要將預約客戶【${company}】轉換為工程案場總覽中的「未成案場」嗎？\n此操作會將該預約移出預約排程，並在「案場總覽 > 未成案場」中供日後追蹤存檔。`
-    );
-    if (!confirmMove) return;
+    setLostConfirmBooking({ id: bookingId, company });
+  };
+
+  const handleExecuteConvertToLost = () => {
+    if (!lostConfirmBooking) return;
+    const { id, company } = lostConfirmBooking;
 
     setProjects((prev: Project[]) => prev.map(p => {
-      if (p.id === bookingId) {
+      if (p.id === id) {
         return {
           ...p,
           isBooking: false,
@@ -96,6 +99,7 @@ export default function BookingsPanel({
     }));
 
     onSaveToast(`🚫 已將【${company}】之預約項目取消，並移轉至「未成案場」存檔。`);
+    setLostConfirmBooking(null);
   };
 
   // Handle deletion
@@ -292,6 +296,37 @@ export default function BookingsPanel({
                 className="py-2 text-xs font-bold rounded-lg bg-red-600 hover:bg-red-500 text-white transition cursor-pointer"
               >
                 確定刪除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Convert to Lost Confirmation Modal Popover */}
+      {lostConfirmBooking && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-[#1A1A1A] border border-[#D4AF37]/30 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-center animate-fadeIn">
+            <div className="mx-auto h-12 w-12 bg-[#D4AF37]/10 border border-[#D4AF37]/20 text-[#D4AF37] flex items-center justify-center rounded-full">
+              <AlertTriangle size={24} />
+            </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-neutral-100">確定移入未成案場？</h3>
+              <p className="text-xs text-neutral-400 font-sans mt-1.5 leading-relaxed">
+                確定要將客戶【{lostConfirmBooking.company}】轉換為「未成案場」嗎？此動作會將該預約移出目前待辦排程。
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              <button
+                onClick={() => setLostConfirmBooking(null)}
+                className="py-2 text-xs font-semibold rounded-lg bg-neutral-800 text-neutral-300 border border-neutral-700 hover:bg-neutral-700 transition cursor-pointer"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleExecuteConvertToLost}
+                className="py-2 text-xs font-bold rounded-lg bg-[#D4AF37] hover:bg-[#bfa032] text-black transition cursor-pointer"
+              >
+                確認移入
               </button>
             </div>
           </div>
