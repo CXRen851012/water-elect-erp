@@ -27,6 +27,8 @@ interface ProjectSummaryItem {
   isCompleted: boolean;
   isEstimation: boolean;
   priceWarnings?: string[]; // 牌成本、實價或缺失警示清單
+  fullAddress?: string;
+  addressAbbreviated?: string;
 }
 
 interface BillingPanelProps {
@@ -74,13 +76,26 @@ export default function BillingPanel({
   const [activeSubTab, setActiveSubTab] = useState<'billing_records' | 'operating_analytics' | 'worker_attendance' | 'worker_advances' | 'petty_cash'>('billing_records');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('all');
   const [billingSearchQuery, setBillingSearchQuery] = useState<string>('');
-  const [hideCompletedAndPaid, setHideCompletedAndPaid] = useState<boolean>(false);
+  const [hideCompletedAndPaid, setHideCompletedAndPaid] = useState<boolean>(true);
   const [showAddPaymentModal, setShowAddPaymentModal] = useState<boolean>(false);
+  const isFirstMount = React.useRef(true);
 
   // States for hiding actual construction cost and adjusting/editing external quote amount
   const [showActualCost, setShowActualCost] = useState<boolean>(false);
   const [editingQuoteProjId, setEditingQuoteProjId] = useState<string | null>(null);
   const [editingQuoteInput, setEditingQuoteInput] = useState<string>('');
+
+  // States for Round Adjustment / Discount Modal
+  const [showRoundingModal, setShowRoundingModal] = useState<boolean>(false);
+  const [roundingProjId, setRoundingProjId] = useState<string | null>(null);
+  const [roundingInputAmount, setRoundingInputAmount] = useState<string>('');
+
+  // States for Quick Full Payment Modal
+  const [showQuickPayModal, setShowQuickPayModal] = useState<boolean>(false);
+  const [quickPayCustId, setQuickPayCustId] = useState<string>('');
+  const [quickPayProjId, setQuickPayProjId] = useState<string>('');
+  const [quickPayAmount, setQuickPayAmount] = useState<number>(0);
+  const [quickPayMethod, setQuickPayMethod] = useState<string>('工務現場收取(現金)');
 
   // Custom Elegant Confirm Modal State
   const [confirmModal, setConfirmModal] = useState<{
@@ -344,6 +359,10 @@ export default function BillingPanel({
   };
 
   useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
     if (triggerAddPayment > 0) {
       if (selectedCustomerId !== 'all') {
         setPayCustId(selectedCustomerId);
@@ -553,7 +572,9 @@ export default function BillingPanel({
         outstandingBalance: selectedBilledBasis,
         isCompleted: p.isCompleted,
         isEstimation: (p.isEstimation || p.generatedName?.startsWith('[估]')) ? true : false,
-        priceWarnings
+        priceWarnings,
+        fullAddress: p.fullAddress,
+        addressAbbreviated: p.addressAbbreviated
       };
     });
 
@@ -1266,6 +1287,87 @@ export default function BillingPanel({
     setShowAddPaymentModal(false);
   };
 
+  const handleOpenQuickFullPayment = (custId: string, projId: string, amount: number) => {
+    if (amount <= 0) return;
+    setQuickPayCustId(custId);
+    setQuickPayProjId(projId);
+    setQuickPayAmount(amount);
+    setQuickPayMethod('工務現場收取(現金)'); // Default to "工務現場收取(現金)"
+    setShowQuickPayModal(true);
+  };
+
+  const handleSaveQuickFullPayment = () => {
+    if (!quickPayProjId || quickPayAmount <= 0) return;
+
+    const proj = projects.find(p => p.id === quickPayProjId);
+    const projName = proj ? getProjectDisplayName(proj) : '未命名案場';
+
+    const newTx: PaymentTransaction = {
+      id: `tx-quick-pay-${Date.now()}`,
+      customerId: quickPayCustId,
+      projectNameOrId: quickPayProjId,
+      date: new Date().toISOString().substring(0, 10),
+      amount: quickPayAmount,
+      method: quickPayMethod,
+      allocationType: 'specific_project',
+      description: `【快速沖帳】客戶照應收未收餘額全額付清 (${quickPayMethod})`,
+      createdAt: new Date().toISOString()
+    };
+
+    setTransactions(prev => [newTx, ...prev]);
+    setShowQuickPayModal(false);
+    onSaveToast(`💰 快速沖帳成功！已依【${quickPayMethod}】金流管道登錄 NT$ ${quickPayAmount.toLocaleString()} 元之實收工程款！`);
+  };
+
+  const handleSaveRoundingAdjustment = () => {
+    if (!roundingProjId) return;
+    const amount = parseFloat(roundingInputAmount) || 0;
+    if (amount < 0) {
+      alert('折抵金額不可為負數！');
+      return;
+    }
+
+    const proj = projects.find(p => p.id === roundingProjId);
+    if (!proj) return;
+
+    const existingIdx = transactions.findIndex(t => t.projectNameOrId === roundingProjId && t.allocationType === 'round_adjustment');
+
+    let updatedTxs = [...transactions];
+
+    if (existingIdx >= 0) {
+      if (amount > 0) {
+        updatedTxs[existingIdx] = {
+          ...updatedTxs[existingIdx],
+          amount: amount,
+          date: new Date().toISOString().substring(0, 10),
+          createdAt: new Date().toISOString()
+        };
+      } else {
+        updatedTxs.splice(existingIdx, 1);
+      }
+    } else {
+      if (amount > 0) {
+        const newTx: PaymentTransaction = {
+          id: `tx-round-adjust-${Date.now()}`,
+          customerId: proj.clientId || 'unassigned',
+          projectNameOrId: roundingProjId,
+          date: new Date().toISOString().substring(0, 10),
+          amount: amount,
+          method: '去尾抹零調整',
+          allocationType: 'round_adjustment',
+          description: '配合去尾折抵調整額',
+          createdAt: new Date().toISOString()
+        };
+        updatedTxs = [newTx, ...updatedTxs];
+      }
+    }
+
+    setTransactions(updatedTxs);
+    setShowRoundingModal(false);
+    setRoundingProjId(null);
+    onSaveToast(`🔧 成功設定案場「${proj ? getProjectDisplayName(proj) : '未命名案場'}」之去尾折抵金額為 NT$ ${amount.toLocaleString()} 元！`);
+  };
+
   // Draw money from credit pool to pay specific project (多給未來合抵扣)
   const handleApplyPoolCredits = (custId: string, projId: string, amount: number) => {
     const netPool = customerCredits[custId]?.netPoolBalance || 0;
@@ -1411,6 +1513,19 @@ export default function BillingPanel({
     let expensesCost = 0;
     let totalHours = 0;
     
+    // Calculate total rounding and discount adjustments for current period
+    let totalRoundingDiscounts = 0;
+    transactions.forEach(t => {
+      if (t.allocationType === 'round_adjustment') {
+        if (reportSelectedProjectId !== 'all' && t.projectNameOrId !== reportSelectedProjectId) {
+          return;
+        }
+        if (reportStartDate && t.date < reportStartDate) return;
+        if (reportEndDate && t.date > reportEndDate) return;
+        totalRoundingDiscounts += t.amount;
+      }
+    });
+
     // Group filteredRecords by project to handle the estimated revenue calculation properly
     const projectRecordsMap: Record<string, typeof filteredRecords> = {};
     filteredRecords.forEach(r => {
@@ -1484,7 +1599,7 @@ export default function BillingPanel({
       }
     });
 
-    const grandTotal = projectBilledTotal + pettyCashIncome; 
+    const grandTotal = Math.max(projectBilledTotal + pettyCashIncome - totalRoundingDiscounts, 0); 
     const grandActualCost = materialsActualCost + laborCost + expensesCost + pettyCashExpense; 
     const profitAmount = grandTotal - grandActualCost; 
     const profitMargin = grandTotal > 0 ? Math.round((profitAmount / grandTotal) * 100) : 0;
@@ -1504,7 +1619,7 @@ export default function BillingPanel({
       profitMargin: profitMargin > 100 ? 100 : profitMargin,
       recordCount: filteredRecords.length
     };
-  }, [filteredRecords, filteredPettyCash, projects]);
+  }, [filteredRecords, filteredPettyCash, projects, transactions, reportStartDate, reportEndDate, reportSelectedProjectId]);
 
   // Aggregate data for Recharts Pie Chart (Cost proportions)
   const pieChartData = useMemo(() => {
@@ -2234,17 +2349,17 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   const nextVal = !showActualCost;
                   setShowActualCost(nextVal);
                   onSaveToast(nextVal 
-                    ? "🔓 已經解除鎖定，於對帳單列中顯示實際施工成本與隱私利潤。" 
-                    : "🔒 已經成功隱藏對帳單中的實際施工成本，防止顧客直接看見。");
+                    ? "🔓 已經成功啟用工務主管權限，顯示真實施工成本與隱私利潤。" 
+                    : "🔒 已關閉工務主管權限，隱藏實際施工進價成本。");
                 }}
                 className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
                   showActualCost
                     ? 'bg-emerald-950/40 text-emerald-400 border-emerald-900 hover:bg-emerald-900/30'
                     : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-400 border-neutral-800'
                 }`}
-                title={showActualCost ? "外部展示時，點選可立即隱藏施工進價成本" : "點選可於此頁解鎖，核對真實成本獲利"}
+                title={showActualCost ? "外部展示時，點選可關閉工務主管權限，隱藏進價成本" : "點選可啟用工務主管權限，核對真實成本獲利"}
               >
-                {showActualCost ? "👁️ 顯示實際成本" : "🙈 隱藏實際成本"}
+                {showActualCost ? "👤 停用工務主管" : "👤 啟用工務主管"}
               </button>
             </div>
           </div>
@@ -2275,6 +2390,9 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                 return true;
               });
               
+              const matchedCustForHeader = customers.find(c => c.id === ledger.customerId);
+              const customerHeaderNotes = matchedCustForHeader?.notes?.trim();
+
               return (
                 <div key={ledger.customerId} className="bg-[#1E1E1E] rounded-2xl border border-[#2C2C2C] shadow-3xs overflow-hidden text-neutral-300">
                   
@@ -2285,7 +2403,14 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                         {ledger.customerName.charAt(0)}
                       </div>
                       <div>
-                        <h4 className="text-sm font-black text-white">{ledger.customerName}</h4>
+                        <h4 className="text-sm font-black text-white flex flex-wrap items-center gap-2">
+                          <span>{ledger.customerName}</span>
+                          {customerHeaderNotes && (
+                            <span className="px-2.5 py-0.5 bg-rose-500/20 border border-rose-500/40 text-rose-300 rounded text-[10.5px] font-black animate-pulse">
+                              ⚠️ 客戶特別備註與安全事項: {customerHeaderNotes}
+                            </span>
+                          )}
+                        </h4>
                         <div className="flex items-center gap-2.5 text-[11px] text-neutral-400 mt-0.5">
                           <span>配合工地數：{ledger.totalProjectsCount} 家</span>
                           <span>•</span>
@@ -2367,6 +2492,43 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
 
                               const hasWarnings = proj.priceWarnings && proj.priceWarnings.length > 0;
 
+                              // Address matching logic for address notes and full address text
+                              const matchedCust = customers.find(c => c.id === proj.clientId);
+                              let matchedAddr = matchedCust?.addresses.find(addr => {
+                                const cleanProjAddr = (proj.fullAddress || '').trim().replace(/\s+/g, '');
+                                const cleanCustAddr = (addr.fullAddress || '').trim().replace(/\s+/g, '');
+                                
+                                const cleanProjAbbrev = (proj.addressAbbreviated || '').trim().replace(/\s+/g, '');
+                                const cleanCustAbbrev = (addr.addressAbbreviated || '').trim().replace(/\s+/g, '');
+
+                                if (!cleanProjAddr && !cleanProjAbbrev) return false;
+
+                                const isAddrMatch = cleanProjAddr && cleanCustAddr && (cleanProjAddr === cleanCustAddr || cleanProjAddr.includes(cleanCustAddr) || cleanCustAddr.includes(cleanProjAddr));
+                                const isAbbrevMatch = cleanProjAbbrev && cleanCustAbbrev && (cleanProjAbbrev === cleanCustAbbrev || cleanProjAbbrev.includes(cleanCustAbbrev) || cleanCustAbbrev.includes(cleanProjAbbrev));
+                                
+                                return isAddrMatch || isAbbrevMatch;
+                              });
+
+                              // Fallbacks
+                              if (!matchedAddr && matchedCust && matchedCust.addresses.length === 1) {
+                                matchedAddr = matchedCust.addresses[0];
+                              } else if (!matchedAddr && matchedCust && matchedCust.addresses.length > 0) {
+                                const sortedByOverlap = [...matchedCust.addresses].map(addr => {
+                                  const cleanProjName = (proj.name || '').trim();
+                                  let score = 0;
+                                  if (addr.addressAbbreviated && cleanProjName.includes(addr.addressAbbreviated)) score += 10;
+                                  if (addr.fullAddress && cleanProjName.includes(addr.fullAddress)) score += 5;
+                                  return { addr, score };
+                                }).filter(x => x.score > 0).sort((a, b) => b.score - a.score);
+
+                                if (sortedByOverlap.length > 0) {
+                                  matchedAddr = sortedByOverlap[0].addr;
+                                }
+                              }
+
+                              const addressNotes = matchedAddr?.addressNotes?.trim();
+                              const displayAddrStr = proj.fullAddress || matchedAddr?.fullAddress || '';
+
                               return (
                                 <React.Fragment key={proj.id}>
                                   <tr className="border-b border-[#2C2C2C] hover:bg-[#252525] text-xs text-center text-neutral-300">
@@ -2384,6 +2546,21 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                           <span className="text-[9px] text-neutral-500 font-normal group-hover:text-amber-400/80 transition-colors">🔗 查看日誌</span>
                                         </div>
                                         <div className="text-[10px] text-neutral-400 mt-1 font-mono">案號: {proj.serialNumber || '無序號'}</div>
+                                        
+                                        {/* Display address and addressNotes directly under project box as requested */}
+                                        {displayAddrStr && (
+                                          <div className="text-[10px] text-neutral-300 mt-1.5 flex flex-col gap-1 leading-relaxed bg-[#1b1b1b] p-2 rounded-lg border border-[#2A2A2A]">
+                                            <div className="flex items-start gap-1">
+                                              <span className="text-[#D4AF37] font-extrabold shrink-0">📍 地址:</span>
+                                              <span className="font-semibold text-neutral-200">{displayAddrStr}</span>
+                                            </div>
+                                            {addressNotes && (
+                                              <div className="px-2 py-0.5 mt-0.5 bg-amber-500/10 border border-amber-500/35 text-amber-300 rounded text-[9.5px] font-bold animate-pulse">
+                                                🚨 地址備註: {addressNotes}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
                                       </div>
 
                                       {/* 警示按鈕與展開詳情控制 */}
@@ -2394,35 +2571,36 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                           </div>
                                         )}
                                         
-                                        {(hasWarnings || expandedProjDetails[proj.id]) && (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const pId = proj.id;
-                                              const isExpanding = !expandedProjDetails[pId];
-                                              setExpandedProjDetails(prev => ({ ...prev, [pId]: isExpanding }));
-                                              
-                                              if (isExpanding) {
-                                                const originalProj = projects.find(item => item.id === pId);
-                                                if (originalProj) {
-                                                  setInlineEditingProjId(pId);
-                                                  setInlineQuoteInput(String(originalProj.estimationQuoteAmount || 0));
-                                                  setInlineIsEstimation(!!originalProj.isEstimation);
-                                                  setInlineIsCompleted(!!originalProj.isCompleted);
-                                                  setInlineSerialNumber(originalProj.serialNumber || '');
-                                                  setInlineCompanyOrOwner(originalProj.companyOrOwner || '');
-                                                }
+                                        {/* Unconditionally show detail expansion control so user can always open/close */}
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const pId = proj.id;
+                                            const isExpanding = !expandedProjDetails[pId];
+                                            setExpandedProjDetails(prev => ({ ...prev, [pId]: isExpanding }));
+                                            
+                                            if (isExpanding) {
+                                              const originalProj = projects.find(item => item.id === pId);
+                                              if (originalProj) {
+                                                setInlineEditingProjId(pId);
+                                                setInlineQuoteInput(String(originalProj.estimationQuoteAmount || 0));
+                                                setInlineIsEstimation(!!originalProj.isEstimation);
+                                                setInlineIsCompleted(!!originalProj.isCompleted);
+                                                setInlineSerialNumber(originalProj.serialNumber || '');
+                                                setInlineCompanyOrOwner(originalProj.companyOrOwner || '');
                                               }
-                                            }}
-                                            className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border cursor-pointer transition-all flex items-center gap-1 ${
-                                              expandedProjDetails[proj.id]
-                                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                                                : 'bg-rose-950/40 text-rose-300 border-rose-500/30 hover:bg-rose-900/30 animate-pulse'
-                                            }`}
-                                          >
-                                            <span>{expandedProjDetails[proj.id] ? '🔼 摺疊詳情' : '🔽 展開對帳/修改'}</span>
-                                          </button>
-                                        )}
+                                            }
+                                          }}
+                                          className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border cursor-pointer transition-all flex items-center gap-1 ${
+                                            expandedProjDetails[proj.id]
+                                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                                              : hasWarnings
+                                                ? 'bg-rose-950/40 text-rose-300 border-rose-500/30 hover:bg-rose-900/30 animate-pulse'
+                                                : 'bg-neutral-850 hover:bg-neutral-750 text-neutral-300 border-neutral-700'
+                                          }`}
+                                        >
+                                          <span>{expandedProjDetails[proj.id] ? '🔼 摺疊詳情' : '🔽 展開對帳/修改'}</span>
+                                        </button>
                                       </div>
                                     </td>
                                     
@@ -2483,7 +2661,20 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                     </td>
 
                                     <td className="py-3 px-3 font-mono text-amber-500 font-extrabold">
-                                      ${proj.roundingPaid.toLocaleString()}
+                                      <div 
+                                        className="flex items-center gap-1.5 justify-center hover:text-amber-400 cursor-pointer group transition-colors"
+                                        onClick={() => {
+                                          setRoundingProjId(proj.id);
+                                          setRoundingInputAmount(String(proj.roundingPaid || 0));
+                                          setShowRoundingModal(true);
+                                        }}
+                                        title="點選修改此案場的去尾/折扣折抵金額"
+                                      >
+                                        <span>${proj.roundingPaid.toLocaleString()}</span>
+                                        <span className="opacity-0 group-hover:opacity-100 text-amber-500 text-[9.5px] p-0.5 bg-neutral-850 hover:bg-neutral-800 rounded transition-opacity">
+                                          ✏️ 折抵
+                                        </span>
+                                      </div>
                                     </td>
 
                                     <td className={`py-3 px-3 font-mono font-black ${isDebted ? 'text-rose-450 bg-rose-950/20' : 'text-neutral-500'}`}>
@@ -2544,16 +2735,31 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                         >
                                           轉入預收池 (+${(-proj.outstandingBalance).toLocaleString()})
                                         </button>
-                                      ) : ledger.prepaidBalance > 0 && isDebted ? (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleApplyPoolCredits(ledger.customerId, proj.id, proj.outstandingBalance)}
-                                          className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-black font-black text-[10px] rounded-lg transition-all cursor-pointer"
-                                        >
-                                          扣抵餘額 ${Math.min(ledger.prepaidBalance, proj.outstandingBalance).toLocaleString()}
-                                        </button>
                                       ) : (
-                                        <span className="text-[10px] text-neutral-500 italic font-medium">不須抵扣</span>
+                                        <div className="flex flex-col gap-1 w-full items-center justify-center">
+                                          {ledger.prepaidBalance > 0 && isDebted && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleApplyPoolCredits(ledger.customerId, proj.id, proj.outstandingBalance)}
+                                              className="w-full px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-black font-black text-[10px] rounded-lg transition-all cursor-pointer"
+                                            >
+                                              扣抵餘額 ${Math.min(ledger.prepaidBalance, proj.outstandingBalance).toLocaleString()}
+                                            </button>
+                                          )}
+                                          {proj.outstandingBalance > 0 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenQuickFullPayment(ledger.customerId, proj.id, proj.outstandingBalance)}
+                                              className="w-full px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-neutral-950 font-extrabold text-[10px] rounded-lg transition-all cursor-pointer flex items-center justify-center gap-0.5 border border-amber-500"
+                                              title={`點擊快速結清：自動登錄 NT$ ${proj.outstandingBalance.toLocaleString()} 元之今日實收`}
+                                            >
+                                              ⚡ 快速沖帳
+                                            </button>
+                                          )}
+                                          {proj.outstandingBalance <= 0 && (!ledger.prepaidBalance || ledger.prepaidBalance <= 0) && (
+                                            <span className="text-[10px] text-neutral-500 italic font-medium">不須抵扣</span>
+                                          )}
+                                        </div>
                                       )}
                                     </td>
                                   </tr>
@@ -2562,6 +2768,73 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                   {expandedProjDetails[proj.id] && (
                                     <tr className="bg-[#151515] border-b border-[#2C2C2C] hover:bg-[#151515]">
                                       <td colSpan={8} className="p-4 sm:p-5 text-left text-neutral-300 space-y-4">
+                                        {/* 📌 客戶與案場特別備註 / 安全事項 / 注意事項 */}
+                                        {(() => {
+                                          const matchedCust = customers.find(c => c.id === proj.clientId);
+                                          
+                                          // 強大且富有彈性的地址匹配算法
+                                          let matchedAddr = matchedCust?.addresses.find(addr => {
+                                            const cleanProjAddr = (proj.fullAddress || '').trim().replace(/\s+/g, '');
+                                            const cleanCustAddr = (addr.fullAddress || '').trim().replace(/\s+/g, '');
+                                            
+                                            const cleanProjAbbrev = (proj.addressAbbreviated || '').trim().replace(/\s+/g, '');
+                                            const cleanCustAbbrev = (addr.addressAbbreviated || '').trim().replace(/\s+/g, '');
+
+                                            if (!cleanProjAddr && !cleanProjAbbrev) return false;
+
+                                            const isAddrMatch = cleanProjAddr && cleanCustAddr && (cleanProjAddr === cleanCustAddr || cleanProjAddr.includes(cleanCustAddr) || cleanCustAddr.includes(cleanProjAddr));
+                                            const isAbbrevMatch = cleanProjAbbrev && cleanCustAbbrev && (cleanProjAbbrev === cleanCustAbbrev || cleanProjAbbrev.includes(cleanCustAbbrev) || cleanCustAbbrev.includes(cleanProjAbbrev));
+                                            
+                                            return isAddrMatch || isAbbrevMatch;
+                                          });
+
+                                          // Fallback 1: 如果該客戶剛好只有登記唯一一個地址，則將其視為對應地址（最實用的防呆機制）
+                                          if (!matchedAddr && matchedCust && matchedCust.addresses.length === 1) {
+                                            matchedAddr = matchedCust.addresses[0];
+                                          } 
+                                          // Fallback 2: 如果有多個地址，計算地址簡稱或完整地址在專案生成的 generatedName 裡的重合重疊度
+                                          else if (!matchedAddr && matchedCust && matchedCust.addresses.length > 0) {
+                                            const sortedByOverlap = [...matchedCust.addresses].map(addr => {
+                                              const cleanProjName = (proj.name || '').trim();
+                                              let score = 0;
+                                              if (addr.addressAbbreviated && cleanProjName.includes(addr.addressAbbreviated)) score += 10;
+                                              if (addr.fullAddress && cleanProjName.includes(addr.fullAddress)) score += 5;
+                                              return { addr, score };
+                                            }).filter(x => x.score > 0).sort((a, b) => b.score - a.score);
+
+                                            if (sortedByOverlap.length > 0) {
+                                              matchedAddr = sortedByOverlap[0].addr;
+                                            }
+                                          }
+
+                                          const customerNotes = matchedCust?.notes?.trim();
+                                          const addressNotes = matchedAddr?.addressNotes?.trim();
+
+                                          if (!customerNotes && !addressNotes) return null;
+
+                                          return (
+                                            <div className="p-4 bg-[#1F1F1F] rounded-xl border border-amber-500/20 space-y-3">
+                                              <div className="flex items-center gap-1.5 text-amber-400 font-extrabold text-xs">
+                                                <span>📌 客戶與案場備註安全事項</span>
+                                              </div>
+                                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {customerNotes && (
+                                                  <div className="bg-[#121212] p-3 rounded-lg border border-[#2B2B2B]">
+                                                    <span className="block text-[10px] text-[#F3E5AB] font-bold mb-1">📋 客戶特別備註與安全事項：</span>
+                                                    <p className="text-xs text-neutral-300 whitespace-pre-wrap leading-relaxed">{customerNotes}</p>
+                                                  </div>
+                                                )}
+                                                {addressNotes && (
+                                                  <div className="bg-[#121212] p-3 rounded-lg border border-[#2B2B2B]">
+                                                    <span className="block text-[10px] text-emerald-450 font-bold mb-1">📍 本案場/個別地址特別備註 / 注意事項：</span>
+                                                    <p className="text-xs text-neutral-300 whitespace-pre-wrap leading-relaxed">{addressNotes}</p>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </div>
+                                          );
+                                        })()}
+
                                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
                                           
                                           {/* 左側：對帳預警 & 財務詳細狀況 (5 columns) */}
@@ -5309,6 +5582,178 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
       )}
 
       {/* ---------------------------------------------------- */}
+      {/* QUICK FULL PAYMENT MODAL */}
+      {/* ---------------------------------------------------- */}
+      {showQuickPayModal && (() => {
+        const proj = projects.find(p => p.id === quickPayProjId);
+        const projName = proj ? getProjectDisplayName(proj) : '未命名案場';
+        return (
+          <div className="fixed inset-0 bg-[#0D0D0D]/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+            <div className="bg-[#1A1A1A] rounded-2xl w-full max-w-md shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden border border-amber-500/35">
+              
+              {/* Header */}
+              <div className="bg-[#121212] border-b border-amber-500/25 px-5 py-4 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center text-black font-extrabold">
+                    <Coins size={18} className="stroke-[2.5]" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-[#F3E5AB]">⚡ 快速收足額沖帳金流</h3>
+                    <p className="text-[10px] text-neutral-400 mt-0.5">選擇本案場實收結清之金流管道</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setShowQuickPayModal(false); }}
+                  className="text-neutral-500 hover:text-white transition-colors cursor-pointer text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-4 text-left">
+                <div>
+                  <span className="block text-[10px] font-bold text-neutral-500 mb-1">對象案場</span>
+                  <span className="text-xs font-black text-white bg-neutral-900 px-3 py-1.5 rounded-lg border border-neutral-800 block">
+                    {projName}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="block text-[10px] font-bold text-neutral-500 mb-1">沖帳實收金額</span>
+                  <span className="text-sm font-black text-amber-500 bg-neutral-900 px-3 py-1.5 rounded-lg border border-neutral-800 block font-mono">
+                    NT$ {quickPayAmount.toLocaleString()} 元
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-[11.5px] font-bold text-[#F3E5AB] mb-1.5">
+                    選擇實收金流管道：
+                  </label>
+                  <select
+                    value={quickPayMethod}
+                    onChange={(e) => setQuickPayMethod(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-[#121212] border border-[#3A3A3A] focus:border-amber-500 rounded-xl text-xs font-bold text-neutral-200 outline-none transition-all cursor-pointer"
+                  >
+                    <option value="工務現場收取(現金)">💵 工務直接收取 (現金袋)</option>
+                    <option value="銀行轉帳">⚡ 配合銀行虛擬代收 / 網銀轉帳</option>
+                    <option value="客戶交付本票支票">🎫 交付支票本票 / 期票</option>
+                    <option value="材料代採退佣內扣">🔄 上游材料退佣內扣折抵</option>
+                    <option value="其它抵算折扣">💬 其它折算 / 口頭特例折扣</option>
+                  </select>
+                  <p className="text-[10px] text-neutral-450 mt-2 leading-relaxed">
+                    💡 <span className="font-extrabold text-amber-500">說明：</span>系統將自動以本案場之賸餘應收額作為「實收實繳金額」，建立一筆今天之專款實收交易紀錄，並將應收未收餘額歸零。
+                  </p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="bg-[#121212] px-6 py-4 flex items-center justify-end gap-2 border-t border-neutral-850">
+                <button
+                  type="button"
+                  onClick={() => { setShowQuickPayModal(false); }}
+                  className="px-4 py-2 bg-neutral-900 hover:bg-neutral-850 border border-neutral-850 text-neutral-400 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveQuickFullPayment}
+                  className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-neutral-950 font-black text-xs rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-1"
+                >
+                  <Check size={14} className="stroke-[3]" />
+                  <span>確認全額沖帳</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ---------------------------------------------------- */}
+      {/* ROUNDING & DISCOUNT ADJUSTMENT MODAL */}
+      {/* ---------------------------------------------------- */}
+      {showRoundingModal && (() => {
+        const proj = projects.find(p => p.id === roundingProjId);
+        const projName = proj ? getProjectDisplayName(proj) : '未命名案場';
+        return (
+          <div className="fixed inset-0 bg-[#0D0D0D]/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+            <div className="bg-[#1A1A1A] rounded-2xl w-full max-w-md shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden border border-amber-500/35">
+              
+              {/* Header */}
+              <div className="bg-[#121212] border-b border-amber-500/25 px-5 py-4 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center text-black font-extrabold">
+                    <Percent size={18} className="stroke-[2.5]" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-[#F3E5AB]">去尾與折扣折抵設定</h3>
+                    <p className="text-[10px] text-neutral-400 mt-0.5">變更本案場的折扣、讓利或尾數抹零額</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setShowRoundingModal(false); setRoundingProjId(null); }}
+                  className="text-neutral-500 hover:text-white transition-colors cursor-pointer text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-4 text-left">
+                <div>
+                  <span className="block text-[10px] font-bold text-neutral-500 mb-1">對象案場</span>
+                  <span className="text-xs font-black text-white bg-neutral-900 px-3 py-1.5 rounded-lg border border-neutral-800 block">
+                    {projName}
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-[10.5px] font-bold text-[#F3E5AB] mb-1.5">
+                    去尾/折扣折抵金額 (NT$)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="請輸入折抵金額..."
+                    value={roundingInputAmount}
+                    onChange={(e) => setRoundingInputAmount(e.target.value)}
+                    className="w-full px-4 py-3 bg-[#121212] border border-[#3A3A3A] focus:border-amber-500 focus:bg-black rounded-xl text-sm font-bold text-amber-500 outline-none transition-all font-mono"
+                  />
+                  <p className="text-[10px] text-neutral-400 mt-2 leading-relaxed">
+                    💡 <span className="font-extrabold text-amber-500">說明：</span>此折抵金額將直接調降此案場之「應收未收餘額」。設為 0 則代表清除折抵。此修改會同步反映於利潤分析等報表。
+                  </p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="bg-[#121212] px-6 py-4 flex items-center justify-end gap-2 border-t border-neutral-850">
+                <button
+                  type="button"
+                  onClick={() => { setShowRoundingModal(false); setRoundingProjId(null); }}
+                  className="px-4 py-2 bg-neutral-900 hover:bg-neutral-850 border border-neutral-850 text-neutral-400 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveRoundingAdjustment}
+                  className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-neutral-950 font-black text-xs rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-1"
+                >
+                  <Check size={14} className="stroke-[3]" />
+                  <span>確認儲存修改</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ---------------------------------------------------- */}
       {/* ADD PAYMENT MODAL WITH SIMPLIFIED OPTIONS */}
       {/* ---------------------------------------------------- */}
       {showAddPaymentModal && (
@@ -5539,7 +5984,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     {/* Sub modes under single */}
                     <div>
                       <label className="block text-[10px] font-bold !text-[#E0E0E0] mb-1">沖抵特定案場屬性子選項：</label>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 gap-2">
                         <label className={`flex items-center gap-1.5 p-1.5 bg-[#121212] rounded border cursor-pointer text-[10px] hover:border-[#D4AF37]/60 ${
                           singleAllocSubMode === 'normal' ? 'border-[#D4AF37] bg-[#D4AF37]/10 text-[#F3E5AB]' : 'border-[#D4AF37]/10 text-neutral-400'
                         }`}>
@@ -5564,19 +6009,6 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                             className="sr-only"
                           />
                           <span>🎬 開工訂金</span>
-                        </label>
-
-                        <label className={`flex items-center gap-1.5 p-1.5 bg-[#121212] rounded border cursor-pointer text-[10px] hover:border-[#D4AF37]/60 ${
-                          singleAllocSubMode === 'rounding' ? 'border-[#D4AF37] bg-[#D4AF37]/10 text-[#F3E5AB]' : 'border-[#D4AF37]/10 text-neutral-400'
-                        }`}>
-                          <input
-                            type="radio"
-                            name="singleSub"
-                            checked={singleAllocSubMode === 'rounding'}
-                            onChange={() => setSingleAllocSubMode('rounding')}
-                            className="sr-only"
-                          />
-                          <span>🔩 去尾抹零</span>
                         </label>
                       </div>
                     </div>

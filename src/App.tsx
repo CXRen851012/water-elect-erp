@@ -7,7 +7,7 @@ import {
   Check, Info, FileSpreadsheet, Sparkles, Building2, Calendar, HardHat,
   ShoppingBag, FolderLock, Store, Coins, History,
   Database, AlertTriangle, Download, Upload, Trash2, Settings, ShieldAlert,
-  Cloud, CloudOff, RefreshCw, LogOut, LogIn, Search, ArrowUpDown, SlidersHorizontal, Clock
+  Cloud, CloudOff, RefreshCw, LogOut, LogIn, Search, ArrowUpDown, SlidersHorizontal, Clock, Edit
 } from 'lucide-react';
 
 import { onAuthStateChanged } from 'firebase/auth';
@@ -615,7 +615,8 @@ export default function App() {
 
   // ---- 3. Navigation Controls & Modal states ----
   const [activeTab, setActiveTab] = useState<'construction' | 'billing' | 'workers' | 'materials' | 'supabase-excel'>('construction');
-  const [recordsSubTab, setRecordsSubTab] = useState<'today' | 'projects' | 'bookings' | 'history' | 'customers'>('today');
+  const [recordsSubTab, setRecordsSubTab] = useState<'today' | 'projects' | 'bookings' | 'customers'>('today');
+  const [constructionViewMode, setConstructionViewMode] = useState<'daily' | 'advanced'>('daily');
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [bookingToEdit, setBookingToEdit] = useState<Project | undefined>(undefined);
   const [preselectedProjectId, setPreselectedProjectId] = useState<string | undefined>(undefined);
@@ -717,7 +718,17 @@ export default function App() {
 
   const handleJumpToProjectLogs = (projectId: string) => {
     setActiveTab('construction');
-    setRecordsSubTab('history');
+    setRecordsSubTab('today');
+    setConstructionViewMode('daily'); // 強制設為當日施工進度模式
+    
+    // 找出此案場最新的日誌日期，並自動將進度日期切換過去
+    const projectRecords = records.filter(r => r.projectId === projectId);
+    if (projectRecords.length > 0) {
+      const sortedRecords = [...projectRecords].sort((a, b) => b.date.localeCompare(a.date));
+      const latestDate = sortedRecords[0].date;
+      setProgressSelectedDate(latestDate);
+    }
+    
     setHistoryProjectFilter(projectId);
     setHistorySearch('');
     setHistoryStatusFilter('all');
@@ -864,6 +875,11 @@ export default function App() {
   const [preSelCustomer, setPreSelCustomer] = useState<Customer | null>(null);
   const [preSelAddress, setPreSelAddress] = useState<string | undefined>(undefined);
   const [billingTriggerStamp, setBillingTriggerStamp] = useState<number>(0);
+
+  // 切換分頁時重設請款登錄觸發狀態，避免切換回來時自動開啟
+  useEffect(() => {
+    setBillingTriggerStamp(0);
+  }, [activeTab]);
 
   // Floating Interactive Toast message state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -1436,21 +1452,6 @@ export default function App() {
                         </button>
 
                         <button
-                          onClick={() => { setRecordsSubTab('history'); setShowRecordForm(false); }}
-                          className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
-                            recordsSubTab === 'history'
-                              ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-3xs font-extrabold'
-                              : 'bg-[#252525] text-neutral-300 border-[#3A3A3A] hover:text-[#D4AF37] hover:bg-[#2C2C2C] font-semibold'
-                          }`}
-                        >
-                          <History size={15} className="shrink-0 stroke-[2.5]" />
-                          <span>
-                            <span className="hidden sm:inline">歷史工務日誌簿</span>
-                            <span className="inline sm:hidden">歷史日誌</span>
-                          </span>
-                        </button>
-
-                        <button
                           onClick={() => { setRecordsSubTab('customers'); setShowRecordForm(false); }}
                           className={`flex-1 py-2 px-3.5 text-xs sm:text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap min-w-max border ${
                             recordsSubTab === 'customers'
@@ -1480,51 +1481,207 @@ export default function App() {
                     {/* SUB-TAB: TODAY'S CONSTRUCTION */}
                     {recordsSubTab === 'today' && (
                       <div className="space-y-6">
-
-                        {/* Interactive Date Switcher Widget */}
-                        <div className="bg-[#1E1E1E] border border-[#2D2D2D] p-4.5 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm select-none">
-                          <div className="flex items-center gap-2.5">
-                            <Calendar className="text-[#D4AF37] stroke-[2.5]" size={18} />
-                            <div>
-                              <span className="text-xs text-neutral-400 block font-bold">目前查看日期施工進度</span>
-                              <span className="text-sm font-black text-white font-mono">{progressSelectedDate}</span>
-                            </div>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <button
-                              onClick={handlePrevDay}
-                              className="px-3.5 py-2 bg-[#252525] hover:bg-[#2C2C2C] text-neutral-300 hover:text-white border border-[#3A3A3A] hover:border-[#D4AF37]/50 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
-                            >
-                              <span>⬅️ 前一天</span>
-                            </button>
-                            <input
-                              type="date"
-                              value={progressSelectedDate}
-                              onChange={(e) => setProgressSelectedDate(e.target.value)}
-                              className="px-3.5 py-1.5 border border-[#3A3A3A] rounded-xl text-xs font-bold text-white bg-[#121212] focus:outline-none focus:border-[#D4AF37] cursor-pointer"
-                            />
-                            <button
-                              onClick={handleNextDay}
-                              className="px-3.5 py-2 bg-[#252525] hover:bg-[#2C2C2C] text-neutral-300 hover:text-white border border-[#3A3A3A] hover:border-[#D4AF37]/50 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
-                            >
-                              <span>後一天 ➡️</span>
-                            </button>
-                            <button
-                              onClick={handleSetToToday}
-                              className="px-3.5 py-2 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/20 text-xs font-bold rounded-xl transition-all cursor-pointer"
-                            >
-                              回今天
-                            </button>
-                          </div>
+                        {/* 視角與範圍切換器 */}
+                        <div className="flex bg-[#1E1E1E] p-1 rounded-xl border border-[#2D2D2D] w-max select-none shadow-sm text-left">
+                          <button
+                            type="button"
+                            onClick={() => setConstructionViewMode('daily')}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                              constructionViewMode === 'daily'
+                                ? 'bg-[#D4AF37] text-black font-black shadow-sm'
+                                : 'text-neutral-400 hover:text-neutral-200'
+                            }`}
+                          >
+                            <Calendar size={13} />
+                            <span>📅 依單日查看施工</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConstructionViewMode('advanced')}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                              constructionViewMode === 'advanced'
+                                ? 'bg-[#D4AF37] text-black font-black shadow-sm'
+                                : 'text-neutral-400 hover:text-neutral-200'
+                            }`}
+                          >
+                            <Search size={13} />
+                            <span>🔍 歷史進階與區間快篩</span>
+                          </button>
                         </div>
 
-                        {/* Today Stats Summary */}
+                        {/* Interactive Widgets based on view mode */}
+                        {constructionViewMode === 'daily' ? (
+                          /* Interactive Date Switcher Widget */
+                          <div className="bg-[#1E1E1E] border border-[#2D2D2D] p-4.5 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm select-none animate-fadeIn">
+                            <div className="flex items-center gap-2.5">
+                              <Calendar className="text-[#D4AF37] stroke-[2.5]" size={18} />
+                              <div>
+                                <span className="text-xs text-neutral-400 block font-bold">目前查看日期施工進度</span>
+                                <span className="text-sm font-black text-white font-mono">{progressSelectedDate}</span>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                onClick={handlePrevDay}
+                                className="px-3.5 py-2 bg-[#252525] hover:bg-[#2C2C2C] text-neutral-300 hover:text-white border border-[#3A3A3A] hover:border-[#D4AF37]/50 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                              >
+                                <span>⬅️ 前一天</span>
+                              </button>
+                              <input
+                                type="date"
+                                value={progressSelectedDate}
+                                onChange={(e) => setProgressSelectedDate(e.target.value)}
+                                className="px-3.5 py-1.5 border border-[#3A3A3A] rounded-xl text-xs font-bold text-white bg-[#121212] focus:outline-none focus:border-[#D4AF37] cursor-pointer"
+                              />
+                              <button
+                                onClick={handleNextDay}
+                                className="px-3.5 py-2 bg-[#252525] hover:bg-[#2C2C2C] text-neutral-300 hover:text-white border border-[#3A3A3A] hover:border-[#D4AF37]/50 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                              >
+                                <span>後一天 ➡️</span>
+                              </button>
+                              <button
+                                onClick={handleSetToToday}
+                                className="px-3.5 py-2 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/20 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                              >
+                                回今天
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          /* Search & Filter tools for History */
+                          <div className="bg-[#1E1E1E] p-5 rounded-2xl border border-[#2D2D2D] shadow-3xs space-y-4 animate-fadeIn">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-left">
+                              {/* 1. Keyword Search */}
+                              <div className="relative">
+                                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-neutral-500">
+                                  <Search size={14} />
+                                </span>
+                                <input
+                                  type="text"
+                                  placeholder="搜尋日期、案場、施工說明..."
+                                  value={historySearch}
+                                  onChange={(e) => setHistorySearch(e.target.value)}
+                                  className="pl-9 w-full px-2.5 py-1.5 border border-[#2D2D2D] rounded-xl text-xs bg-[#121212] text-white outline-none focus:border-[#D4AF37]/50"
+                                />
+                              </div>
+
+                              {/* 2. Date Range Starts */}
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="date"
+                                  value={historyStartDate}
+                                  onChange={(e) => setHistoryStartDate(e.target.value)}
+                                  className="w-full px-2 py-1.5 border border-[#2D2D2D] rounded-xl text-xs bg-[#121212] text-neutral-300 outline-none focus:border-[#D4AF37]/50 font-mono"
+                                />
+                                <span className="text-neutral-500 text-[10px]">至</span>
+                                <input
+                                  type="date"
+                                  value={historyEndDate}
+                                  onChange={(e) => setHistoryEndDate(e.target.value)}
+                                  className="w-full px-2 py-1.5 border border-[#2D2D2D] rounded-xl text-xs bg-[#121212] text-neutral-300 outline-none focus:border-[#D4AF37]/50 font-mono"
+                                />
+                              </div>
+
+                              {/* 3. Project Filter */}
+                              <div>
+                                <select
+                                  value={historyProjectFilter}
+                                  onChange={(e) => setHistoryProjectFilter(e.target.value)}
+                                  className="w-full px-2 py-1.5 border border-[#2D2D2D] rounded-xl text-xs bg-[#121212] text-neutral-300 outline-none focus:border-[#D4AF37]/50 cursor-pointer font-bold"
+                                >
+                                  <option value="all">📁 所有工程案場 (全部)</option>
+                                  {projects.map(p => (
+                                    <option key={p.id} value={p.id}>
+                                      {p.isCompleted ? '✅' : '🏗️'} {p.name} ({p.customerName})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {/* 4. Sort By */}
+                              <div>
+                                <select
+                                  value={historySortBy}
+                                  onChange={(e) => setHistorySortBy(e.target.value)}
+                                  className="w-full px-2 py-1.5 border border-[#2D2D2D] rounded-xl text-xs bg-[#121212] text-neutral-300 outline-none focus:border-[#D4AF37]/50 cursor-pointer font-bold"
+                                >
+                                  <option value="date_desc">📅 日期新到舊 (最新優先)</option>
+                                  <option value="date_asc">📅 日期舊到新 (歷史優先)</option>
+                                  <option value="cost_desc">💰 施工成本高到低</option>
+                                  <option value="cost_asc">💰 施工成本低到高</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            {/* Secondary filters line */}
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-[#252525]">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[10px] text-neutral-400 font-bold">狀態快篩:</span>
+                                {(['all', 'ongoing', 'completed'] as const).map(status => (
+                                  <button
+                                    key={status}
+                                    type="button"
+                                    onClick={() => setHistoryStatusFilter(status)}
+                                    className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                                      historyStatusFilter === status
+                                        ? 'bg-[#D4AF37] text-black font-extrabold'
+                                        : 'bg-[#121212] hover:bg-[#222222] text-neutral-400 border border-[#2D2D2D]'
+                                    }`}
+                                  >
+                                    {status === 'all' && '全部進度'}
+                                    {status === 'ongoing' && '🚧 進行中施工'}
+                                    {status === 'completed' && '✅ 本日完工項目'}
+                                  </button>
+                                ))}
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setHistorySearch('');
+                                    setHistoryStartDate('');
+                                    setHistoryEndDate('');
+                                    setHistoryProjectFilter('all');
+                                    setHistoryStatusFilter('all');
+                                    setHistorySortBy('date_desc');
+                                  }}
+                                  className="text-[10px] text-[#D4AF37] hover:text-[#F3E5AB] font-bold cursor-pointer underline underline-offset-2 flex items-center gap-0.5 select-none"
+                                >
+                                  重設全部篩選項目
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Stats Summary Panel */}
                         {(() => {
-                          const targetDate = progressSelectedDate;
-                          const todayRecords = records.filter(r => r.date === targetDate);
+                          const recordsForStats = constructionViewMode === 'daily'
+                            ? records.filter(r => r.date === progressSelectedDate)
+                            : records.filter(r => {
+                                if (historyStartDate && r.date < historyStartDate) return false;
+                                if (historyEndDate && r.date > historyEndDate) return false;
+                                if (historySearch) {
+                                  const matchSearch = historySearch.toLowerCase();
+                                  const matchedProj = projects.find(p => p.id === r.projectId);
+                                  const projName = matchedProj ? getProjectDisplayName(matchedProj).toLowerCase() : (r.projectName || '').toLowerCase();
+                                  const notesMatch = (r.notes || '').toLowerCase().includes(matchSearch);
+                                  const dateMatch = r.date.includes(matchSearch);
+                                  if (!projName.includes(matchSearch) && !notesMatch && !dateMatch) return false;
+                                }
+                                if (historyStatusFilter !== 'all') {
+                                  if (historyStatusFilter === 'completed' && !r.markAsCompleted) return false;
+                                  if (historyStatusFilter === 'ongoing' && r.markAsCompleted) return false;
+                                }
+                                if (historyProjectFilter !== 'all') {
+                                  if (r.projectId !== historyProjectFilter) return false;
+                                }
+                                return true;
+                              });
                           
-                          const todayWorkersCount = todayRecords.reduce((sum, r) => sum + (r.workers?.length || 0), 0);
-                          const todayEstimatedCost = todayRecords.reduce((sum, r) => {
+                          const statsWorkersCount = recordsForStats.reduce((sum, r) => sum + (r.workers?.length || 0), 0);
+                          const statsEstimatedCost = recordsForStats.reduce((sum, r) => {
                             if (r.internalCostOnly) return sum;
                             const matSum = r.materials.reduce((s, m) => s + (m.unitPrice * m.quantity), 0);
                             const laborSum = r.workers.reduce((s, w) => s + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
@@ -1534,38 +1691,44 @@ export default function App() {
 
                           return (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <div className="bg-white p-5 rounded-2xl border border-neutral-200/80 flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-amber-750">
+                              <div className="bg-white p-5 rounded-2xl border border-neutral-200/80 flex items-center gap-4 text-left">
+                                <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-amber-750 shrink-0">
                                   <FolderLock size={20} />
                                 </div>
                                 <div>
-                                  <span className="text-xs text-neutral-400 block font-bold">選定日施工進場</span>
+                                  <span className="text-xs text-neutral-400 block font-bold">
+                                    {constructionViewMode === 'daily' ? '選定日施工進場' : '篩選區間施工作業'}
+                                  </span>
                                   <span className="text-lg font-black text-neutral-800 font-mono">
-                                    {todayRecords.length} <span className="text-xs font-bold text-neutral-500">處案場</span>
+                                    {recordsForStats.length} <span className="text-xs font-bold text-neutral-500">處案場/次</span>
                                   </span>
                                 </div>
                               </div>
 
-                              <div className="bg-white p-5 rounded-2xl border border-neutral-200/80 flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-amber-750">
+                              <div className="bg-white p-5 rounded-2xl border border-neutral-200/80 flex items-center gap-4 text-left">
+                                <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-amber-750 shrink-0">
                                   <HardHat size={20} />
                                 </div>
                                 <div>
-                                  <span className="text-xs text-neutral-400 block font-bold">選定日調派工班</span>
+                                  <span className="text-xs text-neutral-400 block font-bold">
+                                    {constructionViewMode === 'daily' ? '選定日調派工班' : '篩選區間調派工班'}
+                                  </span>
                                   <span className="text-lg font-black text-neutral-800 font-mono">
-                                    {todayWorkersCount} <span className="text-xs font-bold text-neutral-500">人次</span>
+                                    {statsWorkersCount} <span className="text-xs font-bold text-neutral-500">人次</span>
                                   </span>
                                 </div>
                               </div>
 
-                              <div className="bg-white p-5 rounded-2xl border border-neutral-200/80 flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-amber-750">
+                              <div className="bg-white p-5 rounded-2xl border border-neutral-200/80 flex items-center gap-4 text-left">
+                                <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-amber-750 shrink-0">
                                   <Coins size={20} />
                                 </div>
                                 <div>
-                                  <span className="text-xs text-neutral-400 block font-bold">選定日預估工料成本</span>
+                                  <span className="text-xs text-neutral-400 block font-bold">
+                                    {constructionViewMode === 'daily' ? '選定日預估工料成本' : '篩選區間累計工料成本'}
+                                  </span>
                                   <span className="text-lg font-black text-neutral-800 font-mono">
-                                    ${todayEstimatedCost.toLocaleString()} <span className="text-xs font-bold text-neutral-500">元</span>
+                                    ${statsEstimatedCost.toLocaleString()} <span className="text-xs font-bold text-neutral-500">元</span>
                                   </span>
                                 </div>
                               </div>
@@ -1573,8 +1736,8 @@ export default function App() {
                           );
                         })()}
 
-                        {/* Today Worker Attendance Hours Summary */}
-                        {(() => {
+                        {/* Today Worker Attendance Hours Summary (Only shown in daily view mode) */}
+                        {constructionViewMode === 'daily' && (() => {
                           const targetDate = progressSelectedDate;
                           const todayRecords = records.filter(r => r.date === targetDate);
                           
@@ -1589,7 +1752,7 @@ export default function App() {
                           if (workersList.length === 0) return null;
 
                           return (
-                            <div className="bg-[#1E1E1E] border border-[#2D2D2D] p-5 rounded-2xl shadow-sm space-y-3.5 select-none">
+                            <div className="bg-[#1E1E1E] border border-[#2D2D2D] p-5 rounded-2xl shadow-sm space-y-3.5 select-none text-left">
                               <div className="flex items-center gap-2">
                                 <span className="p-1.5 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg">
                                   <Users size={16} className="stroke-[2.5]" />
@@ -1619,9 +1782,68 @@ export default function App() {
                         {/* Today Records List */}
                         <div className="space-y-3">
 
-                          {(() => {
+                           {(() => {
                             const targetDate = progressSelectedDate;
-                            const todayRecords = records.filter(r => r.date === targetDate);
+                            const recordsToRender = (() => {
+                              if (constructionViewMode === 'daily') {
+                                return records.filter(r => r.date === progressSelectedDate);
+                              } else {
+                                const filtered = records.filter(r => {
+                                  if (historyStartDate && r.date < historyStartDate) return false;
+                                  if (historyEndDate && r.date > historyEndDate) return false;
+
+                                  if (historySearch) {
+                                    const matchSearch = historySearch.toLowerCase();
+                                    const matchedProj = projects.find(p => p.id === r.projectId);
+                                    const projName = matchedProj ? getProjectDisplayName(matchedProj).toLowerCase() : (r.projectName || '').toLowerCase();
+                                    const notesMatch = (r.notes || '').toLowerCase().includes(matchSearch);
+                                    const dateMatch = r.date.includes(matchSearch);
+                                    if (!projName.includes(matchSearch) && !notesMatch && !dateMatch) {
+                                      return false;
+                                    }
+                                  }
+
+                                  if (historyStatusFilter !== 'all') {
+                                    if (historyStatusFilter === 'completed' && !r.markAsCompleted) return false;
+                                    if (historyStatusFilter === 'ongoing' && r.markAsCompleted) return false;
+                                  }
+
+                                  if (historyProjectFilter !== 'all') {
+                                    if (r.projectId !== historyProjectFilter) return false;
+                                  }
+
+                                  return true;
+                                });
+
+                                const sorted = [...filtered];
+                                sorted.sort((a, b) => {
+                                  if (historySortBy === 'date_desc') {
+                                    return b.date.localeCompare(a.date);
+                                  } else if (historySortBy === 'date_asc') {
+                                    return a.date.localeCompare(b.date);
+                                  } else if (historySortBy === 'cost_desc') {
+                                    const aMat = a.internalCostOnly ? 0 : a.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+                                    const aLab = a.internalCostOnly ? 0 : a.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
+                                    const aExp = a.internalCostOnly ? 0 : a.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
+                                    const bMat = b.internalCostOnly ? 0 : b.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+                                    const bLab = b.internalCostOnly ? 0 : b.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
+                                    const bExp = b.internalCostOnly ? 0 : b.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
+                                    return (bMat + bLab + bExp) - (aMat + aLab + aExp);
+                                  } else if (historySortBy === 'cost_asc') {
+                                    const aMat = a.internalCostOnly ? 0 : a.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+                                    const aLab = a.internalCostOnly ? 0 : a.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
+                                    const aExp = a.internalCostOnly ? 0 : a.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
+                                    const bMat = b.internalCostOnly ? 0 : b.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+                                    const bLab = b.internalCostOnly ? 0 : b.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
+                                    const bExp = b.internalCostOnly ? 0 : b.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
+                                    return (aMat + aLab + aExp) - (bMat + bLab + bExp);
+                                  }
+                                  return 0;
+                                });
+
+                                return sorted;
+                              }
+                            })();
 
                             const activeProjects = projects.filter(p => {
                               if (p.isCompleted) return false;
@@ -1631,25 +1853,35 @@ export default function App() {
                               return true;
                             });
 
-                            if (todayRecords.length === 0) {
-                              return (
-                                <div className="text-center py-10 bg-[#1E1E1E] border border-[#2C2C2C] rounded-2xl border-dashed flex flex-col items-center justify-center">
-                                  <p className="text-sm text-neutral-400 font-extrabold mb-1">【{targetDate}】尚未登錄任何施工日誌！</p>
-                                  <button
-                                    onClick={() => { setRecordToEdit(undefined); setShowRecordForm(true); }}
-                                    className="mt-3 px-5 py-2.5 bg-[#D4AF37] hover:bg-[#bfa032] text-black font-extrabold text-xs rounded-xl transition-all border border-[#D4AF37] shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
-                                  >
-                                    <Plus size={14} className="stroke-[3]" />
-                                    <span>登錄該日工務日誌</span>
-                                  </button>
-                                </div>
-                              );
+                            if (recordsToRender.length === 0) {
+                              if (constructionViewMode === 'daily') {
+                                return (
+                                  <div className="text-center py-10 bg-[#1E1E1E] border border-[#2C2C2C] rounded-2xl border-dashed flex flex-col items-center justify-center">
+                                    <p className="text-sm text-neutral-400 font-extrabold mb-1">【{targetDate}】尚未登錄任何施工日誌！</p>
+                                    <button
+                                      onClick={() => { setRecordToEdit(undefined); setShowRecordForm(true); }}
+                                      className="mt-3 px-5 py-2.5 bg-[#D4AF37] hover:bg-[#bfa032] text-black font-extrabold text-xs rounded-xl transition-all border border-[#D4AF37] shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                                    >
+                                      <Plus size={14} className="stroke-[3]" />
+                                      <span>登錄該日工務日誌</span>
+                                    </button>
+                                  </div>
+                                );
+                              } else {
+                                return (
+                                  <div className="text-center py-12 bg-[#1E1E1E] border border-[#2C2C2C] rounded-2xl border-dashed flex flex-col items-center justify-center">
+                                    <span className="text-2xl mb-2.5">🔍</span>
+                                    <p className="text-sm text-neutral-400 font-extrabold mb-1">找不到符合目前篩選條件的歷史施工日誌！</p>
+                                    <p className="text-[11px] text-neutral-500 font-bold mt-1">請嘗試調整上方時間區間、關鍵字或案場狀態等篩選條件。</p>
+                                  </div>
+                                );
+                              }
                             }
 
-                             return (
+                            return (
                               <div className="space-y-4">
                                 <div className="space-y-4">
-                                  {todayRecords.map(record => {
+                                  {recordsToRender.map(record => {
                                     const matSum = record.internalCostOnly ? 0 : record.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
                                     const laborSum = record.internalCostOnly ? 0 : record.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
                                     const expSum = record.internalCostOnly ? 0 : record.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
@@ -1772,7 +2004,12 @@ export default function App() {
                                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                                                     {record.materials.map((m, idx) => (
                                                       <div key={idx} className="bg-[#252525] p-1.5 rounded border border-[#333] flex justify-between items-center text-neutral-300">
-                                                        <span>{m.name || m.materialName || '未命名材料'} ({m.quantity} {m.unit})</span>
+                                                        <div className="flex flex-col text-left">
+                                                          <span>{m.name || m.materialName || '未命名材料'} ({m.quantity} {m.unit})</span>
+                                                          {m.note && (
+                                                            <span className="text-[10px] text-amber-500 font-bold mt-0.5">📝 備註: {m.note}</span>
+                                                          )}
+                                                        </div>
                                                         <span className="text-[10.5px] font-mono text-[#D4AF37]">${(m.unitPrice * m.quantity).toLocaleString()} 元</span>
                                                       </div>
                                                     ))}
@@ -1805,6 +2042,217 @@ export default function App() {
                                     );
                                   })}
                                 </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+
+
+                        {/* History Records List */}
+                        <div className="space-y-3">
+                          {(() => {
+                            return null;
+                            const filtered = records.filter(r => {
+                              if (historyStartDate && r.date < historyStartDate) return false;
+                              if (historyEndDate && r.date > historyEndDate) return false;
+
+                              if (historySearch) {
+                                const matchSearch = historySearch.toLowerCase();
+                                const matchedProj = projects.find(p => p.id === r.projectId);
+                                const projName = matchedProj ? getProjectDisplayName(matchedProj).toLowerCase() : (r.projectName || '').toLowerCase();
+                                const notesMatch = (r.notes || '').toLowerCase().includes(matchSearch);
+                                const dateMatch = r.date.includes(matchSearch);
+                                if (!projName.includes(matchSearch) && !notesMatch && !dateMatch) {
+                                  return false;
+                                }
+                              }
+
+                              if (historyStatusFilter !== 'all') {
+                                if (historyStatusFilter === 'completed' && !r.markAsCompleted) return false;
+                                if (historyStatusFilter === 'ongoing' && r.markAsCompleted) return false;
+                              }
+
+                              if (historyProjectFilter !== 'all') {
+                                if (r.projectId !== historyProjectFilter) return false;
+                              }
+
+                              return true;
+                            });
+
+                            const sorted = [...filtered];
+                            sorted.sort((a, b) => {
+                              if (historySortBy === 'date_desc') {
+                                return b.date.localeCompare(a.date);
+                              } else if (historySortBy === 'date_asc') {
+                                return a.date.localeCompare(b.date);
+                              } else if (historySortBy === 'cost_desc') {
+                                const aMat = a.internalCostOnly ? 0 : a.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+                                const aLab = a.internalCostOnly ? 0 : a.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
+                                const aExp = a.internalCostOnly ? 0 : a.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
+                                const bMat = b.internalCostOnly ? 0 : b.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+                                const bLab = b.internalCostOnly ? 0 : b.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
+                                const bExp = b.internalCostOnly ? 0 : b.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
+                                return (bMat + bLab + bExp) - (aMat + aLab + aExp);
+                              } else if (historySortBy === 'cost_asc') {
+                                const aMat = a.internalCostOnly ? 0 : a.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+                                const aLab = a.internalCostOnly ? 0 : a.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
+                                const aExp = a.internalCostOnly ? 0 : a.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
+                                const bMat = b.internalCostOnly ? 0 : b.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+                                const bLab = b.internalCostOnly ? 0 : b.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
+                                const bExp = b.internalCostOnly ? 0 : b.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
+                                return (aMat + aLab + aExp) - (bMat + bLab + bExp);
+                              }
+                              return 0;
+                            });
+
+                            if (sorted.length === 0) {
+                              return (
+                                <div className="text-center py-12 bg-[#1E1E1E] border border-[#2D2D2D] rounded-2xl border-dashed flex flex-col items-center justify-center">
+                                  <span className="text-2xl mb-2.5">🔍</span>
+                                  <p className="text-sm text-neutral-400 font-extrabold mb-1">找不到符合篩選條件的歷史工務日誌！</p>
+                                </div>
+                              );
+                            }
+
+                            // Render history items (limited or lazy loading if too many)
+                            return (
+                              <div className="space-y-4">
+                                {sorted.slice(0, 50).map(record => {
+                                  const matSum = record.internalCostOnly ? 0 : record.materials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+                                  const laborSum = record.internalCostOnly ? 0 : record.workers.reduce((sum, w) => sum + ((w.billingHourlyRate ?? w.hourlyRate) * w.hoursWork), 0);
+                                  const expSum = record.internalCostOnly ? 0 : record.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
+                                  const recordTotalCost = matSum + laborSum + expSum;
+
+                                  const matchedProj = projects.find(p => p.id === record.projectId);
+                                  const formattedProjName = matchedProj ? getProjectDisplayName(matchedProj) : record.projectName;
+                                  const isExpanded = !!collapsedRecordDetails[record.id];
+
+                                  return (
+                                    <div key={record.id} className="p-4.5 rounded-xl border transition-all bg-[#1E1E1E] border-[#2D2D2D] hover:border-amber-500/30 hover:bg-[#222] shadow-xs space-y-3 text-left">
+                                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                                        <div className="space-y-1.5 flex-1">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="font-mono text-[10px] font-black bg-[#252525] text-neutral-300 border border-[#3A3A3A] px-2 py-0.5 rounded">
+                                              📅 {record.date}
+                                            </span>
+                                            {record.markAsCompleted && (
+                                              <span className="text-[10px] font-bold bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/25 px-2 py-0.5 rounded">
+                                                完工日誌
+                                              </span>
+                                            )}
+                                            {record.internalCostOnly && (
+                                              <span className="text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded">
+                                                內部成本專用
+                                              </span>
+                                            )}
+                                          </div>
+                                          <h4 className="text-sm font-black text-white hover:text-[#D4AF37] transition">
+                                            {formattedProjName}
+                                          </h4>
+                                          <p className="text-xs text-neutral-300 leading-relaxed font-bold whitespace-pre-wrap">
+                                            📝 {record.notes || <span className="text-neutral-500 italic">無施工說明</span>}
+                                          </p>
+                                        </div>
+
+                                        <div className="flex sm:flex-col items-end justify-between sm:justify-start gap-2 shrink-0">
+                                          <div className="text-right">
+                                            <span className="text-[10px] text-neutral-400 block font-bold">當日投入成本</span>
+                                            <span className="text-xs font-mono font-black text-[#10B981]">
+                                              NT$ {recordTotalCost.toLocaleString()} 元
+                                            </span>
+                                          </div>
+                                          <div className="flex items-center gap-1.5">
+                                            <button
+                                              onClick={() => {
+                                                setCollapsedRecordDetails(prev => ({
+                                                  ...prev,
+                                                  [record.id]: !prev[record.id]
+                                                }));
+                                              }}
+                                              className="p-1 text-neutral-400 hover:text-[#D4AF37] bg-[#252525] hover:bg-[#2C2C2C] border border-[#3A3A3A] rounded-lg transition text-[11px] font-bold cursor-pointer select-none px-2 py-1"
+                                            >
+                                              {isExpanded ? '收合詳情 ▲' : '展開詳情 ▼'}
+                                            </button>
+
+                                            <button
+                                              onClick={() => {
+                                                setRecordToEdit(record);
+                                                setShowRecordForm(true);
+                                              }}
+                                              className="p-1 text-neutral-400 hover:text-[#D4AF37] bg-[#252525] hover:bg-[#2C2C2C] border border-[#3A3A3A] rounded-lg transition cursor-pointer"
+                                              title="編輯此日誌"
+                                            >
+                                              <Edit size={14} />
+                                            </button>
+
+                                            <button
+                                              onClick={() => {
+                                                setDeleteConfirmRecordId(record.id);
+                                              }}
+                                              className="p-1 text-neutral-400 hover:text-red-400 bg-[#252525] hover:bg-[#2C2C2C] border border-[#3A3A3A] rounded-lg transition cursor-pointer"
+                                              title="刪除此日誌"
+                                            >
+                                              <Trash2 size={14} />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Details expanded */}
+                                      {isExpanded && (
+                                        <div className="mt-3 pt-3 border-t border-[#2D2D2D] grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn text-xs">
+                                          {/* Workers */}
+                                          <div className="space-y-1.5">
+                                            <h5 className="text-[11px] font-black text-[#F3E5AB]">👷‍♂️ 本日出工與工時 ({record.workers.length}位)</h5>
+                                            {record.workers.length > 0 ? (
+                                              <div className="space-y-1">
+                                                {record.workers.map((w, idx) => (
+                                                  <div key={w.id || w.workerId || idx} className="flex items-center justify-between bg-[#121212] p-1.5 rounded-lg border border-[#252525] font-mono">
+                                                    <span className="text-neutral-300 font-bold">{w.name || w.workerName}</span>
+                                                    <span className="text-neutral-400 text-[11px]">
+                                                      {w.hoursWork} hr ({w.hoursDetail || '全天'})
+                                                    </span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            ) : (
+                                              <p className="text-[10px] text-neutral-500 italic">無派工紀錄</p>
+                                            )}
+                                          </div>
+
+                                          {/* Materials / Expenses */}
+                                          <div className="space-y-2">
+                                            <div>
+                                              <h5 className="text-[11px] font-black text-[#F3E5AB] mb-1">🛒 耗材與雜項支出</h5>
+                                              {record.materials.length > 0 ? (
+                                                <div className="space-y-1">
+                                                  {record.materials.map((m, idx) => (
+                                                    <div key={m.id || m.materialId || idx} className="bg-[#121212] p-1.5 rounded-lg border border-[#252525] space-y-0.5">
+                                                      <div className="flex items-center justify-between font-mono">
+                                                        <span className="text-neutral-300 font-bold">{m.name || m.materialName}</span>
+                                                        <span className="text-[#10B981] font-bold">
+                                                          {m.quantity} {m.unit} × NT$ {m.unitPrice}
+                                                        </span>
+                                                      </div>
+                                                      {m.remark && (
+                                                        <span className="text-[10px] text-[#D4AF37]/80 block font-medium">
+                                                          📌 材料備註：{m.remark}
+                                                        </span>
+                                                      )}
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              ) : (
+                                                <p className="text-[10px] text-neutral-500 italic">無材料耗材紀錄</p>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             );
                           })()}

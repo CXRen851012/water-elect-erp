@@ -459,11 +459,56 @@ export default function BookingForm({
               <div>
                 <label className="block text-[11px] !text-[#B3B3B3] mb-1">預約施作時間</label>
                 <input
-                  type="time"
+                  type="text"
+                  placeholder="例：上午、下午、10點前、17:00後"
                   value={bookingTime}
                   onChange={(e) => setBookingTime(e.target.value)}
-                  className="w-full px-3 py-1.5 border border-[#D4AF37]/15 rounded-lg !bg-[#121212] !text-[#E0E0E0] font-mono focus:border-[#D4AF37] outline-none"
+                  className="w-full px-3 py-1.5 border border-[#D4AF37]/15 rounded-lg !bg-[#121212] !text-[#E0E0E0] focus:border-[#D4AF37] outline-none"
                 />
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setBookingTime('上午')}
+                    className="px-2 py-0.5 bg-neutral-800 hover:bg-neutral-750 border border-neutral-700 rounded text-[10px] text-neutral-300 font-bold transition-all"
+                  >
+                    ☀️ 上午
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBookingTime('下午')}
+                    className="px-2 py-0.5 bg-neutral-800 hover:bg-neutral-750 border border-neutral-700 rounded text-[10px] text-neutral-300 font-bold transition-all"
+                  >
+                    🌙 下午
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBookingTime('10點前')}
+                    className="px-2 py-0.5 bg-neutral-800 hover:bg-neutral-750 border border-neutral-700 rounded text-[10px] text-neutral-300 font-bold transition-all"
+                  >
+                    ⏰ 10點前
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBookingTime('12點前')}
+                    className="px-2 py-0.5 bg-neutral-800 hover:bg-neutral-750 border border-neutral-700 rounded text-[10px] text-neutral-300 font-bold transition-all"
+                  >
+                    ⏰ 12點前
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBookingTime('13點後')}
+                    className="px-2 py-0.5 bg-neutral-800 hover:bg-neutral-750 border border-neutral-700 rounded text-[10px] text-neutral-300 font-bold transition-all"
+                  >
+                    ⏰ 13點後
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBookingTime('17點後')}
+                    className="px-2 py-0.5 bg-neutral-800 hover:bg-neutral-750 border border-neutral-700 rounded text-[10px] text-neutral-300 font-bold transition-all"
+                  >
+                    ⏰ 17點後
+                  </button>
+                </div>
               </div>
             </div>
             <p className="text-[10px] text-neutral-400 font-sans leading-normal">
