@@ -3,7 +3,7 @@ import { Project, Worker, MaterialPreset, MaterialUnitOption, DailyRecord, Recor
 import { 
   Plus, Trash2, Calendar, ClipboardList, HardHat, 
   FileText, ShoppingCart, DollarSign, Wrench, PlusCircle, AlertCircle, Sparkles, Check, Scale,
-  ShieldCheck, Lock, Unlock, Settings
+  ShieldCheck, Lock, Unlock, Settings, Search, X
 } from 'lucide-react';
 
 interface RecordFormProps {
@@ -102,6 +102,20 @@ export default function RecordForm({
     new Date().toISOString().substring(0, 10)
   );
   const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectId || '');
+  const [projectSearch, setProjectSearch] = useState<string>('');
+  const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState<boolean>(false);
+  const projectDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (projectDropdownRef.current && !projectDropdownRef.current.contains(event.target as Node)) {
+        setIsProjectDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const [showCompletedInSelect, setShowCompletedInSelect] = useState<boolean>(false);
   const [prevProjIds, setPrevProjIds] = useState<string[]>([]);
   const [notes, setNotes] = useState<string>('');
@@ -145,6 +159,31 @@ export default function RecordForm({
   // Filter projects categories
   const activeProjects = projects.filter(p => !p.isCompleted);
   const completedProjects = projects.filter(p => p.isCompleted);
+
+  const filteredActiveProjects = React.useMemo(() => {
+    const q = projectSearch.toLowerCase().trim();
+    if (!q) return activeProjects;
+    return activeProjects.filter(p => {
+      const disp = getProjectDisplayName(p).toLowerCase();
+      const num = (p.serialNumber || '').toLowerCase();
+      const addr = (p.fullAddress || '').toLowerCase();
+      const note = (p.projectNotes || '').toLowerCase();
+      return disp.includes(q) || num.includes(q) || addr.includes(q) || note.includes(q);
+    });
+  }, [activeProjects, projectSearch]);
+
+  const filteredCompletedProjects = React.useMemo(() => {
+    const q = projectSearch.toLowerCase().trim();
+    const list = completedProjects.filter(p => showCompletedInSelect || p.id === selectedProjectId);
+    if (!q) return list;
+    return list.filter(p => {
+      const disp = getProjectDisplayName(p).toLowerCase();
+      const num = (p.serialNumber || '').toLowerCase();
+      const addr = (p.fullAddress || '').toLowerCase();
+      const note = (p.projectNotes || '').toLowerCase();
+      return disp.includes(q) || num.includes(q) || addr.includes(q) || note.includes(q);
+    });
+  }, [completedProjects, showCompletedInSelect, selectedProjectId, projectSearch]);
 
   // Helper checks to determine if a row is completely empty/unfilled (placeholder)
   const isMaterialRowEmpty = (m: RecordMaterial) => {
@@ -1162,38 +1201,111 @@ export default function RecordForm({
                 </div>
               ) : (
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full min-w-0">
-                  <div className="flex-1 min-w-0 w-full">
-                    <select
-                      value={selectedProjectId}
-                      onChange={(e) => handleProjectSelect(e.target.value)}
-                      className="w-full px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs bg-white font-bold text-neutral-800 focus:ring-1 focus:ring-amber-500 truncate block max-w-full"
-                      style={{ maxWidth: '100%' }}
-                      required
-                    >
-                      <option value="" disabled>-- 請選取欲登錄之施工案場（支援新建或未完工） --</option>
-                      
-                      {activeProjects.length > 0 && (
-                        <optgroup label="進行中 / 未完工案場">
-                          {activeProjects.map(p => (
-                            <option key={p.id} value={p.id}>
-                              {getProjectDisplayName(p)}
-                            </option>
-                          ))}
-                        </optgroup>
+                  <div className="flex-1 min-w-0 w-full relative" ref={projectDropdownRef}>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-2.5 flex items-center pointer-events-none text-neutral-400">
+                        <Search size={14} />
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="🔍 輸入關鍵字模糊搜尋案場 (如：合悅、新店、2026)..."
+                        value={isProjectDropdownOpen ? projectSearch : (selectedProjDetails ? getProjectDisplayName(selectedProjDetails) : '')}
+                        onChange={(e) => {
+                          setProjectSearch(e.target.value);
+                          setIsProjectDropdownOpen(true);
+                        }}
+                        onFocus={() => {
+                          setIsProjectDropdownOpen(true);
+                          setProjectSearch('');
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                          }
+                        }}
+                        className="w-full pl-8 pr-8 py-1.5 border border-neutral-200 rounded-lg text-xs bg-[#121212] font-bold text-neutral-200 focus:ring-1 focus:ring-amber-500 truncate block"
+                      />
+                      {selectedProjectId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedProjectId('');
+                            setProjectSearch('');
+                          }}
+                          className="absolute inset-y-0 right-2.5 flex items-center text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                        >
+                          <X size={14} />
+                        </button>
                       )}
+                    </div>
 
-                      {completedProjects.filter(p => showCompletedInSelect || p.id === selectedProjectId).length > 0 && (
-                        <optgroup label="已完工結案案場 (選取後自動重啟為進行中或標記)">
-                          {completedProjects
-                             .filter(p => showCompletedInSelect || p.id === selectedProjectId)
-                             .map(p => (
-                              <option key={p.id} value={p.id}>
-                                ⚠️ [已完工] {getProjectDisplayName(p)}
-                              </option>
-                             ))}
-                        </optgroup>
-                      )}
-                    </select>
+                    {isProjectDropdownOpen && (
+                      <div className="absolute z-[110] mt-1 w-full bg-[#1E1E1E] border border-[#2C2C2C] rounded-lg shadow-2xl max-h-60 overflow-y-auto">
+                        {filteredActiveProjects.length === 0 && filteredCompletedProjects.length === 0 ? (
+                          <div className="px-4 py-3 text-xs text-neutral-400 text-center">
+                            找不到符合的案場，請嘗試其他關鍵字
+                          </div>
+                        ) : (
+                          <>
+                            {filteredActiveProjects.length > 0 && (
+                              <div>
+                                <div className="px-3 py-1.5 bg-[#252525] border-b border-[#2C2C2C] text-[10px] font-black text-neutral-400 sticky top-0 z-10">
+                                  進行中 / 未完工案場
+                                </div>
+                                {filteredActiveProjects.map(p => {
+                                  const isSelected = p.id === selectedProjectId;
+                                  return (
+                                    <button
+                                      key={p.id}
+                                      type="button"
+                                      onClick={() => {
+                                        handleProjectSelect(p.id);
+                                        setIsProjectDropdownOpen(false);
+                                      }}
+                                      className={`w-full text-left px-3.5 py-2 text-xs font-bold transition-colors flex items-center justify-between border-b border-[#2C2C2C] hover:bg-amber-550/10 ${
+                                        isSelected ? 'bg-amber-500/20 text-amber-300 font-extrabold' : 'text-neutral-300'
+                                      }`}
+                                    >
+                                      <span className="truncate mr-2">{getProjectDisplayName(p)}</span>
+                                      {isSelected && <Check size={12} className="text-amber-500 shrink-0" />}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {filteredCompletedProjects.length > 0 && (
+                              <div>
+                                <div className="px-3 py-1.5 bg-[#252525] border-b border-[#2C2C2C] text-[10px] font-black text-neutral-400 sticky top-0 z-10">
+                                  已完工結案案場 (選取後自動重啟為進行中)
+                                </div>
+                                {filteredCompletedProjects.map(p => {
+                                  const isSelected = p.id === selectedProjectId;
+                                  return (
+                                    <button
+                                      key={p.id}
+                                      type="button"
+                                      onClick={() => {
+                                        handleProjectSelect(p.id);
+                                        setIsProjectDropdownOpen(false);
+                                      }}
+                                      className={`w-full text-left px-3.5 py-2 text-xs font-bold transition-colors flex items-center justify-between border-b border-[#2C2C2C] hover:bg-amber-550/10 ${
+                                        isSelected ? 'bg-amber-500/20 text-amber-300 font-extrabold' : 'text-neutral-400'
+                                      }`}
+                                    >
+                                      <span className="truncate mr-2 text-neutral-450">
+                                        ⚠️ [已完工] {getProjectDisplayName(p)}
+                                      </span>
+                                      {isSelected && <Check size={12} className="text-amber-500 shrink-0" />}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <button
