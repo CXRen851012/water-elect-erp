@@ -972,9 +972,9 @@ export default function App() {
       }
     }
 
-    // Auto-sync non-project expenses to petty cash transactions
-    const nonProjExpenses = (recordData.expenses || []).filter(e => e.isProjectExpense === false);
-    const newPcTransactions: PettyCashTransaction[] = nonProjExpenses.map((exp, index) => {
+    // Auto-sync all expenses to petty cash transactions
+    const allExpenses = recordData.expenses || [];
+    const newPcTransactions: PettyCashTransaction[] = allExpenses.map((exp, index) => {
       const isNegative = exp.amount < 0;
       
       let cat: PettyCashTransaction['category'] = 'other';
@@ -996,10 +996,11 @@ export default function App() {
         category: cat,
         projectNameOrId: recordData.projectId,
         description: isNegative 
-          ? (exp.description || '非案場公務存入')
-          : (exp.description || '非案場公務開銷'),
+          ? (exp.description || (exp.isProjectExpense !== false ? '案場公務存入' : '非案場公務存入'))
+          : (exp.description || (exp.isProjectExpense !== false ? '案場公務開銷' : '非案場公務開銷')),
         payerName: exp.payerName,
         sourceRecordId: targetId,
+        vehicle: exp.vehicle || '公司大庫/銀行',
         createdAt: new Date().toISOString()
       };
     });

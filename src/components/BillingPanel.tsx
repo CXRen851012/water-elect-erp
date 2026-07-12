@@ -312,6 +312,16 @@ export default function BillingPanel({
   const [addPcDescription, setAddPcDescription] = useState<string>('');
   const [addPcVehicle, setAddPcVehicle] = useState<string>('公司大庫/銀行');
   const [addPcIsReturnedToCompany, setAddPcIsReturnedToCompany] = useState<boolean>(false);
+
+  const [vehicleNames, setVehicleNames] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('engineering_vehicle_names');
+    return saved ? JSON.parse(saved) : {
+      'A車': 'A車備用金',
+      'B車': 'B車備用金',
+      'C車': 'C車備用金'
+    };
+  });
+  const [isEditingVehicleNames, setIsEditingVehicleNames] = useState<boolean>(false);
   const [pettyCashCategoryFilter, setPettyCashCategoryFilter] = useState<string>('all');
 
   // Petty Cash Editing States
@@ -901,9 +911,19 @@ export default function BillingPanel({
       alert('請填入正確大於 0 的金額！');
       return;
     }
-    if (!addPcDescription.trim()) {
-      alert('請輸入款項之詳細說明，利於記帳！');
-      return;
+
+    let finalDesc = addPcDescription.trim();
+    if (!finalDesc) {
+      const catMap: Record<string, string> = {
+        feed: '🍱 伙食開銷',
+        tool: '⚙️ 設備耗材',
+        parking: '🅿️ 停車費用',
+        fuel: '⛽ 加油開資',
+        fund_in: '💵 零用金撥補/存入',
+        hardware: '🔧 五金採購',
+        other: '💬 一般雜支'
+      };
+      finalDesc = catMap[addPcCategory] || '💬 一般雜支';
     }
 
     const newPc: PettyCashTransaction = {
@@ -913,7 +933,7 @@ export default function BillingPanel({
       amount,
       category: addPcCategory,
       projectNameOrId: addPcProjId || undefined,
-      description: addPcDescription.trim(),
+      description: finalDesc,
       payerName: addPcPayer.trim() || undefined,
       vehicle: addPcVehicle,
       isReturnedToCompany: addPcType === 'income' ? addPcIsReturnedToCompany : false,
@@ -940,7 +960,7 @@ export default function BillingPanel({
           id: `exp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
           type: expType,
           amount: addPcType === 'income' ? -amount : amount,
-          description: addPcDescription.trim(),
+          description: finalDesc,
           isProjectExpense: false // Sync as non-project company/overhead expense
         };
 
@@ -1594,6 +1614,9 @@ export default function BillingPanel({
     // Incorporate petty cash
     let pettyCashIncome = 0;
     let pettyCashExpense = 0;
+    let companyOperatingIncome = 0;
+    let companyOperatingExpense = 0;
+
     filteredPettyCash.forEach(t => {
       if (t.type === 'income') {
         // Exclude 'fund_in' (公司存入) from profit analysis income
@@ -1602,6 +1625,16 @@ export default function BillingPanel({
         }
       } else if (t.type === 'expense') {
         pettyCashExpense += t.amount;
+      }
+
+      // Company operating (non-project overhead) flows
+      const isCompanyOverhead = !t.projectNameOrId;
+      if (isCompanyOverhead) {
+        if (t.type === 'income') {
+          companyOperatingIncome += t.amount;
+        } else if (t.type === 'expense') {
+          companyOperatingExpense += t.amount;
+        }
       }
     });
 
@@ -1623,7 +1656,9 @@ export default function BillingPanel({
       grandActualCost,
       profitAmount,
       profitMargin: profitMargin > 100 ? 100 : profitMargin,
-      recordCount: filteredRecords.length
+      recordCount: filteredRecords.length,
+      companyOperatingIncome,
+      companyOperatingExpense
     };
   }, [filteredRecords, filteredPettyCash, projects, transactions, reportStartDate, reportEndDate, reportSelectedProjectId]);
 
@@ -3735,36 +3770,34 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
 
             <div className="bg-white p-4.5 rounded-xl border border-neutral-200 shadow-3xs flex flex-col justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-purple-50 rounded-lg text-purple-600 shrink-0">
-                  <Truck size={22} />
+                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
+                  <TrendingUp size={22} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">工程車載備用金總額</span>
+                  <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">公司營運收支 (非案場獨立統計)</span>
                   <div className="flex items-baseline gap-1">
-                    <span className="text-base sm:text-lg font-black text-purple-700 font-mono">
-                      NT$ {Object.values(financialBalances.vehicleBalances).reduce((sum: number, val: number) => sum + val, 0).toLocaleString()}
+                    <span className="text-base sm:text-lg font-black text-indigo-700 font-mono">
+                      NT$ {(reportStats.companyOperatingIncome - reportStats.companyOperatingExpense).toLocaleString()}
                     </span>
-                    <span className="text-[10px] text-purple-600 font-bold">元</span>
+                    <span className="text-[10px] text-indigo-600 font-bold">元</span>
                   </div>
                 </div>
               </div>
 
               {/* 摺疊細項 / 展開卡片 */}
               <div className="mt-2 pt-2 border-t border-neutral-100 space-y-1 text-[10px] w-full">
-                {Object.entries(financialBalances.vehicleBalances).map(([car, bal]) => {
-                  const isLow = (bal as number) < 1000;
-                  return (
-                    <div key={car} className={`flex items-center justify-between px-1.5 py-0.5 rounded ${
-                      isLow ? 'bg-amber-100/70 text-amber-900 font-bold border border-amber-200' : 'text-neutral-600 font-medium'
-                    }`}>
-                      <span className="flex items-center gap-1">
-                        🚗 {car}
-                        {isLow && <span className="text-[9px] animate-pulse">⚠️ 低水位</span>}
-                      </span>
-                      <span className="font-mono">{(bal as number).toLocaleString()} 元</span>
-                    </div>
-                  );
-                })}
+                <div className="flex items-center justify-between text-neutral-600 font-medium px-1">
+                  <span className="flex items-center gap-1 text-emerald-600">
+                    💵 撥入/存入累計 (非案場)
+                  </span>
+                  <span className="font-mono text-emerald-600 font-bold">+{reportStats.companyOperatingIncome.toLocaleString()} 元</span>
+                </div>
+                <div className="flex items-center justify-between text-neutral-600 font-medium px-1">
+                  <span className="flex items-center gap-1 text-rose-600">
+                    🛒 落帳支出累計 (非案場)
+                  </span>
+                  <span className="font-mono text-rose-600 font-bold">-{reportStats.companyOperatingExpense.toLocaleString()} 元</span>
+                </div>
               </div>
             </div>
 
@@ -5277,6 +5310,90 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
             </div>
           </div>
 
+          {/* 車載零用金與自訂名稱設定 (從利潤分析移動至此) */}
+          <div className="bg-slate-900 border border-slate-950 rounded-2xl p-5 text-white space-y-4 shadow-3xs">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Truck size={18} className="text-[#D4AF37]" />
+                <div>
+                  <h4 className="text-xs sm:text-sm font-black text-[#F3E5AB]">個別車載備用金水位與名稱自訂</h4>
+                  <p className="text-[10px] text-slate-400 mt-0.5">此水位根據零用金簿與工務日誌中對應車輛之撥補及開銷落帳自動結算</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditingVehicleNames(!isEditingVehicleNames)}
+                className="px-2.5 py-1 text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg border border-[#D4AF37]/20 transition-all cursor-pointer"
+              >
+                {isEditingVehicleNames ? '💾 完成設定' : '⚙️ 自訂車輛名稱'}
+              </button>
+            </div>
+
+            {isEditingVehicleNames ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-3 bg-slate-950/60 rounded-xl border border-[#D4AF37]/10">
+                {['A車', 'B車', 'C車'].map(key => (
+                  <div key={key} className="space-y-1.5">
+                    <label className="block text-[10px] font-black text-amber-300">
+                      {key} 的顯示名稱 (目前：{vehicleNames[key]})
+                    </label>
+                    <input
+                      type="text"
+                      value={vehicleNames[key] || ''}
+                      onChange={(e) => {
+                        const newName = e.target.value;
+                        setVehicleNames(prev => {
+                          const next = { ...prev, [key]: newName || `${key}備用金` };
+                          localStorage.setItem('engineering_vehicle_names', JSON.stringify(next));
+                          return next;
+                        });
+                      }}
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-750 text-white text-xs font-bold rounded-lg outline-none focus:border-amber-500"
+                      placeholder={`請輸入 ${key} 自訂名稱...`}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {['A車', 'B車', 'C車'].map(key => {
+                  const bal = financialBalances.vehicleBalances[key] || 0;
+                  const isLow = bal < 1000;
+                  return (
+                    <div
+                      key={key}
+                      className={`p-4 rounded-xl border transition-all flex flex-col justify-between h-24 ${
+                        isLow 
+                          ? 'bg-rose-950/30 border-rose-900/30 text-rose-200' 
+                          : 'bg-slate-950/40 border-slate-850 text-slate-100 hover:border-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span className="text-[11px] font-black tracking-wide flex items-center gap-1">
+                          🚗 {vehicleNames[key] || `${key}備用金`}
+                        </span>
+                        {isLow ? (
+                          <span className="text-[8px] px-1.5 py-0.5 bg-rose-500/20 text-rose-400 font-black rounded-full animate-pulse border border-rose-500/20">
+                            ⚠️ 水位偏低
+                          </span>
+                        ) : (
+                          <span className="text-[8px] px-1.5 py-0.5 bg-emerald-500/25 text-emerald-400 font-extrabold rounded-full border border-emerald-500/20">
+                            正常水位
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-3 flex items-baseline justify-between">
+                        <span className="text-[10px] text-slate-400 font-medium">可用餘額</span>
+                        <span className={`text-lg font-black font-mono tracking-tight ${isLow ? 'text-rose-400' : 'text-amber-300'}`}>
+                          NT$ {bal.toLocaleString()} <span className="text-[10px] font-normal font-sans">元</span>
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Create new petty cash ledger */}
             <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-3xs h-fit space-y-4">
@@ -5428,43 +5545,25 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[11px] font-bold !text-[#E0E0E0] mb-1">
-                      存放位置 / 經手車輛
-                    </label>
-                    <select
-                      value={addPcVehicle}
-                      onChange={(e) => setAddPcVehicle(e.target.value)}
-                      className="w-full px-2.5 py-1.5 border border-[#D4AF37]/20 rounded-lg text-xs bg-[#121212] !text-[#E0E0E0] font-bold outline-none focus:border-[#D4AF37]"
-                    >
-                      <option className="!bg-[#1A1A1A]" value="公司大庫/銀行">🏦 公司大庫/銀行</option>
-                      <option className="!bg-[#1A1A1A]" value="A車">🚗 A車備用金</option>
-                      <option className="!bg-[#1A1A1A]" value="B車">🚗 B車備用金</option>
-                      <option className="!bg-[#1A1A1A]" value="C車">🚗 C車備用金</option>
-                    </select>
-                  </div>
-                  
-                  {addPcType === 'income' && (
-                    <div className="flex flex-col justify-end">
-                      <label className="flex items-center gap-2 cursor-pointer py-1.5 px-2.5 bg-[#121212] border border-[#D4AF37]/20 rounded-lg select-none">
-                        <input
-                          type="checkbox"
-                          checked={addPcIsReturnedToCompany}
-                          onChange={(e) => setAddPcIsReturnedToCompany(e.target.checked)}
-                          className="rounded border-neutral-300 text-amber-500 focus:ring-amber-500 w-3.5 h-3.5"
-                        />
-                        <span className="text-[10px] font-extrabold !text-[#E0E0E0]">
-                          直接現場繳回公司
-                        </span>
-                      </label>
-                    </div>
-                  )}
+                <div>
+                  <label className="block text-[11px] font-bold !text-[#E0E0E0] mb-1">
+                    存放位置 / 經手車輛
+                  </label>
+                  <select
+                    value={addPcVehicle}
+                    onChange={(e) => setAddPcVehicle(e.target.value)}
+                    className="w-full px-2.5 py-1.5 border border-[#D4AF37]/20 rounded-lg text-xs bg-[#121212] !text-[#E0E0E0] font-bold outline-none focus:border-[#D4AF37]"
+                  >
+                    <option className="!bg-[#1A1A1A]" value="公司大庫/銀行">🏦 公司大庫/銀行</option>
+                    <option className="!bg-[#1A1A1A]" value="A車">🚗 {vehicleNames['A車'] || 'A車備用金'}</option>
+                    <option className="!bg-[#1A1A1A]" value="B車">🚗 {vehicleNames['B車'] || 'B車備用金'}</option>
+                    <option className="!bg-[#1A1A1A]" value="C車">🚗 {vehicleNames['C車'] || 'C車備用金'}</option>
+                  </select>
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-bold !text-[#E0E0E0] mb-1">
-                    細項摘要與材料規格描述 <span className="text-red-500">*</span>
+                    細項摘要與材料規格描述 <span className="text-neutral-400 font-normal">(選填)</span>
                   </label>
                   <input
                     type="text"
@@ -5560,7 +5659,6 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     <thead>
                       <tr className="bg-[#121212] !text-[#F3E5AB] uppercase tracking-wider text-[10px] font-bold border-b border-[#D4AF37]/20">
                         <th className="py-2.5 px-4 font-bold">對帳日期</th>
-                        <th className="py-2.5 px-4 font-bold">主分類</th>
                         <th className="py-2.5 px-4 font-bold text-right border-r border-[#D4AF37]/10 pr-4">金額流動</th>
                         <th className="py-2.5 px-4 font-bold">存放位置/繳回狀態</th>
                         <th className="py-2.5 px-4 font-bold">交易名目規格敘事</th>
@@ -5585,23 +5683,6 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                           return (
                             <tr key={t.id} className={isEditing ? "bg-[#D4AF37]/10" : "hover:bg-[#D4AF37]/5"}>
                               <td className="py-3 px-4 font-mono font-bold text-[#E0E0E0] whitespace-nowrap">{t.date}</td>
-                              <td className="py-3 px-4 whitespace-nowrap">
-                                {t.type === 'income' ? (
-                                  <span className="text-emerald-400 bg-emerald-950/45 border border-emerald-900/40 font-extrabold px-2 py-0.5 rounded text-[10px]">
-                                    {t.category === 'fund_in' ? '🏢 公司存入' :
-                                     t.category === 'tool' ? '⚙️ 設備(存)' :
-                                     t.category === 'hardware' ? '🔧 五金(存)' : '💬 其他'}
-                                  </span>
-                                ) : (
-                                  <span className="text-rose-400 bg-rose-950/45 border border-rose-900/40 font-extrabold px-2 py-0.5 rounded text-[10px]">
-                                    {t.category === 'feed' ? '🍱 伙食' :
-                                     t.category === 'tool' ? '⚙️ 設備' :
-                                     t.category === 'parking' ? '🅿️ 停車' :
-                                     t.category === 'fuel' ? '⛽ 加油' :
-                                     t.category === 'hardware' ? '🔧 五金' : '💬 其他'}
-                                  </span>
-                                )}
-                              </td>
                               <td className={`py-3 px-4 text-right font-mono font-extrabold text-xs border-r border-[#D4AF37]/10 pr-4 whitespace-nowrap ${
                                 t.type === 'income' ? 'text-emerald-400' : 'text-[#E5E5E5]'
                               }`}>
@@ -5623,7 +5704,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                               <td className="py-3 px-4 whitespace-nowrap">
                                 <div className="flex flex-col gap-1 items-start">
                                   <span className="text-neutral-300 font-bold bg-[#121212] px-1.5 py-0.5 rounded border border-[#D4AF37]/15">
-                                    {t.vehicle === '公司大庫/銀行' || !t.vehicle ? '🏦 大庫/銀行' : `🚗 ${t.vehicle}`}
+                                    {t.vehicle === '公司大庫/銀行' || !t.vehicle ? '🏦 大庫/銀行' : `🚗 ${vehicleNames[t.vehicle] || t.vehicle}`}
                                   </span>
                                   {t.type === 'income' && t.isReturnedToCompany && (
                                     <span className="text-[9px] text-teal-400 font-extrabold bg-teal-950/40 px-1 py-0.5 rounded border border-teal-900/30">
@@ -5632,7 +5713,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                   )}
                                 </div>
                               </td>
-                              <td className="py-3 px-4 text-[#E0E0E0] font-medium max-w-[170px]">
+                              <td className="py-3 px-4 text-[#E0E0E0] font-medium max-w-[240px]">
                                 {isEditing ? (
                                   <input
                                     type="text"
@@ -5641,7 +5722,24 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                     className="w-full px-1.5 py-0.5 bg-[#121212] border border-[#D4AF37]/35 text-[#E5E5E5] text-[10px] rounded outline-none focus:border-[#D4AF37]"
                                   />
                                 ) : (
-                                  <div className="truncate" title={t.description}>{t.description}</div>
+                                  <div className="flex items-center gap-1.5 truncate" title={t.description}>
+                                    {t.type === 'income' ? (
+                                      <span className="text-emerald-400 bg-emerald-950/45 border border-emerald-900/45 font-extrabold px-1.5 py-0.5 rounded text-[9px] shrink-0">
+                                        {t.category === 'fund_in' ? '公司存入' :
+                                         t.category === 'tool' ? '設備(存)' :
+                                         t.category === 'hardware' ? '五金(存)' : '其他'}
+                                      </span>
+                                    ) : (
+                                      <span className="text-rose-400 bg-rose-950/45 border border-rose-900/45 font-extrabold px-1.5 py-0.5 rounded text-[9px] shrink-0">
+                                        {t.category === 'feed' ? '🍱 伙食' :
+                                         t.category === 'tool' ? '⚙️ 設備' :
+                                         t.category === 'parking' ? '🅿️ 停車' :
+                                         t.category === 'fuel' ? '⛽ 加油' :
+                                         t.category === 'hardware' ? '🔧 五金' : '💬 其他'}
+                                      </span>
+                                    )}
+                                    <span className="truncate">{t.description}</span>
+                                  </div>
                                 )}
                               </td>
                               <td className="py-3 px-4 text-[#E0E0E0] font-extrabold whitespace-nowrap">{t.payerName || <span className="text-neutral-500">系統提撥</span>}</td>

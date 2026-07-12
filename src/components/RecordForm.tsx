@@ -153,6 +153,15 @@ export default function RecordForm({
   // Customizable blank expense items
   const [customExpenses, setCustomExpenses] = useState<RecordExpense[]>([]);
 
+  const [vehicleNames] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('engineering_vehicle_names');
+    return saved ? JSON.parse(saved) : {
+      'A車': 'A車備用金',
+      'B車': 'B車備用金',
+      'C車': 'C車備用金'
+    };
+  });
+
   // 4. Labor crew logs (Hides hourly wages and costs totally inside form)
   const [workers, setWorkers] = useState<RecordWorker[]>([]);
 
@@ -1019,7 +1028,8 @@ export default function RecordForm({
       type: 'other',
       description: '',
       amount: 0,
-      isProjectExpense
+      isProjectExpense,
+      vehicle: '公司大庫/銀行'
     };
     setCustomExpenses([...customExpenses, item]);
   };
@@ -1080,7 +1090,8 @@ export default function RecordForm({
           description: ce.description.trim(),
           amount: ce.amount || 0,
           isProjectExpense: ce.isProjectExpense !== false,
-          payerName: ce.payerName?.trim() || undefined
+          payerName: ce.payerName?.trim() || undefined,
+          vehicle: ce.vehicle || '公司大庫/銀行'
         });
       }
     });
@@ -2503,6 +2514,18 @@ export default function RecordForm({
                       </datalist>
                     </div>
 
+                    {/* Vehicle Select Dropdown */}
+                    <select
+                      value={ex.vehicle || '公司大庫/銀行'}
+                      onChange={(e) => handleUpdateCustomExpenseField(ex.id, 'vehicle', e.target.value)}
+                      className="w-24 p-1 border border-neutral-200 rounded text-[10px] bg-white text-neutral-700 font-medium"
+                    >
+                      <option value="公司大庫/銀行">🏦 公司 (大庫)</option>
+                      <option value="A車">🚗 {vehicleNames['A車'] || 'A車'}</option>
+                      <option value="B車">🚗 {vehicleNames['B車'] || 'B車'}</option>
+                      <option value="C車">🚗 {vehicleNames['C車'] || 'C車'}</option>
+                    </select>
+
                     {/* Amount Input */}
                     <div className="flex items-center gap-0.5">
                       <span className="text-[10px] text-neutral-400 font-mono">$</span>
@@ -2587,6 +2610,18 @@ export default function RecordForm({
                         ))}
                       </datalist>
                     </div>
+
+                    {/* Vehicle Select Dropdown */}
+                    <select
+                      value={ex.vehicle || '公司大庫/銀行'}
+                      onChange={(e) => handleUpdateCustomExpenseField(ex.id, 'vehicle', e.target.value)}
+                      className="w-24 p-1 border border-neutral-200 rounded text-[10px] bg-white text-neutral-600 font-medium"
+                    >
+                      <option value="公司大庫/銀行">🏦 公司 (大庫)</option>
+                      <option value="A車">🚗 {vehicleNames['A車'] || 'A車'}</option>
+                      <option value="B車">🚗 {vehicleNames['B車'] || 'B車'}</option>
+                      <option value="C車">🚗 {vehicleNames['C車'] || 'C車'}</option>
+                    </select>
 
                     {/* Amount Input */}
                     <div className="flex items-center gap-0.5">

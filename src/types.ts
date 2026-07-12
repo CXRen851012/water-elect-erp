@@ -154,6 +154,7 @@ export interface RecordExpense {
   amount: number;
   isProjectExpense?: boolean; // 新增：是否算在案場內開銷
   payerName?: string; // 新增：經手人/付款人姓名
+  vehicle?: string; // 新增：支付來源車輛 (預設公司)
 }
 
 export interface RecordWorker {
