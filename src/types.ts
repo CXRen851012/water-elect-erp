@@ -153,6 +153,7 @@ export interface RecordExpense {
   description: string;
   amount: number;
   isProjectExpense?: boolean; // 新增：是否算在案場內開銷
+  payerName?: string; // 新增：經手人/付款人姓名
 }
 
 export interface RecordWorker {
@@ -225,5 +226,7 @@ export interface PettyCashTransaction {
   description: string;   // 詳細說明
   payerName?: string;     // 經手人/支付人姓名
   sourceRecordId?: string; // 來源工務日誌ID
+  vehicle?: string;       // 存放/經手車輛 (e.g. 公司大庫/銀行, A車, B車, C車)
+  isReturnedToCompany?: boolean; // 是否已繳回公司大金庫 (類型為 income 時，勾選已繳回直接計入大庫)
   createdAt: string;
 }

@@ -1079,7 +1079,8 @@ export default function RecordForm({
           type: ce.type || 'other',
           description: ce.description.trim(),
           amount: ce.amount || 0,
-          isProjectExpense: ce.isProjectExpense !== false
+          isProjectExpense: ce.isProjectExpense !== false,
+          payerName: ce.payerName?.trim() || undefined
         });
       }
     });
@@ -2485,6 +2486,23 @@ export default function RecordForm({
                       className="flex-1 p-1 border border-neutral-200 rounded text-[10px]"
                     />
 
+                    {/* Payer Name Selection / Input */}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        list={`payer-list-${ex.id}`}
+                        placeholder="經手同仁/付款人..."
+                        value={ex.payerName || ''}
+                        onChange={(e) => handleUpdateCustomExpenseField(ex.id, 'payerName', e.target.value)}
+                        className="w-24 p-1 border border-neutral-200 rounded text-[10px] text-neutral-700 bg-white"
+                      />
+                      <datalist id={`payer-list-${ex.id}`}>
+                        {workersPreset.map(w => (
+                          <option key={w.id} value={w.name}>{w.name} ({w.role || '無職稱'})</option>
+                        ))}
+                      </datalist>
+                    </div>
+
                     {/* Amount Input */}
                     <div className="flex items-center gap-0.5">
                       <span className="text-[10px] text-neutral-400 font-mono">$</span>
@@ -2552,6 +2570,23 @@ export default function RecordForm({
                       onChange={(e) => handleUpdateCustomExpenseField(ex.id, 'description', e.target.value)}
                       className="flex-1 p-1 border border-neutral-200 rounded text-[10px] text-neutral-600"
                     />
+
+                    {/* Payer Name Selection / Input */}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        list={`payer-list-${ex.id}`}
+                        placeholder="經手同仁/付款人..."
+                        value={ex.payerName || ''}
+                        onChange={(e) => handleUpdateCustomExpenseField(ex.id, 'payerName', e.target.value)}
+                        className="w-24 p-1 border border-neutral-200 rounded text-[10px] text-neutral-600 bg-white"
+                      />
+                      <datalist id={`payer-list-${ex.id}`}>
+                        {workersPreset.map(w => (
+                          <option key={w.id} value={w.name}>{w.name} ({w.role || '無職稱'})</option>
+                        ))}
+                      </datalist>
+                    </div>
 
                     {/* Amount Input */}
                     <div className="flex items-center gap-0.5">

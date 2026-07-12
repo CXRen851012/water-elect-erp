@@ -998,6 +998,7 @@ export default function App() {
         description: isNegative 
           ? (exp.description || '非案場公務存入')
           : (exp.description || '非案場公務開銷'),
+        payerName: exp.payerName,
         sourceRecordId: targetId,
         createdAt: new Date().toISOString()
       };

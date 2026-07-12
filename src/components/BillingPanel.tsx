@@ -7,7 +7,7 @@ import {
   Landmark, Plus, Trash2, ArrowRightLeft, DollarSign, Wallet, 
   Percent, ArrowUpDown, ChevronDown, ChevronUp, AlertCircle, 
   Check, Info, Calendar, Sparkles, Building2, UserCheck, Scale,
-  TrendingUp, HardHat, FileText, Search, RefreshCw, Eye, Printer, Copy, Clock, Filter, Users, ClipboardList, Coins, Edit
+  TrendingUp, HardHat, FileText, Search, RefreshCw, Eye, Printer, Copy, Clock, Filter, Users, ClipboardList, Coins, Edit, Truck
 } from 'lucide-react';
 
 interface ProjectSummaryItem {
@@ -310,6 +310,8 @@ export default function BillingPanel({
   const [addPcPayer, setAddPcPayer] = useState<string>('');
   const [addPcProjId, setAddPcProjId] = useState<string>('');
   const [addPcDescription, setAddPcDescription] = useState<string>('');
+  const [addPcVehicle, setAddPcVehicle] = useState<string>('公司大庫/銀行');
+  const [addPcIsReturnedToCompany, setAddPcIsReturnedToCompany] = useState<boolean>(false);
   const [pettyCashCategoryFilter, setPettyCashCategoryFilter] = useState<string>('all');
 
   // Petty Cash Editing States
@@ -913,6 +915,8 @@ export default function BillingPanel({
       projectNameOrId: addPcProjId || undefined,
       description: addPcDescription.trim(),
       payerName: addPcPayer.trim() || undefined,
+      vehicle: addPcVehicle,
+      isReturnedToCompany: addPcType === 'income' ? addPcIsReturnedToCompany : false,
       createdAt: new Date().toISOString()
     };
 
@@ -982,6 +986,8 @@ export default function BillingPanel({
     setAddPcDescription('');
     setAddPcPayer('');
     setAddPcProjId('');
+    setAddPcVehicle('公司大庫/銀行');
+    setAddPcIsReturnedToCompany(false);
   };
 
   // 刪除零用金紀錄
@@ -2161,6 +2167,48 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
 
     return periodTxReceived + periodSiteCollected;
   }, [transactions, reportStartDate, reportEndDate, reportSelectedProjectId, filteredRecords]);
+
+  const financialBalances: { companyBalance: number; vehicleBalances: Record<string, number> } = useMemo(() => {
+    let companyBalance = totalPeriodCashReceived;
+    const vehicleBalances: Record<string, number> = {
+      'A車': 0,
+      'B車': 0,
+      'C車': 0
+    };
+
+    pettyCashTransactions.forEach(t => {
+      const amount = t.amount || 0;
+      const vehicle = t.vehicle || '公司大庫/銀行';
+
+      if (t.type === 'income') {
+        if (vehicle === '公司大庫/銀行') {
+          companyBalance += amount;
+        } else {
+          if (t.isReturnedToCompany === true) {
+            companyBalance += amount;
+          } else {
+            if (vehicle in vehicleBalances) {
+              vehicleBalances[vehicle] += amount;
+            }
+            companyBalance -= amount;
+          }
+        }
+      } else if (t.type === 'expense') {
+        if (vehicle === '公司大庫/銀行') {
+          companyBalance -= amount;
+        } else {
+          if (vehicle in vehicleBalances) {
+            vehicleBalances[vehicle] -= amount;
+          }
+        }
+      }
+    });
+
+    return {
+      companyBalance,
+      vehicleBalances
+    };
+  }, [pettyCashTransactions, totalPeriodCashReceived]);
 
   const companyTotalOutstanding = useMemo(() => {
     return projectSummariesList.reduce((sum, p) => sum + p.outstandingBalance, 0);
@@ -3460,6 +3508,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
               {/* Quick Preset Buttons */}
               <div className="flex items-center gap-2 flex-wrap">
                 <button
+                  type="button"
                   onClick={() => {
                     const d = new Date();
                     const year = d.getFullYear();
@@ -3475,6 +3524,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   📅 統計本月
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     const d = new Date();
                     d.setMonth(d.getMonth() - 1);
@@ -3491,6 +3541,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   📅 統計上月
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     setReportStartDate('');
                     setReportEndDate('');
@@ -3503,6 +3554,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                 {/* Reset filters */}
                 {(reportSelectedProjectId !== 'all' || reportStartDate !== '' || reportEndDate !== '' || reportSearchQuery !== '') && (
                   <button
+                    type="button"
                     onClick={() => {
                       setReportSelectedProjectId('all');
                       setReportStartDate('');
@@ -3614,15 +3666,15 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                 <Coins size={22} />
               </div>
               <div>
-                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">當期預估收入 (工程款基數/牌價)</span>
+                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">工程實績營業總額 (應收總額)</span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-base sm:text-lg font-black text-neutral-900 font-mono">
                     NT$ {reportStats.grandTotal.toLocaleString()}
                   </span>
                   <span className="text-[10px] text-neutral-400">元</span>
                 </div>
-                <span className="text-[9px] text-neutral-400 block">
-                  含工程款基數(有設定時)、牌價、工酬與零用金收益
+                <span className="text-[9px] text-neutral-400 block font-medium">
+                  含追加減、稅額與估計總和
                 </span>
               </div>
             </div>
@@ -3632,7 +3684,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                 <Wallet size={22} />
               </div>
               <div>
-                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">當期工程總支出 (實際成本)</span>
+                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">工程材料/工資累計支出</span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-base sm:text-lg font-black text-neutral-900 font-mono">
                     NT$ {reportStats.grandActualCost.toLocaleString()}
@@ -3640,7 +3692,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   <span className="text-[10px] text-neutral-400">元</span>
                 </div>
                 <span className="text-[9px] text-amber-700 block font-bold">
-                  含材料進價、實發工資與營運雜支
+                  含工資、材料、外包及現場開銷
                 </span>
               </div>
             </div>
@@ -3650,52 +3702,69 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                 <UserCheck size={22} />
               </div>
               <div>
-                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">當期預估工程淨利潤</span>
+                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">工程預估稅後淨利</span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-base sm:text-lg font-black text-emerald-700 font-mono">
-                    NT$ {reportStats.profitAmount.toLocaleString()}
+                    NT$ {Math.max(0, Math.round((reportStats.grandTotal - reportStats.grandActualCost) * 0.95)).toLocaleString()}
                   </span>
                   <span className="text-[10px] text-emerald-600 font-bold">元</span>
                 </div>
                 <span className="text-[9px] text-emerald-600 block font-bold">
-                  利潤率：{reportStats.profitMargin}% (精算毛利)
+                  扣除預估 5% 營業稅
                 </span>
               </div>
             </div>
 
             <div className="bg-white p-4.5 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3.5">
-              <div className="p-3 bg-teal-50 rounded-lg text-teal-600">
+              <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
                 <DollarSign size={22} />
               </div>
               <div>
-                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">當期實際收現 (已到款)</span>
+                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">公司金庫實存水位 (支配餘額)</span>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-base sm:text-lg font-black text-teal-700 font-mono">
-                    NT$ {totalPeriodCashReceived.toLocaleString()}
+                  <span className="text-base sm:text-lg font-black text-blue-700 font-mono">
+                    NT$ {financialBalances.companyBalance.toLocaleString()}
                   </span>
-                  <span className="text-[10px] text-teal-600 font-bold">元</span>
+                  <span className="text-[10px] text-blue-600 font-bold">元</span>
                 </div>
-                <span className="text-[9px] text-teal-600 block font-bold">
-                  含當期實收公款與現場直收
+                <span className="text-[9px] text-blue-500 block font-semibold leading-normal">
+                  含到款項目，已扣車載撥補
                 </span>
               </div>
             </div>
 
-            <div className="bg-white p-4.5 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3.5">
-              <div className="p-3 bg-rose-50 rounded-lg text-rose-600">
-                <AlertCircle size={22} />
-              </div>
-              <div>
-                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">全案累計待收款 (應收未收)</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-base sm:text-lg font-black text-rose-700 font-mono">
-                    NT$ {companyTotalOutstanding.toLocaleString()}
-                  </span>
-                  <span className="text-[10px] text-rose-600 font-bold">元</span>
+            <div className="bg-white p-4.5 rounded-xl border border-neutral-200 shadow-3xs flex flex-col justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-purple-50 rounded-lg text-purple-600 shrink-0">
+                  <Truck size={22} />
                 </div>
-                <span className="text-[9px] text-rose-600 block font-bold">
-                  未結清之工程餘款與尾款總額
-                </span>
+                <div className="min-w-0 flex-1">
+                  <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">工程車載備用金總額</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-base sm:text-lg font-black text-purple-700 font-mono">
+                      NT$ {Object.values(financialBalances.vehicleBalances).reduce((sum: number, val: number) => sum + val, 0).toLocaleString()}
+                    </span>
+                    <span className="text-[10px] text-purple-600 font-bold">元</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 摺疊細項 / 展開卡片 */}
+              <div className="mt-2 pt-2 border-t border-neutral-100 space-y-1 text-[10px] w-full">
+                {Object.entries(financialBalances.vehicleBalances).map(([car, bal]) => {
+                  const isLow = (bal as number) < 1000;
+                  return (
+                    <div key={car} className={`flex items-center justify-between px-1.5 py-0.5 rounded ${
+                      isLow ? 'bg-amber-100/70 text-amber-900 font-bold border border-amber-200' : 'text-neutral-600 font-medium'
+                    }`}>
+                      <span className="flex items-center gap-1">
+                        🚗 {car}
+                        {isLow && <span className="text-[9px] animate-pulse">⚠️ 低水位</span>}
+                      </span>
+                      <span className="font-mono">{(bal as number).toLocaleString()} 元</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -5359,6 +5428,40 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   </select>
                 </div>
 
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-bold !text-[#E0E0E0] mb-1">
+                      存放位置 / 經手車輛
+                    </label>
+                    <select
+                      value={addPcVehicle}
+                      onChange={(e) => setAddPcVehicle(e.target.value)}
+                      className="w-full px-2.5 py-1.5 border border-[#D4AF37]/20 rounded-lg text-xs bg-[#121212] !text-[#E0E0E0] font-bold outline-none focus:border-[#D4AF37]"
+                    >
+                      <option className="!bg-[#1A1A1A]" value="公司大庫/銀行">🏦 公司大庫/銀行</option>
+                      <option className="!bg-[#1A1A1A]" value="A車">🚗 A車備用金</option>
+                      <option className="!bg-[#1A1A1A]" value="B車">🚗 B車備用金</option>
+                      <option className="!bg-[#1A1A1A]" value="C車">🚗 C車備用金</option>
+                    </select>
+                  </div>
+                  
+                  {addPcType === 'income' && (
+                    <div className="flex flex-col justify-end">
+                      <label className="flex items-center gap-2 cursor-pointer py-1.5 px-2.5 bg-[#121212] border border-[#D4AF37]/20 rounded-lg select-none">
+                        <input
+                          type="checkbox"
+                          checked={addPcIsReturnedToCompany}
+                          onChange={(e) => setAddPcIsReturnedToCompany(e.target.checked)}
+                          className="rounded border-neutral-300 text-amber-500 focus:ring-amber-500 w-3.5 h-3.5"
+                        />
+                        <span className="text-[10px] font-extrabold !text-[#E0E0E0]">
+                          直接現場繳回公司
+                        </span>
+                      </label>
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-[11px] font-bold !text-[#E0E0E0] mb-1">
                     細項摘要與材料規格描述 <span className="text-red-500">*</span>
@@ -5459,6 +5562,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                         <th className="py-2.5 px-4 font-bold">對帳日期</th>
                         <th className="py-2.5 px-4 font-bold">主分類</th>
                         <th className="py-2.5 px-4 font-bold text-right border-r border-[#D4AF37]/10 pr-4">金額流動</th>
+                        <th className="py-2.5 px-4 font-bold">存放位置/繳回狀態</th>
                         <th className="py-2.5 px-4 font-bold">交易名目規格敘事</th>
                         <th className="py-2.5 px-4 font-bold">經手同仁</th>
                         <th className="py-2.5 px-4 font-bold">歸屬特定工地</th>
@@ -5515,6 +5619,18 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                 ) : (
                                   <span>{t.type === 'income' ? '+' : '-'}${t.amount.toLocaleString()} 元</span>
                                 )}
+                              </td>
+                              <td className="py-3 px-4 whitespace-nowrap">
+                                <div className="flex flex-col gap-1 items-start">
+                                  <span className="text-neutral-300 font-bold bg-[#121212] px-1.5 py-0.5 rounded border border-[#D4AF37]/15">
+                                    {t.vehicle === '公司大庫/銀行' || !t.vehicle ? '🏦 大庫/銀行' : `🚗 ${t.vehicle}`}
+                                  </span>
+                                  {t.type === 'income' && t.isReturnedToCompany && (
+                                    <span className="text-[9px] text-teal-400 font-extrabold bg-teal-950/40 px-1 py-0.5 rounded border border-teal-900/30">
+                                      📥 直繳回公司
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td className="py-3 px-4 text-[#E0E0E0] font-medium max-w-[170px]">
                                 {isEditing ? (
