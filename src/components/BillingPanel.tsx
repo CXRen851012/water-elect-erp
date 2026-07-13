@@ -312,15 +312,47 @@ export default function BillingPanel({
   const [addPcDescription, setAddPcDescription] = useState<string>('');
   const [addPcVehicle, setAddPcVehicle] = useState<string>('公司大庫/銀行');
   const [addPcIsReturnedToCompany, setAddPcIsReturnedToCompany] = useState<boolean>(false);
+  const [addPcIsOperatingOverhead, setAddPcIsOperatingOverhead] = useState<boolean>(false);
+  const [newVehicleName, setNewVehicleName] = useState<string>('');
 
-  const [vehicleNames, setVehicleNames] = useState<Record<string, string>>(() => {
-    const saved = localStorage.getItem('engineering_vehicle_names');
-    return saved ? JSON.parse(saved) : {
-      'A車': 'A車備用金',
-      'B車': 'B車備用金',
-      'C車': 'C車備用金'
-    };
+  const [vehicles, setVehicles] = useState<Array<{ id: string; name: string }>>(() => {
+    const saved = localStorage.getItem('engineering_vehicles');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    const legacyNames = localStorage.getItem('engineering_vehicle_names');
+    if (legacyNames) {
+      try {
+        const parsed = JSON.parse(legacyNames);
+        return Object.entries(parsed).map(([id, name]) => ({ id, name: name as string }));
+      } catch (e) {}
+    }
+    return [
+      { id: 'A車', name: 'A車備用金' },
+      { id: 'B車', name: 'B車備用金' },
+      { id: 'C車', name: 'C車備用金' }
+    ];
   });
+
+  const vehicleNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    vehicles.forEach(v => {
+      map[v.id] = v.name;
+    });
+    return map;
+  }, [vehicles]);
+
+  const saveVehicles = (newVehicles: Array<{ id: string; name: string }>) => {
+    setVehicles(newVehicles);
+    localStorage.setItem('engineering_vehicles', JSON.stringify(newVehicles));
+    const legacyMap: Record<string, string> = {};
+    newVehicles.forEach(v => {
+      legacyMap[v.id] = v.name;
+    });
+    localStorage.setItem('engineering_vehicle_names', JSON.stringify(legacyMap));
+  };
   const [isEditingVehicleNames, setIsEditingVehicleNames] = useState<boolean>(false);
   const [pettyCashCategoryFilter, setPettyCashCategoryFilter] = useState<string>('all');
 
@@ -328,6 +360,9 @@ export default function BillingPanel({
   const [editingPcTxId, setEditingPcTxId] = useState<string | null>(null);
   const [editPcAmount, setEditPcAmount] = useState<string>('');
   const [editPcDescription, setEditPcDescription] = useState<string>('');
+  const [editPcPayerName, setEditPcPayerName] = useState<string>('');
+  const [editPcProjectNameOrId, setEditPcProjectNameOrId] = useState<string>('');
+  const [editPcIsReturnedToCompany, setEditPcIsReturnedToCompany] = useState<boolean>(false);
 
   // 統一專案顯示名稱格式化 (確保一體性)
   const getProjectDisplayName = (p: Project): string => {
@@ -936,7 +971,8 @@ export default function BillingPanel({
       description: finalDesc,
       payerName: addPcPayer.trim() || undefined,
       vehicle: addPcVehicle,
-      isReturnedToCompany: addPcType === 'income' ? addPcIsReturnedToCompany : false,
+      isReturnedToCompany: addPcIsReturnedToCompany,
+      isCompanyOperatingExpense: addPcProjId ? addPcIsOperatingOverhead : true,
       createdAt: new Date().toISOString()
     };
 
@@ -961,7 +997,7 @@ export default function BillingPanel({
           type: expType,
           amount: addPcType === 'income' ? -amount : amount,
           description: finalDesc,
-          isProjectExpense: false // Sync as non-project company/overhead expense
+          isProjectExpense: !addPcIsOperatingOverhead // Sync as project cost or company overhead based on user selection
         };
 
         const recordId = existingRec ? existingRec.id : `rec-${Date.now()}`;
@@ -1008,6 +1044,7 @@ export default function BillingPanel({
     setAddPcProjId('');
     setAddPcVehicle('公司大庫/銀行');
     setAddPcIsReturnedToCompany(false);
+    setAddPcIsOperatingOverhead(false);
   };
 
   // 刪除零用金紀錄
@@ -1042,6 +1079,9 @@ export default function BillingPanel({
     setEditingPcTxId(t.id);
     setEditPcAmount(t.amount.toString());
     setEditPcDescription(t.description);
+    setEditPcPayerName(t.payerName || '');
+    setEditPcProjectNameOrId(t.projectNameOrId || '');
+    setEditPcIsReturnedToCompany(t.isReturnedToCompany || false);
   };
 
   const handleSavePettyCashEdit = (originalTx: PettyCashTransaction) => {
@@ -1061,7 +1101,10 @@ export default function BillingPanel({
         return {
           ...t,
           amount: nextAmount,
-          description: editPcDescription.trim()
+          description: editPcDescription.trim(),
+          payerName: editPcPayerName.trim() || undefined,
+          projectNameOrId: editPcProjectNameOrId || undefined,
+          isReturnedToCompany: editPcIsReturnedToCompany
         };
       }
       return t;
@@ -1081,7 +1124,8 @@ export default function BillingPanel({
               return {
                 ...exp,
                 amount: actualAmount,
-                description: editPcDescription.trim()
+                description: editPcDescription.trim(),
+                payerName: editPcPayerName.trim() || undefined
               };
             }
             return exp;
@@ -1530,6 +1574,25 @@ export default function BillingPanel({
     });
   }, [pettyCashTransactions, reportStartDate, reportEndDate, reportSelectedProjectId, reportSearchQuery]);
 
+  // Calculate company-wide financial metrics for the selected period
+  const totalPeriodCashReceived = useMemo(() => {
+    // 1. Transactions in period (filtered by project & date)
+    let list = [...transactions];
+    if (reportSelectedProjectId !== 'all') {
+      list = list.filter(t => t.projectNameOrId === reportSelectedProjectId);
+    }
+    const periodTxReceived = list.filter(t => {
+      if (reportStartDate && t.date < reportStartDate) return false;
+      if (reportEndDate && t.date > reportEndDate) return false;
+      return t.allocationType !== 'round_adjustment';
+    }).reduce((sum, t) => sum + t.amount, 0);
+
+    // 2. Direct site collections in filtered records
+    const periodSiteCollected = filteredRecords.reduce((sum, r) => sum + (r.collectedAmount || 0), 0);
+
+    return periodTxReceived + periodSiteCollected;
+  }, [transactions, reportStartDate, reportEndDate, reportSelectedProjectId, filteredRecords]);
+
   // Financial aggregates (UNLOCKED & ALWAYS ACCESSIBLE)
   const reportStats = useMemo(() => {
     let materialsCost = 0; 
@@ -1615,33 +1678,49 @@ export default function BillingPanel({
     let pettyCashIncome = 0;
     let pettyCashExpense = 0;
     let companyOperatingIncome = 0;
-    let companyOperatingExpense = 0;
+    let pettyCashOperatingExpense = 0;
+    
+    // Calculate daily log non-project operating expense
+    let dailyLogOperatingExpense = 0;
+    filteredRecords.forEach(r => {
+      dailyLogOperatingExpense += r.expenses.filter(e => e.isProjectExpense === false).reduce((sum, e) => sum + e.amount, 0);
+    });
 
     filteredPettyCash.forEach(t => {
+      const isCompanyOverhead = !t.projectNameOrId || t.isCompanyOperatingExpense === true;
       if (t.type === 'income') {
-        // Exclude 'fund_in' (公司存入) from profit analysis income
         if (t.category !== 'fund_in') {
           pettyCashIncome += t.amount;
         }
+        if (isCompanyOverhead) {
+          companyOperatingIncome += t.amount;
+        }
       } else if (t.type === 'expense') {
         pettyCashExpense += t.amount;
-      }
-
-      // Company operating (non-project overhead) flows
-      const isCompanyOverhead = !t.projectNameOrId;
-      if (isCompanyOverhead) {
-        if (t.type === 'income') {
-          companyOperatingIncome += t.amount;
-        } else if (t.type === 'expense') {
-          companyOperatingExpense += t.amount;
+        if (isCompanyOverhead) {
+          pettyCashOperatingExpense += t.amount;
         }
       }
     });
 
-    const grandTotal = Math.max(projectBilledTotal + pettyCashIncome - totalRoundingDiscounts, 0); 
-    const grandActualCost = materialsActualCost + laborCost + expensesCost + pettyCashExpense; 
+    const companyOperatingExpense = dailyLogOperatingExpense + pettyCashOperatingExpense;
+
+    const grandTotal = projectBilledTotal; 
+    const grandActualCost = materialsActualCost + laborCost + expensesCost; 
     const profitAmount = grandTotal - grandActualCost; 
     const profitMargin = grandTotal > 0 ? Math.round((profitAmount / grandTotal) * 100) : 0;
+
+    // Company treasury balance = received - transferred to vehicles + returned from vehicles - direct company expenses
+    const totalTransferredToVehicles = (pettyCashTransactions || [])
+      .filter(t => t.type === 'income' && t.vehicle && t.vehicle !== '公司大庫/銀行' && !t.isReturnedToCompany)
+      .reduce((sum, t) => sum + t.amount, 0);
+    const totalReturnedFromVehicles = (pettyCashTransactions || [])
+      .filter(t => t.type === 'expense' && t.vehicle && t.vehicle !== '公司大庫/銀行' && t.isReturnedToCompany === true)
+      .reduce((sum, t) => sum + t.amount, 0);
+    const totalDirectCompanyExpenses = (pettyCashTransactions || [])
+      .filter(t => t.type === 'expense' && (t.vehicle === '公司大庫/銀行' || !t.vehicle))
+      .reduce((sum, t) => sum + t.amount, 0);
+    const companyTreasuryBalance = totalPeriodCashReceived - totalTransferredToVehicles + totalReturnedFromVehicles - totalDirectCompanyExpenses;
 
     return {
       materialsCost,
@@ -1658,9 +1737,12 @@ export default function BillingPanel({
       profitMargin: profitMargin > 100 ? 100 : profitMargin,
       recordCount: filteredRecords.length,
       companyOperatingIncome,
-      companyOperatingExpense
+      companyOperatingExpense,
+      dailyLogOperatingExpense,
+      pettyCashOperatingExpense,
+      companyTreasuryBalance
     };
-  }, [filteredRecords, filteredPettyCash, projects, transactions, reportStartDate, reportEndDate, reportSelectedProjectId]);
+  }, [filteredRecords, filteredPettyCash, projects, transactions, reportStartDate, reportEndDate, reportSelectedProjectId, totalPeriodCashReceived, pettyCashTransactions]);
 
   // Aggregate data for Recharts Pie Chart (Cost proportions)
   const pieChartData = useMemo(() => {
@@ -2184,32 +2266,26 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
   }, [attendanceList, workerAdvancesSummary, workersPreset]);
 
 
-  // Calculate company-wide financial metrics for the selected period
-  const totalPeriodCashReceived = useMemo(() => {
-    // 1. Transactions in period (filtered by project & date)
-    let list = [...transactions];
-    if (reportSelectedProjectId !== 'all') {
-      list = list.filter(t => t.projectNameOrId === reportSelectedProjectId);
-    }
-    const periodTxReceived = list.filter(t => {
-      if (reportStartDate && t.date < reportStartDate) return false;
-      if (reportEndDate && t.date > reportEndDate) return false;
-      return t.allocationType !== 'round_adjustment';
-    }).reduce((sum, t) => sum + t.amount, 0);
+  const allTimeCashReceived = useMemo(() => {
+    // 1. All-time transactions
+    const allTxReceived = transactions
+      .filter(t => t.allocationType !== 'round_adjustment')
+      .reduce((sum, t) => sum + t.amount, 0);
 
-    // 2. Direct site collections in filtered records
-    const periodSiteCollected = filteredRecords.reduce((sum, r) => sum + (r.collectedAmount || 0), 0);
+    // 2. All-time site collections
+    const allSiteCollected = records.reduce((sum, r) => sum + (r.collectedAmount || 0), 0);
 
-    return periodTxReceived + periodSiteCollected;
-  }, [transactions, reportStartDate, reportEndDate, reportSelectedProjectId, filteredRecords]);
+    return allTxReceived + allSiteCollected;
+  }, [transactions, records]);
 
   const financialBalances: { companyBalance: number; vehicleBalances: Record<string, number> } = useMemo(() => {
-    let companyBalance = totalPeriodCashReceived;
-    const vehicleBalances: Record<string, number> = {
-      'A車': 0,
-      'B車': 0,
-      'C車': 0
-    };
+    let companyBalance = allTimeCashReceived;
+    const vehicleBalances: Record<string, number> = {};
+    
+    // Initialize with current vehicles from state
+    vehicles.forEach(v => {
+      vehicleBalances[v.id] = 0;
+    });
 
     pettyCashTransactions.forEach(t => {
       const amount = t.amount || 0;
@@ -2222,9 +2298,10 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
           if (t.isReturnedToCompany === true) {
             companyBalance += amount;
           } else {
-            if (vehicle in vehicleBalances) {
-              vehicleBalances[vehicle] += amount;
+            if (!(vehicle in vehicleBalances)) {
+              vehicleBalances[vehicle] = 0; // Dynamic fallback
             }
+            vehicleBalances[vehicle] += amount;
             companyBalance -= amount;
           }
         }
@@ -2232,7 +2309,13 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
         if (vehicle === '公司大庫/銀行') {
           companyBalance -= amount;
         } else {
-          if (vehicle in vehicleBalances) {
+          if (!(vehicle in vehicleBalances)) {
+            vehicleBalances[vehicle] = 0; // Dynamic fallback
+          }
+          if (t.isReturnedToCompany === true) {
+            vehicleBalances[vehicle] -= amount;
+            companyBalance += amount; // Returned to company treasury!
+          } else {
             vehicleBalances[vehicle] -= amount;
           }
         }
@@ -2243,10 +2326,22 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
       companyBalance,
       vehicleBalances
     };
-  }, [pettyCashTransactions, totalPeriodCashReceived]);
+  }, [pettyCashTransactions, allTimeCashReceived, vehicles]);
 
   const companyTotalOutstanding = useMemo(() => {
     return projectSummariesList.reduce((sum, p) => sum + p.outstandingBalance, 0);
+  }, [projectSummariesList]);
+
+  const activeProjectsCostTotal = useMemo(() => {
+    return projectSummariesList
+      .filter(p => !p.isCompleted)
+      .reduce((sum, p) => sum + p.actualConstructionCost, 0);
+  }, [projectSummariesList]);
+
+  const completedOutstandingTotal = useMemo(() => {
+    return projectSummariesList
+      .filter(p => p.isCompleted)
+      .reduce((sum, p) => sum + Math.max(0, p.outstandingBalance), 0);
   }, [projectSummariesList]);
 
   const analyzedProjects = useMemo(() => {
@@ -3694,113 +3789,227 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
           </div>
 
           {/* KPI Dashboard Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            
-            <div className="bg-white p-4.5 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3.5">
-              <div className="p-3 bg-indigo-50 rounded-lg text-indigo-600">
-                <Coins size={22} />
-              </div>
-              <div>
-                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">工程實績營業總額 (應收總額)</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-base sm:text-lg font-black text-neutral-900 font-mono">
-                    NT$ {reportStats.grandTotal.toLocaleString()}
-                  </span>
-                  <span className="text-[10px] text-neutral-400">元</span>
-                </div>
-                <span className="text-[9px] text-neutral-400 block font-medium">
-                  含追加減、稅額與估計總和
-                </span>
-              </div>
-            </div>
-
-            <div className="bg-white p-4.5 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3.5">
-              <div className="p-3 bg-amber-50 rounded-lg text-amber-600">
-                <Wallet size={22} />
-              </div>
-              <div>
-                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">工程材料/工資累計支出</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-base sm:text-lg font-black text-neutral-900 font-mono">
-                    NT$ {reportStats.grandActualCost.toLocaleString()}
-                  </span>
-                  <span className="text-[10px] text-neutral-400">元</span>
-                </div>
-                <span className="text-[9px] text-amber-700 block font-bold">
-                  含工資、材料、外包及現場開銷
-                </span>
-              </div>
-            </div>
-
-            <div className="bg-white p-4.5 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3.5">
-              <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600">
-                <UserCheck size={22} />
-              </div>
-              <div>
-                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">工程預估稅後淨利</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-base sm:text-lg font-black text-emerald-700 font-mono">
-                    NT$ {Math.max(0, Math.round((reportStats.grandTotal - reportStats.grandActualCost) * 0.95)).toLocaleString()}
-                  </span>
-                  <span className="text-[10px] text-emerald-600 font-bold">元</span>
-                </div>
-                <span className="text-[9px] text-emerald-600 block font-bold">
-                  扣除預估 5% 營業稅
-                </span>
-              </div>
-            </div>
-
-            <div className="bg-white p-4.5 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3.5">
-              <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
-                <DollarSign size={22} />
-              </div>
-              <div>
-                <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">公司金庫實存水位 (支配餘額)</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-base sm:text-lg font-black text-blue-700 font-mono">
-                    NT$ {financialBalances.companyBalance.toLocaleString()}
-                  </span>
-                  <span className="text-[10px] text-blue-600 font-bold">元</span>
-                </div>
-                <span className="text-[9px] text-blue-500 block font-semibold leading-normal">
-                  含到款項目，已扣車載撥補
-                </span>
-              </div>
-            </div>
-
-            <div className="bg-white p-4.5 rounded-xl border border-neutral-200 shadow-3xs flex flex-col justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
-                  <TrendingUp size={22} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <span className="block text-[11px] font-bold text-neutral-400 mb-0.5">公司營運收支 (非案場獨立統計)</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-base sm:text-lg font-black text-indigo-700 font-mono">
-                      NT$ {(reportStats.companyOperatingIncome - reportStats.companyOperatingExpense).toLocaleString()}
+          <div className="space-y-4">
+            {/* Row 1: 本期經營績效與利潤估算 (本期篩選) */}
+            <div>
+              <h5 className="text-[11px] font-black text-neutral-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                📊 本期經營績效與利潤估算 (依時間區間篩選)
+              </h5>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                
+                {/* 1. 工程營業應收總額 */}
+                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3">
+                  <div className="p-2.5 bg-indigo-50 rounded-lg text-indigo-600 shrink-0">
+                    <Coins size={20} />
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">工程營業應收總額</span>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-sm sm:text-base font-black text-neutral-900 font-mono">
+                        NT$ {reportStats.grandTotal.toLocaleString()}
+                      </span>
+                      <span className="text-[9px] text-neutral-400">元</span>
+                    </div>
+                    <span className="text-[8.5px] text-neutral-400 block font-medium leading-tight">
+                      當期估算或工料請款合計
                     </span>
-                    <span className="text-[10px] text-indigo-600 font-bold">元</span>
                   </div>
                 </div>
-              </div>
 
-              {/* 摺疊細項 / 展開卡片 */}
-              <div className="mt-2 pt-2 border-t border-neutral-100 space-y-1 text-[10px] w-full">
-                <div className="flex items-center justify-between text-neutral-600 font-medium px-1">
-                  <span className="flex items-center gap-1 text-emerald-600">
-                    💵 撥入/存入累計 (非案場)
-                  </span>
-                  <span className="font-mono text-emerald-600 font-bold">+{reportStats.companyOperatingIncome.toLocaleString()} 元</span>
+                {/* 2. 工程材料工資累計支出 */}
+                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3">
+                  <div className="p-2.5 bg-amber-50 rounded-lg text-amber-600 shrink-0">
+                    <Wallet size={20} />
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">工程材料工資累計支出</span>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-sm sm:text-base font-black text-neutral-900 font-mono">
+                        NT$ {reportStats.grandActualCost.toLocaleString()}
+                      </span>
+                      <span className="text-[9px] text-neutral-400">元</span>
+                    </div>
+                    <span className="text-[8.5px] text-amber-700 block font-bold leading-tight">
+                      累計耗用進料及工班薪資
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between text-neutral-600 font-medium px-1">
-                  <span className="flex items-center gap-1 text-rose-600">
-                    🛒 落帳支出累計 (非案場)
-                  </span>
-                  <span className="font-mono text-rose-600 font-bold">-{reportStats.companyOperatingExpense.toLocaleString()} 元</span>
+
+                {/* 3. 工程預估淨利 */}
+                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3">
+                  <div className="p-2.5 bg-emerald-50 rounded-lg text-emerald-600 shrink-0">
+                    <UserCheck size={20} />
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">工程預估淨利</span>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-sm sm:text-base font-black text-emerald-700 font-mono">
+                        NT$ {Math.max(0, reportStats.grandTotal - reportStats.grandActualCost).toLocaleString()}
+                      </span>
+                      <span className="text-[9px] text-emerald-600 font-bold">元</span>
+                    </div>
+                    <span className="text-[8.5px] text-emerald-600 block font-bold leading-tight">
+                      應收扣除累計案場施工支出
+                    </span>
+                  </div>
                 </div>
+
+                {/* 4. 本期實收金額總額 */}
+                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3">
+                  <div className="p-2.5 bg-teal-50 rounded-lg text-teal-600 shrink-0">
+                    <TrendingUp size={20} />
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">本期實收金額總額</span>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-sm sm:text-base font-black text-teal-700 font-mono">
+                        NT$ {totalPeriodCashReceived.toLocaleString()}
+                      </span>
+                      <span className="text-[9px] text-teal-600 font-bold">元</span>
+                    </div>
+                    <span className="text-[8.5px] text-teal-600 block font-bold leading-tight">
+                      當期專案已收款與現場追加收款
+                    </span>
+                  </div>
+                </div>
+
+                {/* 5. 公司營收總額 */}
+                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3">
+                  <div className="p-2.5 bg-purple-50 rounded-lg text-purple-600 shrink-0">
+                    <Scale size={20} />
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">公司營收總額 (淨)</span>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-sm sm:text-base font-black text-purple-700 font-mono">
+                        NT$ {((reportStats.grandTotal - reportStats.grandActualCost) - reportStats.companyOperatingExpense).toLocaleString()}
+                      </span>
+                      <span className="text-[9px] text-purple-600 font-bold">元</span>
+                    </div>
+                    <span className="text-[8.5px] text-purple-600 block font-bold leading-tight">
+                      工程預估淨利 - 公司營運收支
+                    </span>
+                  </div>
+                </div>
+
               </div>
             </div>
 
+            {/* Row 2: 公司資產現況與營運負擔 (累計與目前水位) */}
+            <div>
+              <h5 className="text-[11px] font-black text-neutral-400 uppercase tracking-wider mb-2 mt-1 flex items-center gap-1">
+                🏦 公司資產現況與營運負擔 (累計/即時實存水位)
+              </h5>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                
+                {/* 1. 公司金庫實存水位 */}
+                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex flex-col justify-between col-span-1 md:col-span-1 min-h-[120px]">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-blue-50 text-blue-600 rounded-lg shrink-0">
+                      <Landmark size={20} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">公司金庫實存水位</span>
+                      <div className="flex items-baseline gap-0.5">
+                        <span className="text-sm sm:text-base font-black text-blue-700 font-mono">
+                          NT$ {financialBalances.companyBalance.toLocaleString()}
+                        </span>
+                        <span className="text-[9px] text-blue-600 font-bold">元</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* 車載零用金分佈 */}
+                  <div className="mt-2.5 pt-2 border-t border-neutral-100">
+                    <span className="block text-[8.5px] font-black text-neutral-500 mb-1">🚗 各車載零用金餘額：</span>
+                    <div className="space-y-1 max-h-[100px] overflow-y-auto pr-1">
+                      {vehicles.map(v => {
+                        const bal = financialBalances.vehicleBalances[v.id] || 0;
+                        return (
+                          <div key={v.id} className="flex justify-between items-center text-[8.5px] bg-neutral-50 px-1.5 py-0.5 rounded border border-neutral-100/50">
+                            <span className="truncate font-medium text-neutral-600">🚗 {v.name}</span>
+                            <span className="font-mono font-black text-neutral-700">NT$ {bal.toLocaleString()}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. 施工中成本總額 */}
+                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3 min-h-[120px]">
+                  <div className="p-2.5 bg-orange-50 rounded-lg text-orange-600 shrink-0">
+                    <HardHat size={20} />
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">施工中成本總額</span>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-sm sm:text-base font-black text-orange-700 font-mono">
+                        NT$ {activeProjectsCostTotal.toLocaleString()}
+                      </span>
+                      <span className="text-[9px] text-orange-600 font-bold">元</span>
+                    </div>
+                    <span className="text-[8.5px] text-orange-600 block font-bold leading-tight mt-1">
+                      所有進行中案場累計工料成本
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3. 完工未收款總額 */}
+                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3 min-h-[120px]">
+                  <div className="p-2.5 bg-rose-50 rounded-lg text-rose-600 shrink-0">
+                    <AlertCircle size={20} />
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">完工未收款總額</span>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-sm sm:text-base font-black text-rose-700 font-mono">
+                        NT$ {completedOutstandingTotal.toLocaleString()}
+                      </span>
+                      <span className="text-[9px] text-rose-600 font-bold">元</span>
+                    </div>
+                    <span className="text-[8.5px] text-rose-600 block font-bold leading-tight mt-1">
+                      所有已完工案場未收足款項合計
+                    </span>
+                  </div>
+                </div>
+
+                {/* 4. 公司營運收支 */}
+                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex flex-col justify-between min-h-[120px]">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-slate-100 text-slate-700 rounded-lg shrink-0">
+                      <TrendingUp size={20} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">公司營運收支 (本期)</span>
+                      <div className="flex items-baseline gap-0.5">
+                        <span className="text-sm sm:text-base font-black text-slate-800 font-mono">
+                          NT$ {-reportStats.companyOperatingExpense.toLocaleString()}
+                        </span>
+                        <span className="text-[9px] text-slate-500 font-bold">元</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 摺疊細項 */}
+                  <div className="mt-2 pt-2 border-t border-neutral-100 space-y-0.5 text-[8.5px] w-full">
+                    <div className="flex items-center justify-between text-neutral-600 font-medium px-0.5">
+                      <span className="flex items-center gap-0.5 text-rose-600">
+                        🏢 工務日誌開銷
+                      </span>
+                      <span className="font-mono text-rose-600 font-bold">-{reportStats.dailyLogOperatingExpense.toLocaleString()} 元</span>
+                    </div>
+                    <div className="flex items-center justify-between text-neutral-600 font-medium px-0.5">
+                      <span className="flex items-center gap-0.5 text-rose-600">
+                        👛 零用金簿開銷
+                      </span>
+                      <span className="font-mono text-rose-600 font-bold">-{reportStats.pettyCashOperatingExpense.toLocaleString()} 元</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
           </div>
 
           {/* 🎯 案場毛利與全面經營剖析看板 (含有：支出、收入、代收款、已收款之數據整合圖表) */}
@@ -3809,7 +4018,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
               <div className="flex items-center gap-2">
                 <Coins className="text-amber-500 shrink-0" size={18} />
                 <div>
-                  <h4 className="text-sm font-black text-white">💰 案場經營與金流收支大盤 (支出・收入・代收款・已收款五重奏)</h4>
+                  <h4 className="text-sm font-black text-white">💰 案場經營與金流收支大盤</h4>
                   <p className="text-[10px] text-neutral-400">依據您所篩選的時間區間，整合現場日誌與系統交易明細進行複式會計剖析</p>
                 </div>
               </div>
@@ -3933,7 +4142,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
               <div className="space-y-3">
                 <div className="flex items-center gap-1.5 pb-2 border-b border-neutral-100">
                   <TrendingUp size={16} className="text-neutral-500" />
-                  <h4 className="text-xs font-black text-neutral-700">營運實際支出成分佔比 (Pie Chart)</h4>
+                  <h4 className="text-xs font-black text-neutral-700">營運實際支出成分佔比</h4>
                 </div>
                 
                 {pieChartData.length === 0 ? (
@@ -3987,7 +4196,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
               <div className="space-y-3">
                 <div className="flex items-center gap-1.5 pb-2 border-b border-neutral-100">
                   <Scale size={16} className="text-neutral-500" />
-                  <h4 className="text-xs font-black text-neutral-700">各案場工地成本支出對比 (Bar Chart)</h4>
+                  <h4 className="text-xs font-black text-neutral-700">各案場工地成本支出對比</h4>
                 </div>
                 
                 <div className="h-[220px]">
@@ -5269,47 +5478,6 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
       {/* ---------------------------------------------------- */}
       {activeSubTab === 'petty_cash' && (
         <div className="space-y-6 animate-fadeIn">
-          {/* Outflow / Inflow Summary Gauge */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-slate-900 border border-slate-950 text-white p-4.5 rounded-xl shadow-3xs flex items-center gap-3.5">
-              <div className="p-3 bg-amber-550/10 text-amber-400 rounded-lg">
-                <Coins size={20} />
-              </div>
-              <div className="font-sans">
-                <span className="block text-[10px] font-bold text-slate-400 mb-0.5">累計撥入零用公基金</span>
-                <span className="text-sm font-black font-mono text-amber-300">
-                  NT$ {pettyCashSummary.totalInflow.toLocaleString()} 元
-                </span>
-              </div>
-            </div>
-
-            <div className="bg-slate-900 border border-slate-950 text-white p-4.5 rounded-xl shadow-3xs flex items-center gap-3.5">
-              <div className="p-3 bg-red-500/10 text-red-400 rounded-lg">
-                <Plus size={20} className="rotate-45" />
-              </div>
-              <div className="font-sans">
-                <span className="block text-[10px] font-bold text-slate-400 mb-0.5">累計車用耗材落帳支出</span>
-                <span className="text-sm font-black font-mono text-red-400">
-                  NT$ {pettyCashSummary.totalOutflow.toLocaleString()} 元
-                </span>
-              </div>
-            </div>
-
-            <div className="bg-slate-900 border border-slate-950 text-white p-4.5 rounded-xl shadow-3xs flex items-center gap-3.5">
-              <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-lg">
-                <Wallet size={20} />
-              </div>
-              <div className="font-sans">
-                <span className="block text-[10px] font-bold text-slate-400 mb-0.5">當前車載公用金水位餘額</span>
-                <span className={`text-sm font-black font-mono ${
-                  pettyCashSummary.currentBalance < 1000 ? 'text-red-400 animate-pulse font-black' : 'text-emerald-400 font-extrabold'
-                }`}>
-                  NT$ {pettyCashSummary.currentBalance.toLocaleString()} 元 {pettyCashSummary.currentBalance < 1000 && '⚠️ 水位低'}
-                </span>
-              </div>
-            </div>
-          </div>
-
           {/* 車載零用金與自訂名稱設定 (從利潤分析移動至此) */}
           <div className="bg-slate-900 border border-slate-950 rounded-2xl p-5 text-white space-y-4 shadow-3xs">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -5330,32 +5498,84 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
             </div>
 
             {isEditingVehicleNames ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-3 bg-slate-950/60 rounded-xl border border-[#D4AF37]/10">
-                {['A車', 'B車', 'C車'].map(key => (
-                  <div key={key} className="space-y-1.5">
+              <div className="space-y-4 p-4 bg-slate-950/60 rounded-xl border border-[#D4AF37]/10">
+                {/* 新增車載項目 */}
+                <div className="flex flex-col sm:flex-row gap-2 items-end pb-3 border-b border-slate-800">
+                  <div className="flex-1 space-y-1.5 w-full">
                     <label className="block text-[10px] font-black text-amber-300">
-                      {key} 的顯示名稱 (目前：{vehicleNames[key]})
+                      新增車載備用金名稱
                     </label>
                     <input
                       type="text"
-                      value={vehicleNames[key] || ''}
-                      onChange={(e) => {
-                        const newName = e.target.value;
-                        setVehicleNames(prev => {
-                          const next = { ...prev, [key]: newName || `${key}備用金` };
-                          localStorage.setItem('engineering_vehicle_names', JSON.stringify(next));
-                          return next;
-                        });
-                      }}
-                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-750 text-white text-xs font-bold rounded-lg outline-none focus:border-amber-500"
-                      placeholder={`請輸入 ${key} 自訂名稱...`}
+                      value={newVehicleName}
+                      onChange={(e) => setNewVehicleName(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-750 text-white text-xs font-bold rounded-lg outline-none focus:border-[#D4AF37] placeholder-slate-500"
+                      placeholder="例如: 工程D車、維修車備用金..."
                     />
                   </div>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newVehicleName.trim()) {
+                        return;
+                      }
+                      const newId = `車輛-${Date.now()}`;
+                      const updated = [...vehicles, { id: newId, name: newVehicleName.trim() }];
+                      saveVehicles(updated);
+                      setNewVehicleName('');
+                      onSaveToast('🚗 新增車載備用金成功！');
+                    }}
+                    className="px-4 py-2 bg-[#D4AF37] hover:bg-[#bfa032] text-black font-extrabold text-xs rounded-lg transition-all flex items-center gap-1 shrink-0 w-full sm:w-auto justify-center cursor-pointer"
+                  >
+                    <Plus size={14} className="stroke-[3]" />
+                    新增備用金
+                  </button>
+                </div>
+
+                {/* 列表修改與刪除 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {vehicles.map(v => (
+                    <div key={v.id} className="p-3 bg-slate-900 border border-slate-800 rounded-lg space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-400 font-bold">識別代號: {v.id}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            triggerConfirm('確認刪除此車載備用金？', `確定要刪除「${v.name}」嗎？\n刪除後，該車輛將不再出現在下拉選單中，但已有的帳目歷史記錄仍會保留。`, () => {
+                              const updated = vehicles.filter(item => item.id !== v.id);
+                              saveVehicles(updated);
+                              onSaveToast('🗑️ 車載備用金已成功刪除！');
+                            });
+                          }}
+                          className="p-1 bg-red-950/40 text-red-400 hover:bg-red-900/30 border border-red-900/20 rounded-md transition cursor-pointer"
+                          title="刪除此車載項目"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={v.name}
+                        onChange={(e) => {
+                          const updated = vehicles.map(item => {
+                            if (item.id === v.id) {
+                              return { ...item, name: e.target.value };
+                            }
+                            return item;
+                          });
+                          saveVehicles(updated);
+                        }}
+                        className="w-full px-2 py-1 bg-slate-950 border border-slate-850 text-white text-xs font-bold rounded outline-none focus:border-[#D4AF37]"
+                        placeholder="請輸入自訂顯示名稱..."
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {['A車', 'B車', 'C車'].map(key => {
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {vehicles.map(v => {
+                  const key = v.id;
                   const bal = financialBalances.vehicleBalances[key] || 0;
                   const isLow = bal < 1000;
                   return (
@@ -5369,7 +5589,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     >
                       <div className="flex items-center justify-between w-full">
                         <span className="text-[11px] font-black tracking-wide flex items-center gap-1">
-                          🚗 {vehicleNames[key] || `${key}備用金`}
+                          🚗 {v.name}
                         </span>
                         {isLow ? (
                           <span className="text-[8px] px-1.5 py-0.5 bg-rose-500/20 text-rose-400 font-black rounded-full animate-pulse border border-rose-500/20">
@@ -5545,6 +5765,21 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   </select>
                 </div>
 
+                {addPcProjId && (
+                  <div className="flex items-center gap-2 py-1.5 px-2 bg-slate-900 border border-slate-800 rounded-lg">
+                    <input
+                      type="checkbox"
+                      id="addPcIsOperatingOverhead"
+                      checked={addPcIsOperatingOverhead}
+                      onChange={(e) => setAddPcIsOperatingOverhead(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded border-[#D4AF37]/25 bg-[#121212] accent-[#D4AF37] cursor-pointer"
+                    />
+                    <label htmlFor="addPcIsOperatingOverhead" className="text-[10px] text-neutral-300 font-bold cursor-pointer select-none">
+                      🏢 此筆為「公司營運開銷」 (不列入案場工程成本)
+                    </label>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-[11px] font-bold !text-[#E0E0E0] mb-1">
                     存放位置 / 經手車輛
@@ -5555,11 +5790,26 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     className="w-full px-2.5 py-1.5 border border-[#D4AF37]/20 rounded-lg text-xs bg-[#121212] !text-[#E0E0E0] font-bold outline-none focus:border-[#D4AF37]"
                   >
                     <option className="!bg-[#1A1A1A]" value="公司大庫/銀行">🏦 公司大庫/銀行</option>
-                    <option className="!bg-[#1A1A1A]" value="A車">🚗 {vehicleNames['A車'] || 'A車備用金'}</option>
-                    <option className="!bg-[#1A1A1A]" value="B車">🚗 {vehicleNames['B車'] || 'B車備用金'}</option>
-                    <option className="!bg-[#1A1A1A]" value="C車">🚗 {vehicleNames['C車'] || 'C車備用金'}</option>
+                    {vehicles.map(v => (
+                      <option className="!bg-[#1A1A1A]" key={v.id} value={v.id}>🚗 {v.name}</option>
+                    ))}
                   </select>
                 </div>
+
+                {addPcType === 'expense' && addPcVehicle !== '公司大庫/銀行' && (
+                  <div className="flex items-center gap-2 py-1.5 px-2 bg-[#D4AF37]/5 border border-[#D4AF37]/20 rounded-lg">
+                    <input
+                      type="checkbox"
+                      id="addPcIsReturnedToCompany"
+                      checked={addPcIsReturnedToCompany}
+                      onChange={(e) => setAddPcIsReturnedToCompany(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded border-[#D4AF37]/25 bg-[#121212] accent-[#D4AF37] cursor-pointer"
+                    />
+                    <label htmlFor="addPcIsReturnedToCompany" className="text-[10px] text-[#F3E5AB] font-bold cursor-pointer select-none">
+                      📥 此筆為「車載零用金繳回公司大庫」 (從車載扣除，歸併入大金庫)
+                    </label>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-[11px] font-bold !text-[#E0E0E0] mb-1">
@@ -5571,7 +5821,6 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     value={addPcDescription}
                     onChange={(e) => setAddPcDescription(e.target.value)}
                     className="w-full px-2.5 py-1.5 border border-[#D4AF37]/20 rounded-lg text-xs bg-[#121212] !text-[#E0E0E0] font-medium outline-none focus:border-[#D4AF37]"
-                    required
                   />
                   {/* 動態智慧事由預設標籤 */}
                   <div className="flex flex-wrap gap-1 mt-1.5">
@@ -5706,10 +5955,27 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                   <span className="text-neutral-300 font-bold bg-[#121212] px-1.5 py-0.5 rounded border border-[#D4AF37]/15">
                                     {t.vehicle === '公司大庫/銀行' || !t.vehicle ? '🏦 大庫/銀行' : `🚗 ${vehicleNames[t.vehicle] || t.vehicle}`}
                                   </span>
-                                  {t.type === 'income' && t.isReturnedToCompany && (
-                                    <span className="text-[9px] text-teal-400 font-extrabold bg-teal-950/40 px-1 py-0.5 rounded border border-teal-900/30">
-                                      📥 直繳回公司
-                                    </span>
+                                  {isEditing ? (
+                                    t.type === 'expense' && t.vehicle && t.vehicle !== '公司大庫/銀行' && (
+                                      <div className="flex items-center gap-1 mt-1 bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded">
+                                        <input
+                                          type="checkbox"
+                                          id={`editIsReturned-${t.id}`}
+                                          checked={editPcIsReturnedToCompany}
+                                          onChange={(e) => setEditPcIsReturnedToCompany(e.target.checked)}
+                                          className="w-3 h-3 rounded bg-[#121212] accent-[#D4AF37] cursor-pointer"
+                                        />
+                                        <label htmlFor={`editIsReturned-${t.id}`} className="text-[9px] text-[#F3E5AB] font-bold cursor-pointer select-none">
+                                          繳回大庫
+                                        </label>
+                                      </div>
+                                    )
+                                  ) : (
+                                    t.isReturnedToCompany === true && (
+                                      <span className="text-[9px] text-teal-400 font-extrabold bg-teal-950/40 px-1 py-0.5 rounded border border-teal-900/30">
+                                        📥 繳回大庫
+                                      </span>
+                                    )
                                   )}
                                 </div>
                               </td>
@@ -5742,9 +6008,48 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                   </div>
                                 )}
                               </td>
-                              <td className="py-3 px-4 text-[#E0E0E0] font-extrabold whitespace-nowrap">{t.payerName || <span className="text-neutral-500">系統提撥</span>}</td>
+                              <td className="py-3 px-4 text-[#E0E0E0] font-extrabold whitespace-nowrap">
+                                {isEditing ? (
+                                  <div className="space-y-1">
+                                    <input
+                                      type="text"
+                                      value={editPcPayerName}
+                                      onChange={(e) => setEditPcPayerName(e.target.value)}
+                                      className="w-24 px-1.5 py-0.5 bg-[#121212] border border-[#D4AF37]/35 text-[#E5E5E5] text-[10px] font-bold rounded outline-none focus:border-[#D4AF37]"
+                                      placeholder="經手同仁..."
+                                    />
+                                    <div className="flex flex-wrap gap-1 max-w-[120px]">
+                                      {workersPreset.slice(0, 3).map(w => (
+                                        <button
+                                          key={w.id}
+                                          type="button"
+                                          onClick={() => setEditPcPayerName(w.name)}
+                                          className="text-[8px] bg-[#D4AF37]/10 hover:bg-[#D4AF37]/25 text-[#F3E5AB] px-1 rounded transition cursor-pointer"
+                                        >
+                                          {w.name}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  t.payerName || <span className="text-neutral-500">系統提撥</span>
+                                )}
+                              </td>
                               <td className="py-3 px-4 text-xs font-semibold text-neutral-400 max-w-[280px] sm:max-w-[380px] md:max-w-[480px] lg:max-w-[580px] truncate whitespace-nowrap" title={relProj ? getProjectDisplayName(relProj) : ''}>
-                                {relProjName || <span className="text-neutral-600 font-bold">—</span>}
+                                {isEditing ? (
+                                  <select
+                                    value={editPcProjectNameOrId}
+                                    onChange={(e) => setEditPcProjectNameOrId(e.target.value)}
+                                    className="w-32 px-1 py-0.5 bg-[#121212] border border-[#D4AF37]/35 text-[#E5E5E5] text-[10px] rounded outline-none focus:border-[#D4AF37]"
+                                  >
+                                    <option className="!bg-[#1A1A1A]" value="">-- 無特定工地 --</option>
+                                    {projects.map(p => (
+                                      <option className="!bg-[#1A1A1A]" key={p.id} value={p.id}>{getProjectDisplayName(p)}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  relProjName || <span className="text-neutral-600 font-bold">—</span>
+                                )}
                               </td>
                               <td className="py-3 px-4 text-center whitespace-nowrap">
                                 {isEditing ? (

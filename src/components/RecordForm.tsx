@@ -153,14 +153,34 @@ export default function RecordForm({
   // Customizable blank expense items
   const [customExpenses, setCustomExpenses] = useState<RecordExpense[]>([]);
 
-  const [vehicleNames] = useState<Record<string, string>>(() => {
-    const saved = localStorage.getItem('engineering_vehicle_names');
-    return saved ? JSON.parse(saved) : {
-      'A車': 'A車備用金',
-      'B車': 'B車備用金',
-      'C車': 'C車備用金'
-    };
+  const [vehicles] = useState<Array<{ id: string; name: string }>>(() => {
+    const saved = localStorage.getItem('engineering_vehicles');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    const legacy = localStorage.getItem('engineering_vehicle_names');
+    if (legacy) {
+      try {
+        const parsed = JSON.parse(legacy);
+        return Object.entries(parsed).map(([id, name]) => ({ id, name: name as string }));
+      } catch (e) {}
+    }
+    return [
+      { id: 'A車', name: 'A車備用金' },
+      { id: 'B車', name: 'B車備用金' },
+      { id: 'C車', name: 'C車備用金' }
+    ];
   });
+
+  const vehicleNames = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    vehicles.forEach(v => {
+      map[v.id] = v.name;
+    });
+    return map;
+  }, [vehicles]);
 
   // 4. Labor crew logs (Hides hourly wages and costs totally inside form)
   const [workers, setWorkers] = useState<RecordWorker[]>([]);
@@ -2521,9 +2541,9 @@ export default function RecordForm({
                       className="w-24 p-1 border border-neutral-200 rounded text-[10px] bg-white text-neutral-700 font-medium"
                     >
                       <option value="公司大庫/銀行">🏦 公司 (大庫)</option>
-                      <option value="A車">🚗 {vehicleNames['A車'] || 'A車'}</option>
-                      <option value="B車">🚗 {vehicleNames['B車'] || 'B車'}</option>
-                      <option value="C車">🚗 {vehicleNames['C車'] || 'C車'}</option>
+                      {vehicles.map(v => (
+                        <option key={v.id} value={v.id}>🚗 {v.name}</option>
+                      ))}
                     </select>
 
                     {/* Amount Input */}
@@ -2618,9 +2638,9 @@ export default function RecordForm({
                       className="w-24 p-1 border border-neutral-200 rounded text-[10px] bg-white text-neutral-600 font-medium"
                     >
                       <option value="公司大庫/銀行">🏦 公司 (大庫)</option>
-                      <option value="A車">🚗 {vehicleNames['A車'] || 'A車'}</option>
-                      <option value="B車">🚗 {vehicleNames['B車'] || 'B車'}</option>
-                      <option value="C車">🚗 {vehicleNames['C車'] || 'C車'}</option>
+                      {vehicles.map(v => (
+                        <option key={v.id} value={v.id}>🚗 {v.name}</option>
+                      ))}
                     </select>
 
                     {/* Amount Input */}

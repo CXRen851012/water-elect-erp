@@ -229,5 +229,6 @@ export interface PettyCashTransaction {
   sourceRecordId?: string; // 來源工務日誌ID
   vehicle?: string;       // 存放/經手車輛 (e.g. 公司大庫/銀行, A車, B車, C車)
   isReturnedToCompany?: boolean; // 是否已繳回公司大金庫 (類型為 income 時，勾選已繳回直接計入大庫)
+  isCompanyOperatingExpense?: boolean; // 是否為公司營運開銷 (不計入案場成本)
   createdAt: string;
 }
