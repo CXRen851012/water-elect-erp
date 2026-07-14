@@ -2344,6 +2344,66 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
       .reduce((sum, p) => sum + Math.max(0, p.outstandingBalance), 0);
   }, [projectSummariesList]);
 
+  const companyBalanceBreakdown = useMemo(() => {
+    const getBalanceForFilter = (filterFn: (dateStr: string) => boolean) => {
+      const txAmount = transactions
+        .filter(t => t.allocationType !== 'round_adjustment' && filterFn(t.date))
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const siteCollected = records
+        .filter(r => filterFn(r.date))
+        .reduce((sum, r) => sum + (r.collectedAmount || 0), 0);
+
+      let balance = txAmount + siteCollected;
+
+      (pettyCashTransactions || []).forEach(t => {
+        if (!filterFn(t.date)) return;
+        const amount = t.amount || 0;
+        const vehicle = t.vehicle || '公司大庫/銀行';
+        if (t.type === 'income') {
+          if (vehicle === '公司大庫/銀行') {
+            balance += amount;
+          } else {
+            if (t.isReturnedToCompany === true) {
+              balance += amount;
+            } else {
+              balance -= amount;
+            }
+          }
+        } else if (t.type === 'expense') {
+          if (vehicle === '公司大庫/銀行') {
+            balance -= amount;
+          } else {
+            if (t.isReturnedToCompany === true) {
+              balance += amount;
+            }
+          }
+        }
+      });
+
+      return balance;
+    };
+
+    const hasStart = !!reportStartDate;
+    const hasEnd = !!reportEndDate;
+
+    const priorBalance = hasStart ? getBalanceForFilter(d => d < reportStartDate) : 0;
+    
+    const periodChange = getBalanceForFilter(d => {
+      if (hasStart && d < reportStartDate) return false;
+      if (hasEnd && d > reportEndDate) return false;
+      return true;
+    });
+
+    const currentTotal = financialBalances.companyBalance;
+
+    return {
+      priorBalance,
+      periodChange,
+      currentTotal
+    };
+  }, [transactions, records, pettyCashTransactions, reportStartDate, reportEndDate, financialBalances.companyBalance]);
+
   const analyzedProjects = useMemo(() => {
     let list = [...projectSummariesList];
 
@@ -3789,21 +3849,21 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
           </div>
 
           {/* KPI Dashboard Grid */}
-          <div className="space-y-4">
-            {/* Row 1: 本期經營績效與利潤估算 (本期篩選) */}
+          <div className="space-y-6">
+            {/* Row 1: 📊 本期多步式損益計算鏈 (應收計價基礎) */}
             <div>
-              <h5 className="text-[11px] font-black text-neutral-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                📊 本期經營績效與利潤估算 (依時間區間篩選)
+              <h5 className="text-[11px] font-black text-neutral-400 uppercase tracking-wider mb-3 flex items-center gap-1">
+                📊 本期多步式損益計算鏈 (依時間區間篩選，應收計價)
               </h5>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                
+              
+              <div className="flex flex-col lg:flex-row items-stretch gap-2 lg:gap-3">
                 {/* 1. 工程營業應收總額 */}
-                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3">
+                <div className="flex-1 bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3">
                   <div className="p-2.5 bg-indigo-50 rounded-lg text-indigo-600 shrink-0">
                     <Coins size={20} />
                   </div>
                   <div>
-                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">工程營業應收總額</span>
+                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">工程營業應收總額 (A)</span>
                     <div className="flex items-baseline gap-0.5">
                       <span className="text-sm sm:text-base font-black text-neutral-900 font-mono">
                         NT$ {reportStats.grandTotal.toLocaleString()}
@@ -3816,13 +3876,19 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   </div>
                 </div>
 
+                {/* Operator ➖ */}
+                <div className="flex items-center justify-center text-neutral-400 font-extrabold text-lg px-0.5 shrink-0">
+                  <span className="lg:hidden">▼ 減 (➖)</span>
+                  <span className="hidden lg:inline bg-neutral-100 text-neutral-600 px-2.5 py-1 rounded-full text-xs font-black">➖</span>
+                </div>
+
                 {/* 2. 工程材料工資累計支出 */}
-                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3">
+                <div className="flex-1 bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3">
                   <div className="p-2.5 bg-amber-50 rounded-lg text-amber-600 shrink-0">
                     <Wallet size={20} />
                   </div>
                   <div>
-                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">工程材料工資累計支出</span>
+                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">工程材料工資累計支出 (B)</span>
                     <div className="flex items-baseline gap-0.5">
                       <span className="text-sm sm:text-base font-black text-neutral-900 font-mono">
                         NT$ {reportStats.grandActualCost.toLocaleString()}
@@ -3835,13 +3901,19 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   </div>
                 </div>
 
+                {/* Operator ＝ */}
+                <div className="flex items-center justify-center text-neutral-400 font-extrabold text-lg px-0.5 shrink-0">
+                  <span className="lg:hidden">▼ 等於 (＝)</span>
+                  <span className="hidden lg:inline bg-neutral-100 text-neutral-600 px-2.5 py-1 rounded-full text-xs font-black">＝</span>
+                </div>
+
                 {/* 3. 工程預估淨利 */}
-                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3">
+                <div className="flex-1 bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3">
                   <div className="p-2.5 bg-emerald-50 rounded-lg text-emerald-600 shrink-0">
                     <UserCheck size={20} />
                   </div>
                   <div>
-                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">工程預估淨利</span>
+                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">工程預估淨利 (C = A - B)</span>
                     <div className="flex items-baseline gap-0.5">
                       <span className="text-sm sm:text-base font-black text-emerald-700 font-mono">
                         NT$ {Math.max(0, reportStats.grandTotal - reportStats.grandActualCost).toLocaleString()}
@@ -3854,32 +3926,55 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   </div>
                 </div>
 
-                {/* 4. 本期實收金額總額 */}
-                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3">
-                  <div className="p-2.5 bg-teal-50 rounded-lg text-teal-600 shrink-0">
-                    <TrendingUp size={20} />
-                  </div>
-                  <div>
-                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">本期實收金額總額</span>
-                    <div className="flex items-baseline gap-0.5">
-                      <span className="text-sm sm:text-base font-black text-teal-700 font-mono">
-                        NT$ {totalPeriodCashReceived.toLocaleString()}
-                      </span>
-                      <span className="text-[9px] text-teal-600 font-bold">元</span>
+                {/* Operator ➖ */}
+                <div className="flex items-center justify-center text-neutral-400 font-extrabold text-lg px-0.5 shrink-0">
+                  <span className="lg:hidden">▼ 減 (➖)</span>
+                  <span className="hidden lg:inline bg-neutral-100 text-neutral-600 px-2.5 py-1 rounded-full text-xs font-black">➖</span>
+                </div>
+
+                {/* 4. 公司本期營運費用 */}
+                <div className="flex-1 bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex flex-col justify-between min-h-[96px]">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-slate-100 text-slate-700 rounded-lg shrink-0">
+                      <TrendingUp size={18} />
                     </div>
-                    <span className="text-[8.5px] text-teal-600 block font-bold leading-tight">
-                      當期專案已收款與現場追加收款
-                    </span>
+                    <div className="min-w-0 flex-1">
+                      <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">公司營運總開銷 (D)</span>
+                      <div className="flex items-baseline gap-0.5">
+                        <span className="text-xs sm:text-sm font-black text-slate-800 font-mono">
+                          NT$ {reportStats.companyOperatingExpense.toLocaleString()}
+                        </span>
+                        <span className="text-[9px] text-slate-500 font-bold">元</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 費用拆解 */}
+                  <div className="mt-1 pt-1.5 border-t border-neutral-100 space-y-0.5 text-[8.5px] w-full">
+                    <div className="flex items-center justify-between text-neutral-600 font-medium px-0.5">
+                      <span>🏢 工務日誌開銷</span>
+                      <span className="font-mono font-bold text-rose-600">-{reportStats.dailyLogOperatingExpense.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-neutral-600 font-medium px-0.5">
+                      <span>👛 零用金簿開銷</span>
+                      <span className="font-mono font-bold text-rose-600">-{reportStats.pettyCashOperatingExpense.toLocaleString()}</span>
+                    </div>
                   </div>
                 </div>
 
-                {/* 5. 公司營收總額 */}
-                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3">
+                {/* Operator ＝ */}
+                <div className="flex items-center justify-center text-neutral-400 font-extrabold text-lg px-0.5 shrink-0">
+                  <span className="lg:hidden">▼ 等於 (＝)</span>
+                  <span className="hidden lg:inline bg-neutral-100 text-neutral-600 px-2.5 py-1 rounded-full text-xs font-black">＝</span>
+                </div>
+
+                {/* 5. 公司營業淨利 (淨) */}
+                <div className="flex-1 bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3">
                   <div className="p-2.5 bg-purple-50 rounded-lg text-purple-600 shrink-0">
                     <Scale size={20} />
                   </div>
                   <div>
-                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">公司營收總額 (淨)</span>
+                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">公司營業淨利 (E = C - D)</span>
                     <div className="flex items-baseline gap-0.5">
                       <span className="text-sm sm:text-base font-black text-purple-700 font-mono">
                         NT$ {((reportStats.grandTotal - reportStats.grandActualCost) - reportStats.companyOperatingExpense).toLocaleString()}
@@ -3887,42 +3982,64 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                       <span className="text-[9px] text-purple-600 font-bold">元</span>
                     </div>
                     <span className="text-[8.5px] text-purple-600 block font-bold leading-tight">
-                      工程預估淨利 - 公司營運收支
+                      本期工程預估淨利扣除營運費用
                     </span>
                   </div>
                 </div>
-
               </div>
             </div>
 
-            {/* Row 2: 公司資產現況與營運負擔 (累計與目前水位) */}
+            {/* Row 2: 💵 實存資金水位與收支現況 (累積/即時統計) */}
             <div>
-              <h5 className="text-[11px] font-black text-neutral-400 uppercase tracking-wider mb-2 mt-1 flex items-center gap-1">
-                🏦 公司資產現況與營運負擔 (累計/即時實存水位)
+              <h5 className="text-[11px] font-black text-neutral-400 uppercase tracking-wider mb-3 mt-1 flex items-center gap-1">
+                🏦 實存資金水位與收支現況 (歷史累計 & 當前現況)
               </h5>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 
                 {/* 1. 公司金庫實存水位 */}
-                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex flex-col justify-between col-span-1 md:col-span-1 min-h-[120px]">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-blue-50 text-blue-600 rounded-lg shrink-0">
+                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex flex-col justify-between col-span-1 md:col-span-1 min-h-[140px]">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 bg-blue-50 text-blue-600 rounded-lg shrink-0 mt-0.5">
                       <Landmark size={20} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">公司金庫實存水位</span>
-                      <div className="flex items-baseline gap-0.5">
-                        <span className="text-sm sm:text-base font-black text-blue-700 font-mono">
-                          NT$ {financialBalances.companyBalance.toLocaleString()}
-                        </span>
-                        <span className="text-[9px] text-blue-600 font-bold">元</span>
+                      
+                      {/* Breakdown Display */}
+                      <div className="space-y-1">
+                        <div className="flex justify-between items-center text-[8.5px]">
+                          <span className="text-neutral-500">🚀 篩選前(歷史過往):</span>
+                          <span className="font-mono text-neutral-600 font-semibold">
+                            NT$ {companyBalanceBreakdown.priorBalance.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-[8.5px]">
+                          <span className="text-neutral-500">📈 本期篩選期間變動:</span>
+                          <span className={`font-mono font-bold ${companyBalanceBreakdown.periodChange >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {companyBalanceBreakdown.periodChange >= 0 ? '+' : ''}
+                            {companyBalanceBreakdown.periodChange.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-[8.5px] pt-1 border-t border-neutral-100">
+                          <span className="text-neutral-600 font-bold">🏦 截至篩選期末水位:</span>
+                          <span className="font-mono text-blue-700 font-extrabold">
+                            NT$ {(companyBalanceBreakdown.priorBalance + companyBalanceBreakdown.periodChange).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-[8.5px] pt-0.5 border-t border-dashed border-neutral-100">
+                          <span className="text-neutral-500 font-medium">💼 當前最新實存(全期):</span>
+                          <span className="font-mono text-neutral-700 font-bold">
+                            NT$ {companyBalanceBreakdown.currentTotal.toLocaleString()}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
                   
-                  {/* 車載零用金分佈 */}
+                  {/* 各車載零用金分佈 */}
                   <div className="mt-2.5 pt-2 border-t border-neutral-100">
-                    <span className="block text-[8.5px] font-black text-neutral-500 mb-1">🚗 各車載零用金餘額：</span>
-                    <div className="space-y-1 max-h-[100px] overflow-y-auto pr-1">
+                    <span className="block text-[8.5px] font-black text-neutral-500 mb-1">🚗 各車載零用金即時餘額：</span>
+                    <div className="space-y-1 max-h-[80px] overflow-y-auto pr-1">
                       {vehicles.map(v => {
                         const bal = financialBalances.vehicleBalances[v.id] || 0;
                         return (
@@ -3936,8 +4053,27 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   </div>
                 </div>
 
-                {/* 2. 施工中成本總額 */}
-                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3 min-h-[120px]">
+                {/* 2. 本期實收金額總額 */}
+                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3 min-h-[140px]">
+                  <div className="p-2.5 bg-teal-50 rounded-lg text-teal-600 shrink-0">
+                    <TrendingUp size={20} />
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">本期實收金額總額</span>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-sm sm:text-base font-black text-teal-700 font-mono">
+                        NT$ {totalPeriodCashReceived.toLocaleString()}
+                      </span>
+                      <span className="text-[9px] text-teal-600 font-bold">元</span>
+                    </div>
+                    <span className="text-[8.5px] text-teal-600 block font-bold leading-tight mt-1">
+                      當期專案已收款與現場追加收款
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3. 施工中成本總額 */}
+                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3 min-h-[140px]">
                   <div className="p-2.5 bg-orange-50 rounded-lg text-orange-600 shrink-0">
                     <HardHat size={20} />
                   </div>
@@ -3955,8 +4091,8 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   </div>
                 </div>
 
-                {/* 3. 完工未收款總額 */}
-                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3 min-h-[120px]">
+                {/* 4. 完工未收款總額 */}
+                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3 min-h-[140px]">
                   <div className="p-2.5 bg-rose-50 rounded-lg text-rose-600 shrink-0">
                     <AlertCircle size={20} />
                   </div>
@@ -3971,40 +4107,6 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     <span className="text-[8.5px] text-rose-600 block font-bold leading-tight mt-1">
                       所有已完工案場未收足款項合計
                     </span>
-                  </div>
-                </div>
-
-                {/* 4. 公司營運收支 */}
-                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex flex-col justify-between min-h-[120px]">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-slate-100 text-slate-700 rounded-lg shrink-0">
-                      <TrendingUp size={20} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">公司營運收支 (本期)</span>
-                      <div className="flex items-baseline gap-0.5">
-                        <span className="text-sm sm:text-base font-black text-slate-800 font-mono">
-                          NT$ {(-reportStats.companyOperatingExpense).toLocaleString()}
-                        </span>
-                        <span className="text-[9px] text-slate-500 font-bold">元</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 摺疊細項 */}
-                  <div className="mt-2 pt-2 border-t border-neutral-100 space-y-0.5 text-[8.5px] w-full">
-                    <div className="flex items-center justify-between text-neutral-600 font-medium px-0.5">
-                      <span className="flex items-center gap-0.5 text-rose-600">
-                        🏢 工務日誌開銷
-                      </span>
-                      <span className="font-mono text-rose-600 font-bold">-{reportStats.dailyLogOperatingExpense.toLocaleString()} 元</span>
-                    </div>
-                    <div className="flex items-center justify-between text-neutral-600 font-medium px-0.5">
-                      <span className="flex items-center gap-0.5 text-rose-600">
-                        👛 零用金簿開銷
-                      </span>
-                      <span className="font-mono text-rose-600 font-bold">-{reportStats.pettyCashOperatingExpense.toLocaleString()} 元</span>
-                    </div>
                   </div>
                 </div>
 
