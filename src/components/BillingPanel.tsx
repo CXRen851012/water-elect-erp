@@ -3984,7 +3984,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                       <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">公司營運收支 (本期)</span>
                       <div className="flex items-baseline gap-0.5">
                         <span className="text-sm sm:text-base font-black text-slate-800 font-mono">
-                          NT$ {-reportStats.companyOperatingExpense.toLocaleString()}
+                          NT$ {(-reportStats.companyOperatingExpense).toLocaleString()}
                         </span>
                         <span className="text-[9px] text-slate-500 font-bold">元</span>
                       </div>
@@ -5907,13 +5907,13 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   <table className="w-full text-left border-collapse text-[11px]">
                     <thead>
                       <tr className="bg-[#121212] !text-[#F3E5AB] uppercase tracking-wider text-[10px] font-bold border-b border-[#D4AF37]/20">
-                        <th className="py-2.5 px-4 font-bold">對帳日期</th>
-                        <th className="py-2.5 px-4 font-bold text-right border-r border-[#D4AF37]/10 pr-4">金額流動</th>
-                        <th className="py-2.5 px-4 font-bold">存放位置/繳回狀態</th>
-                        <th className="py-2.5 px-4 font-bold">交易名目規格敘事</th>
-                        <th className="py-2.5 px-4 font-bold">經手同仁</th>
-                        <th className="py-2.5 px-4 font-bold">歸屬特定工地</th>
-                        <th className="py-2.5 px-4 text-center">操作</th>
+                        <th className="py-2 px-2 font-bold whitespace-nowrap">對帳日期</th>
+                        <th className="py-2 px-2 font-bold text-right border-r border-[#D4AF37]/10 pr-2 whitespace-nowrap">金額流動</th>
+                        <th className="py-2 px-2 font-bold whitespace-nowrap">存放位置/繳回狀態</th>
+                        <th className="py-2 px-2 font-bold whitespace-nowrap">交易名目規格敘事</th>
+                        <th className="py-2 px-2 font-bold whitespace-nowrap">經手同仁</th>
+                        <th className="py-2 px-2 font-bold whitespace-nowrap">歸屬特定工地</th>
+                        <th className="py-2 px-2 text-center whitespace-nowrap">操作</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#D4AF37]/10">
@@ -5931,8 +5931,8 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                           
                           return (
                             <tr key={t.id} className={isEditing ? "bg-[#D4AF37]/10" : "hover:bg-[#D4AF37]/5"}>
-                              <td className="py-3 px-4 font-mono font-bold text-[#E0E0E0] whitespace-nowrap">{t.date}</td>
-                              <td className={`py-3 px-4 text-right font-mono font-extrabold text-xs border-r border-[#D4AF37]/10 pr-4 whitespace-nowrap ${
+                              <td className="py-2 px-2 font-mono font-bold text-[#E0E0E0] whitespace-nowrap">{t.date}</td>
+                              <td className={`py-2 px-2 text-right font-mono font-extrabold text-xs border-r border-[#D4AF37]/10 pr-2 whitespace-nowrap ${
                                 t.type === 'income' ? 'text-emerald-400' : 'text-[#E5E5E5]'
                               }`}>
                                 {isEditing ? (
@@ -5950,7 +5950,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                   <span>{t.type === 'income' ? '+' : '-'}${t.amount.toLocaleString()} 元</span>
                                 )}
                               </td>
-                              <td className="py-3 px-4 whitespace-nowrap">
+                              <td className="py-2 px-2 whitespace-nowrap">
                                 <div className="flex flex-col gap-1 items-start">
                                   <span className="text-neutral-300 font-bold bg-[#121212] px-1.5 py-0.5 rounded border border-[#D4AF37]/15">
                                     {t.vehicle === '公司大庫/銀行' || !t.vehicle ? '🏦 大庫/銀行' : `🚗 ${vehicleNames[t.vehicle] || t.vehicle}`}
@@ -5979,7 +5979,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                   )}
                                 </div>
                               </td>
-                              <td className="py-3 px-4 text-[#E0E0E0] font-medium max-w-[240px]">
+                              <td className="py-2 px-2 text-[#E0E0E0] font-medium max-w-[130px] sm:max-w-[160px] truncate">
                                 {isEditing ? (
                                   <input
                                     type="text"
@@ -6008,7 +6008,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                   </div>
                                 )}
                               </td>
-                              <td className="py-3 px-4 text-[#E0E0E0] font-extrabold whitespace-nowrap">
+                              <td className="py-2 px-2 text-[#E0E0E0] font-extrabold whitespace-nowrap">
                                 {isEditing ? (
                                   <div className="space-y-1">
                                     <input
@@ -6035,7 +6035,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                   t.payerName || <span className="text-neutral-500">系統提撥</span>
                                 )}
                               </td>
-                              <td className="py-3 px-4 text-xs font-semibold text-neutral-400 max-w-[280px] sm:max-w-[380px] md:max-w-[480px] lg:max-w-[580px] truncate whitespace-nowrap" title={relProj ? getProjectDisplayName(relProj) : ''}>
+                              <td className="py-2 px-2 text-[11px] font-semibold text-neutral-400 max-w-[120px] sm:max-w-[160px] truncate whitespace-nowrap" title={relProj ? getProjectDisplayName(relProj) : ''}>
                                 {isEditing ? (
                                   <select
                                     value={editPcProjectNameOrId}
@@ -6051,7 +6051,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                   relProjName || <span className="text-neutral-600 font-bold">—</span>
                                 )}
                               </td>
-                              <td className="py-3 px-4 text-center whitespace-nowrap">
+                              <td className="py-2 px-2 text-center whitespace-nowrap">
                                 {isEditing ? (
                                   <div className="flex items-center justify-center gap-1.5">
                                     <button
