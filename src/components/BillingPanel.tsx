@@ -5917,13 +5917,14 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#D4AF37]/10">
-                      {pettyCashTransactions
+                      {[...pettyCashTransactions]
                         .filter(t => {
                           if (pettyCashCategoryFilter === 'all') return true;
                           if (pettyCashCategoryFilter === 'income') return t.type === 'income';
                           if (pettyCashCategoryFilter === 'expense') return t.type === 'expense';
                           return t.category === pettyCashCategoryFilter;
                         })
+                        .sort((a, b) => b.date.localeCompare(a.date))
                         .map(t => {
                           const relProj = projects.find(p => p.id === t.projectNameOrId);
                           const relProjName = relProj ? getProjectDisplayName(relProj) : '';

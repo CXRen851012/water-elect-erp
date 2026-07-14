@@ -540,7 +540,7 @@ export default function ProjectsPanel({
   const countAll = projects.filter(p => !p.isBooking).length;
   const countQuote = projects.filter(p => !p.isBooking && p.isEstimation && p.estimationStatus === '估價中').length;
   const countOngoing = projects.filter(p => !p.isBooking && !p.isCompleted && (!p.isEstimation || p.estimationStatus === '進行中施工')).length;
-  const countCompleted = projects.filter(p => !p.isBooking && p.isCompleted).length;
+  const countCompleted = projects.filter(p => !p.isBooking && p.isCompleted && !(p.isEstimation && p.estimationStatus === '報價未成')).length;
   const countFailed = projects.filter(p => !p.isBooking && p.isEstimation && p.estimationStatus === '報價未成').length;
 
   const getProjectWarnings = (p: Project) => {
@@ -668,7 +668,7 @@ export default function ProjectsPanel({
     } else if (statusFilter === '施工進行中') {
       if (p.isCompleted || (p.isEstimation && p.estimationStatus !== '進行中施工')) return false;
     } else if (statusFilter === '已完工') {
-      if (!p.isCompleted) return false;
+      if (!p.isCompleted || (p.isEstimation && p.estimationStatus === '報價未成')) return false;
     } else if (statusFilter === '未成') {
       if (!p.isEstimation || p.estimationStatus !== '報價未成') return false;
     }
