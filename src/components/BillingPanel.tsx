@@ -981,34 +981,36 @@ export default function BillingPanel({
       const matchedProj = projects.find(p => p.id === addPcProjId);
       const projName = matchedProj ? matchedProj.generatedName || matchedProj.companyOrOwner : '未知案場';
       
+      // Look up existing record outside the state updater callback to avoid race conditions and mutation issues
+      const existingRec = records.find(r => r.projectId === addPcProjId && r.date === addPcDate);
+      const recordId = existingRec ? existingRec.id : `rec-${Date.now()}`;
+      
+      // Match petty cash categories to daily record expense types
+      let expType = 'other';
+      if (addPcCategory === 'feed') expType = 'meal';
+      else if (addPcCategory === 'parking') expType = 'parking';
+      else if (addPcCategory === 'tool') expType = 'tool';
+      else if (addPcCategory === 'fuel') expType = 'fuel';
+      else if (addPcCategory === 'hardware') expType = 'hardware';
+
+      const expenseId = `exp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      const newExpense: RecordExpense = {
+        id: expenseId,
+        type: expType,
+        amount: addPcType === 'income' ? -amount : amount,
+        description: finalDesc,
+        isProjectExpense: !addPcIsOperatingOverhead // Sync as project cost or company overhead based on user selection
+      };
+
+      // Set the linked values on newPc BEFORE calling state setters
+      newPc.sourceRecordId = recordId;
+      newPc.id = `pc-from-rec-${recordId}-${expenseId}`;
+
       setRecords((prev: DailyRecord[]) => {
-        const existingRec = prev.find(r => r.projectId === addPcProjId && r.date === addPcDate);
-        
-        // Match petty cash categories to daily record expense types
-        let expType = 'other';
-        if (addPcCategory === 'feed') expType = 'meal';
-        else if (addPcCategory === 'parking') expType = 'parking';
-        else if (addPcCategory === 'tool') expType = 'tool';
-        else if (addPcCategory === 'fuel') expType = 'fuel';
-        else if (addPcCategory === 'hardware') expType = 'hardware';
-
-        const newExpense: RecordExpense = {
-          id: `exp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-          type: expType,
-          amount: addPcType === 'income' ? -amount : amount,
-          description: finalDesc,
-          isProjectExpense: !addPcIsOperatingOverhead // Sync as project cost or company overhead based on user selection
-        };
-
-        const recordId = existingRec ? existingRec.id : `rec-${Date.now()}`;
-        
-        // Link the petty cash transaction with the record expense
-        newPc.sourceRecordId = recordId;
-        newPc.id = `pc-from-rec-${recordId}-${newExpense.id}`;
-
-        if (existingRec) {
+        const hasRec = prev.some(r => r.id === recordId);
+        if (hasRec) {
           return prev.map(r => {
-            if (r.id === existingRec.id) {
+            if (r.id === recordId) {
               return {
                 ...r,
                 expenses: [...r.expenses, newExpense]
