@@ -1811,10 +1811,10 @@ export default function BillingPanel({
     let companyOperatingIncome = 0;
     let pettyCashOperatingExpense = 0;
     
-    // Calculate daily log non-project operating expense
+    // Calculate daily log project-level expense (案場開銷) for 工務日誌開銷
     let dailyLogOperatingExpense = 0;
     filteredRecords.forEach(r => {
-      dailyLogOperatingExpense += r.expenses.filter(e => e.isProjectExpense === false).reduce((sum, e) => sum + e.amount, 0);
+      dailyLogOperatingExpense += r.expenses.filter(e => e.isProjectExpense !== false).reduce((sum, e) => sum + e.amount, 0);
     });
 
     filteredPettyCash.forEach(t => {
@@ -4066,120 +4066,153 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
               <h5 className="text-[11px] font-black text-neutral-400 uppercase tracking-wider mb-3 mt-1 flex items-center gap-1">
                 🏦 實存資金水位與收支現況 (歷史累計 & 當前現況)
               </h5>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                 
-                {/* 1. 公司金庫實存水位 */}
-                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex flex-col justify-between col-span-1 md:col-span-1 min-h-[140px]">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2.5 bg-blue-50 text-blue-600 rounded-lg shrink-0 mt-0.5">
-                      <Landmark size={20} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">公司金庫實存水位</span>
+                {/* 1. 核心資金水位與車載零用金分佈 (佔比大 7 columns) */}
+                <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  
+                  {/* 公司金庫實存水位 */}
+                  <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex flex-col justify-between min-h-[170px]">
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg shrink-0">
+                          <Landmark size={18} className="stroke-[2.5]" />
+                        </div>
+                        <div>
+                          <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">公司金庫實存水位</span>
+                          <span className="text-[9px] text-neutral-500 font-medium">截至當前期間之結算餘額</span>
+                        </div>
+                      </div>
                       
-                      {/* Breakdown Display */}
-                      <div className="space-y-1">
-                        <div className="flex justify-between items-center text-[8.5px]">
-                          <span className="text-neutral-500">🚀 篩選前(歷史過往):</span>
-                          <span className="font-mono text-neutral-600 font-semibold">
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center text-[10px] bg-neutral-50 px-2 py-1 rounded">
+                          <span className="text-neutral-500 font-bold">🚀 篩選前 (歷史過往)</span>
+                          <span className="font-mono text-neutral-600 font-bold text-[10.5px]">
                             NT$ {companyBalanceBreakdown.priorBalance.toLocaleString()}
                           </span>
                         </div>
-                        <div className="flex justify-between items-center text-[8.5px]">
-                          <span className="text-neutral-500">📈 本期篩選期間變動:</span>
-                          <span className={`font-mono font-bold ${companyBalanceBreakdown.periodChange >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        <div className="flex justify-between items-center text-[10px] bg-neutral-50 px-2 py-1 rounded">
+                          <span className="text-neutral-500 font-bold">📈 本期篩選期間變動</span>
+                          <span className={`font-mono font-extrabold text-[10.5px] ${companyBalanceBreakdown.periodChange >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                             {companyBalanceBreakdown.periodChange >= 0 ? '+' : ''}
                             {companyBalanceBreakdown.periodChange.toLocaleString()}
                           </span>
                         </div>
-                        <div className="flex justify-between items-center text-[8.5px] pt-1 border-t border-neutral-100">
-                          <span className="text-neutral-600 font-bold">🏦 截至篩選期末水位:</span>
-                          <span className="font-mono text-blue-700 font-extrabold">
+                        <div className="flex justify-between items-center text-[10.5px] pt-1.5 px-2 border-t border-neutral-100">
+                          <span className="text-neutral-600 font-bold">🏦 截至篩選期末水位</span>
+                          <span className="font-mono text-blue-700 font-black text-xs">
                             NT$ {(companyBalanceBreakdown.priorBalance + companyBalanceBreakdown.periodChange).toLocaleString()}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center text-[8.5px] pt-0.5 border-t border-dashed border-neutral-100">
-                          <span className="text-neutral-500 font-medium">💼 當前最新實存(全期):</span>
-                          <span className="font-mono text-neutral-700 font-bold">
-                            NT$ {companyBalanceBreakdown.currentTotal.toLocaleString()}
                           </span>
                         </div>
                       </div>
                     </div>
-                  </div>
-                  
-                  {/* 各車載零用金分佈 */}
-                  <div className="mt-2.5 pt-2 border-t border-neutral-100">
-                    <span className="block text-[8.5px] font-black text-neutral-500 mb-1">🚗 各車載零用金即時餘額：</span>
-                    <div className="space-y-1 max-h-[80px] overflow-y-auto pr-1">
-                      {vehicles.map(v => {
-                        const bal = financialBalances.vehicleBalances[v.id] || 0;
-                        return (
-                          <div key={v.id} className="flex justify-between items-center text-[8.5px] bg-neutral-50 px-1.5 py-0.5 rounded border border-neutral-100/50">
-                            <span className="truncate font-medium text-neutral-600">🚗 {v.name}</span>
-                            <span className="font-mono font-black text-neutral-700">NT$ {bal.toLocaleString()}</span>
-                          </div>
-                        );
-                      })}
+
+                    <div className="mt-3 pt-2 border-t border-dashed border-neutral-100 flex items-center justify-between text-[10px] px-2 bg-neutral-50 rounded-md py-1">
+                      <span className="text-neutral-500 font-bold">💼 當前最新實存 (全期)</span>
+                      <span className="font-mono text-neutral-700 font-bold text-[11px]">
+                        NT$ {companyBalanceBreakdown.currentTotal.toLocaleString()}
+                      </span>
                     </div>
                   </div>
+
+                  {/* 各車載零用金即時餘額 (拉出獨立一個統計表格) */}
+                  <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex flex-col justify-between min-h-[170px]">
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="p-2 bg-neutral-900 text-[#D4AF37] rounded-lg shrink-0">
+                          <Truck size={18} />
+                        </div>
+                        <div>
+                          <span className="block text-[11px] font-bold text-neutral-800">各車載零用金即時餘額</span>
+                          <span className="text-[9px] text-neutral-500 font-medium">當前派工車輛手邊零用金</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 max-h-[110px] overflow-y-auto pr-1">
+                        {vehicles.length === 0 ? (
+                          <div className="text-center py-4 text-[10px] text-neutral-400">目前尚無車輛設定</div>
+                        ) : (
+                          vehicles.map(v => {
+                            const bal = financialBalances.vehicleBalances[v.id] || 0;
+                            return (
+                              <div key={v.id} className="flex justify-between items-center text-[9px] bg-neutral-50 hover:bg-neutral-100 px-2 py-1 rounded border border-neutral-100/50 transition">
+                                <span className="truncate font-bold text-neutral-600">🚗 {v.name}</span>
+                                <span className="font-mono font-black text-neutral-850 text-[10px]">NT$ {bal.toLocaleString()}</span>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-2 pt-2 border-t border-neutral-100 flex justify-between items-center text-[8.5px] px-1 text-neutral-400">
+                      <span>💡 零用金餘額隨帳目異動即時更新</span>
+                    </div>
+                  </div>
+
                 </div>
 
-                {/* 2. 本期實收金額總額 */}
-                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3 min-h-[140px]">
-                  <div className="p-2.5 bg-teal-50 rounded-lg text-teal-600 shrink-0">
-                    <TrendingUp size={20} />
-                  </div>
-                  <div>
-                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">本期實收金額總額</span>
-                    <div className="flex items-baseline gap-0.5">
-                      <span className="text-sm sm:text-base font-black text-teal-700 font-mono">
+                {/* 2. 當期收支指標 (佔比小 5 columns, 垂直排列 compact 形式) */}
+                <div className="lg:col-span-5 flex flex-col justify-between gap-2">
+                  
+                  {/* 本期實收金額總額 (Compact) */}
+                  <div className="bg-white p-3 rounded-xl border border-neutral-200 shadow-3xs flex items-center justify-between transition hover:shadow-xs flex-1">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 bg-teal-50 text-teal-600 rounded-lg shrink-0">
+                        <TrendingUp size={16} className="stroke-[2.5]" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block text-[10px] font-bold text-neutral-400 leading-none mb-1">本期實收金額總額</span>
+                        <span className="block text-[8.5px] text-teal-600 font-medium truncate">當期專案已收款與現場追加收款</span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-xs sm:text-sm font-black text-teal-700 font-mono">
                         NT$ {totalPeriodCashReceived.toLocaleString()}
                       </span>
-                      <span className="text-[9px] text-teal-600 font-bold">元</span>
+                      <span className="text-[9px] text-teal-600 font-bold ml-0.5">元</span>
                     </div>
-                    <span className="text-[8.5px] text-teal-600 block font-bold leading-tight mt-1">
-                      當期專案已收款與現場追加收款
-                    </span>
                   </div>
-                </div>
 
-                {/* 3. 施工中成本總額 */}
-                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3 min-h-[140px]">
-                  <div className="p-2.5 bg-orange-50 rounded-lg text-orange-600 shrink-0">
-                    <HardHat size={20} />
-                  </div>
-                  <div>
-                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">施工中成本總額</span>
-                    <div className="flex items-baseline gap-0.5">
-                      <span className="text-sm sm:text-base font-black text-orange-700 font-mono">
+                  {/* 施工中成本總額 (Compact) */}
+                  <div className="bg-white p-3 rounded-xl border border-neutral-200 shadow-3xs flex items-center justify-between transition hover:shadow-xs flex-1">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 bg-orange-50 text-orange-600 rounded-lg shrink-0">
+                        <HardHat size={16} className="stroke-[2.5]" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block text-[10px] font-bold text-neutral-400 leading-none mb-1">施工中成本總額</span>
+                        <span className="block text-[8.5px] text-orange-600 font-medium truncate">所有進行中案場累計工料成本</span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-xs sm:text-sm font-black text-orange-700 font-mono">
                         NT$ {activeProjectsCostTotal.toLocaleString()}
                       </span>
-                      <span className="text-[9px] text-orange-600 font-bold">元</span>
+                      <span className="text-[9px] text-orange-600 font-bold ml-0.5">元</span>
                     </div>
-                    <span className="text-[8.5px] text-orange-600 block font-bold leading-tight mt-1">
-                      所有進行中案場累計工料成本
-                    </span>
                   </div>
-                </div>
 
-                {/* 4. 完工未收款總額 */}
-                <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-3xs flex items-center gap-3 min-h-[140px]">
-                  <div className="p-2.5 bg-rose-50 rounded-lg text-rose-600 shrink-0">
-                    <AlertCircle size={20} />
-                  </div>
-                  <div>
-                    <span className="block text-[10px] font-bold text-neutral-400 mb-0.5">完工未收款總額</span>
-                    <div className="flex items-baseline gap-0.5">
-                      <span className="text-sm sm:text-base font-black text-rose-700 font-mono">
+                  {/* 完工未收款總額 (Compact) */}
+                  <div className="bg-white p-3 rounded-xl border border-neutral-200 shadow-3xs flex items-center justify-between transition hover:shadow-xs flex-1">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 bg-rose-50 text-rose-600 rounded-lg shrink-0">
+                        <AlertCircle size={16} className="stroke-[2.5]" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block text-[10px] font-bold text-neutral-400 leading-none mb-1">完工未收款總額</span>
+                        <span className="block text-[8.5px] text-rose-600 font-medium truncate">所有已完工案場未收足款項合計</span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-xs sm:text-sm font-black text-rose-700 font-mono">
                         NT$ {completedOutstandingTotal.toLocaleString()}
                       </span>
-                      <span className="text-[9px] text-rose-600 font-bold">元</span>
+                      <span className="text-[9px] text-rose-600 font-bold ml-0.5">元</span>
                     </div>
-                    <span className="text-[8.5px] text-rose-600 block font-bold leading-tight mt-1">
-                      所有已完工案場未收足款項合計
-                    </span>
                   </div>
+
                 </div>
 
               </div>
