@@ -1283,11 +1283,10 @@ export default function MaterialsPanel({
     if (uOptions.length <= 1) return m;
 
     const updatedOptions = [...uOptions];
-    // Run 2 passes to resolve multi-stage target conversions perfectly
-    for (let pass = 0; pass < 2; pass++) {
+    // Run 3 passes to resolve multi-stage and first-unit target conversions perfectly
+    for (let pass = 0; pass < 3; pass++) {
       for (let idx = 0; idx < updatedOptions.length; idx++) {
         const uo = updatedOptions[idx];
-        if (idx === 0) continue; // First unit option is always the system root default basereference
 
         if (uo.useConversionPricing) {
           const factor = uo.conversionFactor ?? 1;
@@ -1296,28 +1295,31 @@ export default function MaterialsPanel({
             return uo.conversionInverse ? Math.round(v / factor) : Math.round(v * factor);
           };
 
-          // Find specific target unit option
-          const targetUo = updatedOptions.find(o => o.id === uo.targetUnitOptionId && o.id !== uo.id) || updatedOptions[0];
+          // Find specific target unit option (must not be self)
+          const targetUo = updatedOptions.find(o => o.id === uo.targetUnitOptionId && o.id !== uo.id) 
+            || updatedOptions.find(o => o.id !== uo.id);
 
-          const defaultUnitPrice = convertVal(targetUo.defaultUnitPrice);
-          const defaultCostPrice = convertVal(targetUo.defaultCostPrice);
+          if (targetUo) {
+            const defaultUnitPrice = convertVal(targetUo.defaultUnitPrice);
+            const defaultCostPrice = convertVal(targetUo.defaultCostPrice);
 
-          const updatedSuppliers = (targetUo.suppliers || []).map(ts => {
-            const existing = uo.suppliers?.find(s => s.storeName === ts.storeName);
-            return {
-              id: existing?.id || `sup-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-              storeName: ts.storeName,
-              listPrice: convertVal(ts.listPrice),
-              costPrice: convertVal(ts.costPrice)
+            const updatedSuppliers = (targetUo.suppliers || []).map(ts => {
+              const existing = uo.suppliers?.find(s => s.storeName === ts.storeName);
+              return {
+                id: existing?.id || `sup-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                storeName: ts.storeName,
+                listPrice: convertVal(ts.listPrice),
+                costPrice: convertVal(ts.costPrice)
+              };
+            });
+
+            updatedOptions[idx] = {
+              ...uo,
+              defaultUnitPrice,
+              defaultCostPrice,
+              suppliers: updatedSuppliers
             };
-          });
-
-          updatedOptions[idx] = {
-            ...uo,
-            defaultUnitPrice,
-            defaultCostPrice,
-            suppliers: updatedSuppliers
-          };
+          }
         }
       }
     }
@@ -2898,7 +2900,9 @@ export default function MaterialsPanel({
                           {options.map((uo, idx) => {
                             const supCount = uo.suppliers?.length || 0;
                             const hasActiveSuppliers = supCount > 0;
-                            const targetUo = options.find(o => o.id === uo.targetUnitOptionId) || options[0];
+                            const targetUo = options.find(o => o.id === uo.targetUnitOptionId && o.id !== uo.id)
+                              || options.find(o => o.id !== uo.id)
+                              || options[0];
                             const targetUnitName = targetUo?.unit || '個';
 
                             return (
@@ -2944,7 +2948,7 @@ export default function MaterialsPanel({
                                         <ChevronDown size={11} />
                                       </button>
                                     </div>
-                                    {idx > 0 && (
+                                    {options.length > 1 && (
                                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 !bg-[var(--bg-input)] p-2 rounded-xl border border-[#D4AF37]/20 shadow-3xs flex-wrap">
                                         <div className="flex items-center gap-1.5 flex-wrap">
                                           <Scale size={11} className="text-amber-600" />
@@ -2967,7 +2971,7 @@ export default function MaterialsPanel({
                                             <div className="flex items-center gap-1 text-[10px] !bg-[var(--bg-main)] border border-[#D4AF37]/20 rounded px-1.5 py-0.5 shadow-3xs">
                                               <span className="text-neutral-500 font-bold">對照：</span>
                                               <select
-                                                value={uo.targetUnitOptionId || options[0]?.id || ''}
+                                                value={uo.targetUnitOptionId || options.find(o => o.id !== uo.id)?.id || ''}
                                                 onChange={(e) => handleUpdateUnitTargetOptionId(m.id, uo.id, e.target.value)}
                                                 className="border-none bg-transparent py-0 pl-1 pr-4 text-[10px] font-black !text-[var(--text-primary)] focus:ring-0 focus:outline-none cursor-pointer"
                                               >

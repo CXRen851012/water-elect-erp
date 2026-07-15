@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Customer, CustomerAddress } from '../types';
 import { 
   Users, Plus, Trash2, Edit, MapPin, Phone, 
@@ -495,8 +496,8 @@ export default function CustomerPanel({
       </div>
 
       {/* 4. MODAL ADD / EDIT */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-neutral-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      {showAddModal && createPortal(
+        <div className="fixed inset-0 bg-neutral-950/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
           <div className="bg-[#1E1E1E] rounded-2xl border border-[#2C2C2C] shadow-2xl max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh] text-white">
             {/* Header */}
             <div className="p-5 border-b border-[#2C2C2C] flex items-center justify-between bg-[#212121]">
@@ -694,7 +695,8 @@ export default function CustomerPanel({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

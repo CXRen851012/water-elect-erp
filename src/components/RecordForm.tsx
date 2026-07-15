@@ -529,7 +529,7 @@ export default function RecordForm({
   }, [selectedProjectId, selectedProjDetails, prevIsEstimation]);
 
   // 統一專案顯示名稱格式化 (確保不論新舊專案皆符合新標準)
-  const getProjectDisplayName = (p: Project): string => {
+  function getProjectDisplayName(p: Project): string {
     if (!p) return '無效案場';
     let dateFormatted = '';
     const createdAtStr = typeof p.createdAt === 'string' ? p.createdAt : '';
@@ -575,7 +575,7 @@ export default function RecordForm({
     }
     const isEst = p.isEstimation || (typeof p.generatedName === 'string' && p.generatedName.startsWith('[估]'));
     return isEst ? `[估]${baseName}` : baseName;
-  };
+  }
 
   // --- Material Operations ---
   const getUnitAndSupplierPrices = (preset: MaterialPreset, selectedUnit: string, storeName?: string) => {

@@ -368,7 +368,7 @@ export default function BillingPanel({
   const [editPcVehicle, setEditPcVehicle] = useState<string>('公司大庫/銀行');
 
   // 統一專案顯示名稱格式化 (確保一體性)
-  const getProjectDisplayName = (p: Project): string => {
+  function getProjectDisplayName(p: Project): string {
     if (!p) return '無效案場';
     let dateFormatted = '';
     const createdAtStr = typeof p.createdAt === 'string' ? p.createdAt : '';
@@ -411,7 +411,7 @@ export default function BillingPanel({
     const baseName = `${dateFormatted}-${clientPart}-${addressPart}-${serial}`;
     const isEst = p.isEstimation || (typeof p.generatedName === 'string' && p.generatedName.startsWith('[估]'));
     return isEst ? `[估]${baseName}` : baseName;
-  };
+  }
 
   useEffect(() => {
     if (isFirstMount.current) {
