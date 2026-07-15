@@ -369,18 +369,21 @@ export default function BillingPanel({
 
   // 統一專案顯示名稱格式化 (確保一體性)
   const getProjectDisplayName = (p: Project): string => {
+    if (!p) return '無效案場';
     let dateFormatted = '';
-    if (p.createdAt) {
-      dateFormatted = p.createdAt.substring(0, 10).replace(/-/g, '');
+    const createdAtStr = typeof p.createdAt === 'string' ? p.createdAt : '';
+    if (createdAtStr && createdAtStr.length >= 10) {
+      dateFormatted = createdAtStr.substring(0, 10).replace(/-/g, '');
     } else {
       dateFormatted = new Date().toISOString().substring(0, 10).replace(/-/g, '');
     }
 
-    let clientPart = p.companyOrOwner.trim();
-    const person = (p.contactPerson || '').trim();
-    const phone = (p.contactPhone || '').trim();
+    const companyOrOwnerStr = typeof p.companyOrOwner === 'string' ? p.companyOrOwner : '';
+    let clientPart = companyOrOwnerStr.trim();
+    const person = typeof p.contactPerson === 'string' ? p.contactPerson.trim() : '';
+    const phone = typeof p.contactPhone === 'string' ? p.contactPhone.trim() : '';
 
-    if (person && person !== '本人' && person !== p.companyOrOwner.trim()) {
+    if (person && person !== '本人' && person !== companyOrOwnerStr.trim()) {
       if (phone) {
         clientPart += `(${person}:${phone})`;
       } else {
@@ -392,10 +395,11 @@ export default function BillingPanel({
       }
     }
 
-    const abbrev = (p.addressAbbreviated || '').trim();
-    const addressPart = abbrev ? `(${abbrev})${p.fullAddress.trim()}` : p.fullAddress.trim();
+    const abbrev = typeof p.addressAbbreviated === 'string' ? p.addressAbbreviated.trim() : '';
+    const fullAddressStr = typeof p.fullAddress === 'string' ? p.fullAddress.trim() : '';
+    const addressPart = abbrev ? `(${abbrev})${fullAddressStr}` : fullAddressStr;
 
-    let serial = p.serialNumber || '001';
+    let serial = typeof p.serialNumber === 'string' ? p.serialNumber : (p.serialNumber !== undefined && p.serialNumber !== null ? String(p.serialNumber) : '001');
     if (serial.includes('-')) {
       const parts = serial.split('-');
       serial = parts[parts.length - 1];
@@ -405,7 +409,8 @@ export default function BillingPanel({
     }
 
     const baseName = `${dateFormatted}-${clientPart}-${addressPart}-${serial}`;
-    return (p.isEstimation || p.generatedName?.startsWith('[估]')) ? `[估]${baseName}` : baseName;
+    const isEst = p.isEstimation || (typeof p.generatedName === 'string' && p.generatedName.startsWith('[估]'));
+    return isEst ? `[估]${baseName}` : baseName;
   };
 
   useEffect(() => {

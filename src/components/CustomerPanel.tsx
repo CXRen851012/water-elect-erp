@@ -496,8 +496,8 @@ export default function CustomerPanel({
 
       {/* 4. MODAL ADD / EDIT */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-neutral-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-[#1E1E1E] rounded-2xl border border-[#2C2C2C] shadow-2xl max-w-xl w-full overflow-hidden flex flex-col max-h-[85vh] md:max-h-[90vh] text-white my-auto">
+        <div className="fixed inset-0 bg-neutral-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#1E1E1E] rounded-2xl border border-[#2C2C2C] shadow-2xl max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh] text-white">
             {/* Header */}
             <div className="p-5 border-b border-[#2C2C2C] flex items-center justify-between bg-[#212121]">
               <div className="flex items-center gap-2.5">
