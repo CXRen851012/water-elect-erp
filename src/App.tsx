@@ -680,6 +680,29 @@ export default function App() {
   const [historySortBy, setHistorySortBy] = useState<string>('date_desc');
   const [historyVisibleLimit, setHistoryVisibleLimit] = useState<number>(30);
 
+  const [isHistoryProjOpen1, setIsHistoryProjOpen1] = useState(false);
+  const [historyProjSearch1, setHistoryProjSearch1] = useState('');
+  const [isHistoryProjOpen2, setIsHistoryProjOpen2] = useState(false);
+  const [historyProjSearch2, setHistoryProjSearch2] = useState('');
+
+  const historyProjDropdownRef1 = useRef<HTMLDivElement>(null);
+  const historyProjDropdownRef2 = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (historyProjDropdownRef1.current && !historyProjDropdownRef1.current.contains(event.target as Node)) {
+        setIsHistoryProjOpen1(false);
+      }
+      if (historyProjDropdownRef2.current && !historyProjDropdownRef2.current.contains(event.target as Node)) {
+        setIsHistoryProjOpen2(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   const getInitHistoryStartDate = () => {
     const now = new Date();
     const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -1001,6 +1024,7 @@ export default function App() {
         payerName: exp.payerName,
         sourceRecordId: targetId,
         vehicle: exp.vehicle || '公司大庫/銀行',
+        isCompanyOperatingExpense: exp.isProjectExpense === false,
         createdAt: new Date().toISOString()
       };
     });
@@ -1585,19 +1609,83 @@ export default function App() {
                               </div>
 
                               {/* 3. Project Filter */}
-                              <div>
-                                <select
-                                  value={historyProjectFilter}
-                                  onChange={(e) => setHistoryProjectFilter(e.target.value)}
-                                  className="w-full px-2 py-1.5 border border-[#2D2D2D] rounded-xl text-xs bg-[#121212] text-neutral-300 outline-none focus:border-[#D4AF37]/50 cursor-pointer font-bold"
-                                >
-                                  <option value="all">📁 所有工程案場 (全部)</option>
-                                  {projects.map(p => (
-                                    <option key={p.id} value={p.id}>
-                                      {p.isCompleted ? '✅' : '🏗️'} {p.name} ({p.customerName})
-                                    </option>
-                                  ))}
-                                </select>
+                              <div className="relative" ref={historyProjDropdownRef1}>
+                                <div className="relative">
+                                  <input
+                                    type="text"
+                                    placeholder="🔍 搜尋/選擇案場..."
+                                    value={isHistoryProjOpen1 ? historyProjSearch1 : (historyProjectFilter === 'all' ? '📁 所有工程案場 (全部)' : (() => {
+                                      const p = projects.find(proj => proj.id === historyProjectFilter);
+                                      return p ? `${p.isCompleted ? '✅' : '🏗️'} ${getProjectDisplayName(p)}` : '📁 所有工程案場 (全部)';
+                                    })())}
+                                    onChange={(e) => {
+                                      setHistoryProjSearch1(e.target.value);
+                                      setIsHistoryProjOpen1(true);
+                                    }}
+                                    onFocus={() => {
+                                      setIsHistoryProjOpen1(true);
+                                      setHistoryProjSearch1('');
+                                    }}
+                                    className="w-full px-2.5 py-1.5 border border-[#2D2D2D] rounded-xl text-xs bg-[#121212] text-neutral-200 outline-none focus:border-[#D4AF37]/50 font-bold truncate cursor-pointer"
+                                  />
+                                  {historyProjectFilter !== 'all' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setHistoryProjectFilter('all');
+                                        setHistoryProjSearch1('');
+                                      }}
+                                      className="absolute inset-y-0 right-2.5 flex items-center text-neutral-400 hover:text-white cursor-pointer"
+                                    >
+                                      ✕
+                                    </button>
+                                  )}
+                                </div>
+
+                                {isHistoryProjOpen1 && (
+                                  <div className="absolute z-50 mt-1 w-full bg-[#1E1E1E] border border-[#2D2D2D] rounded-xl shadow-2xl max-h-60 overflow-y-auto">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setHistoryProjectFilter('all');
+                                        setIsHistoryProjOpen1(false);
+                                      }}
+                                      className={`w-full text-left px-3 py-2 text-xs font-bold border-b border-[#252525] hover:bg-[#2C2C2C] transition-colors ${
+                                        historyProjectFilter === 'all' ? 'text-[#D4AF37] bg-[#D4AF37]/10' : 'text-neutral-400'
+                                      }`}
+                                    >
+                                      📁 所有工程案場 (全部)
+                                    </button>
+                                    {(() => {
+                                      const filtered = projects.filter(p => {
+                                        const query = historyProjSearch1.toLowerCase();
+                                        const displayName = getProjectDisplayName(p).toLowerCase();
+                                        return displayName.includes(query);
+                                      });
+                                      if (filtered.length === 0) {
+                                        return <div className="px-3 py-2 text-xs text-neutral-500 italic">無符合案場</div>;
+                                      }
+                                      return filtered.map(p => {
+                                        const isSelected = p.id === historyProjectFilter;
+                                        return (
+                                          <button
+                                            key={p.id}
+                                            type="button"
+                                            onClick={() => {
+                                              setHistoryProjectFilter(p.id);
+                                              setIsHistoryProjOpen1(false);
+                                            }}
+                                            className={`w-full text-left px-3 py-2 text-xs font-bold border-b border-[#252525] hover:bg-[#2C2C2C] transition-colors flex items-center justify-between ${
+                                              isSelected ? 'text-[#D4AF37] bg-[#D4AF37]/10' : 'text-neutral-300'
+                                            }`}
+                                          >
+                                            <span className="truncate">{p.isCompleted ? '✅' : '🏗️'} {getProjectDisplayName(p)}</span>
+                                          </button>
+                                        );
+                                      });
+                                    })()}
+                                  </div>
+                                )}
                               </div>
 
                               {/* 4. Sort By */}
@@ -2340,20 +2428,84 @@ export default function App() {
                             </div>
 
                             {/* 3. Project Filter */}
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 relative" ref={historyProjDropdownRef2}>
                               <span className="text-[11px] font-extrabold text-neutral-400 shrink-0 uppercase tracking-widest hidden lg:inline">案場:</span>
-                              <select
-                                value={historyProjectFilter}
-                                onChange={(e) => setHistoryProjectFilter(e.target.value)}
-                                className="w-full bg-neutral-50 hover:bg-neutral-100/40 border border-neutral-200 rounded-xl text-xs px-2.5 py-2 font-bold text-neutral-700 focus:outline-hidden focus:border-amber-500 cursor-pointer"
-                              >
-                                <option value="all">🏗️ 指定工程案場：全部</option>
-                                {projects.map((p) => (
-                                  <option key={p.id} value={p.id}>
-                                    🏢 {getProjectDisplayName(p)}
-                                  </option>
-                                ))}
-                              </select>
+                              <div className="relative w-full">
+                                <input
+                                  type="text"
+                                  placeholder="🔍 搜尋/選擇案場..."
+                                  value={isHistoryProjOpen2 ? historyProjSearch2 : (historyProjectFilter === 'all' ? '🏗️ 指定工程案場：全部' : (() => {
+                                    const p = projects.find(proj => proj.id === historyProjectFilter);
+                                    return p ? `🏢 ${getProjectDisplayName(p)}` : '🏗️ 指定工程案場：全部';
+                                  })())}
+                                  onChange={(e) => {
+                                    setHistoryProjSearch2(e.target.value);
+                                    setIsHistoryProjOpen2(true);
+                                  }}
+                                  onFocus={() => {
+                                    setIsHistoryProjOpen2(true);
+                                    setHistoryProjSearch2('');
+                                  }}
+                                  className="w-full bg-neutral-50 hover:bg-neutral-100/40 border border-neutral-200 rounded-xl text-xs px-2.5 py-2 font-bold text-neutral-700 focus:outline-none focus:border-amber-500 truncate cursor-pointer"
+                                />
+                                {historyProjectFilter !== 'all' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setHistoryProjectFilter('all');
+                                      setHistoryProjSearch2('');
+                                    }}
+                                    className="absolute inset-y-0 right-2.5 flex items-center text-neutral-400 hover:text-neutral-700 cursor-pointer"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+
+                              {isHistoryProjOpen2 && (
+                                <div className="absolute z-50 mt-10 left-0 w-full bg-white border border-neutral-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setHistoryProjectFilter('all');
+                                      setIsHistoryProjOpen2(false);
+                                    }}
+                                    className={`w-full text-left px-3 py-2 text-xs font-bold border-b border-neutral-100 hover:bg-neutral-50 transition-colors ${
+                                      historyProjectFilter === 'all' ? 'text-amber-600 bg-amber-50' : 'text-neutral-600'
+                                    }`}
+                                  >
+                                    🏗️ 指定工程案場：全部
+                                  </button>
+                                  {(() => {
+                                    const filtered = projects.filter(p => {
+                                      const query = historyProjSearch2.toLowerCase();
+                                      const displayName = getProjectDisplayName(p).toLowerCase();
+                                      return displayName.includes(query);
+                                    });
+                                    if (filtered.length === 0) {
+                                      return <div className="px-3 py-2 text-xs text-neutral-400 italic">無符合案場</div>;
+                                    }
+                                    return filtered.map(p => {
+                                      const isSelected = p.id === historyProjectFilter;
+                                      return (
+                                        <button
+                                          key={p.id}
+                                          type="button"
+                                          onClick={() => {
+                                            setHistoryProjectFilter(p.id);
+                                            setIsHistoryProjOpen2(false);
+                                          }}
+                                          className={`w-full text-left px-3 py-2 text-xs font-bold border-b border-neutral-100 hover:bg-neutral-50 transition-colors flex items-center justify-between ${
+                                            isSelected ? 'text-amber-600 bg-amber-50' : 'text-neutral-700'
+                                          }`}
+                                        >
+                                          <span className="truncate">🏢 {getProjectDisplayName(p)}</span>
+                                        </button>
+                                      );
+                                    });
+                                  })()}
+                                </div>
+                              )}
                             </div>
 
                             {/* 4. Sorting Selector */}

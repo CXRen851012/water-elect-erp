@@ -363,6 +363,9 @@ export default function BillingPanel({
   const [editPcPayerName, setEditPcPayerName] = useState<string>('');
   const [editPcProjectNameOrId, setEditPcProjectNameOrId] = useState<string>('');
   const [editPcIsReturnedToCompany, setEditPcIsReturnedToCompany] = useState<boolean>(false);
+  const [editPcIsCompanyOperatingExpense, setEditPcIsCompanyOperatingExpense] = useState<boolean>(false);
+  const [editPcCategory, setEditPcCategory] = useState<PettyCashTransaction['category']>('other');
+  const [editPcVehicle, setEditPcVehicle] = useState<string>('公司大庫/銀行');
 
   // 統一專案顯示名稱格式化 (確保一體性)
   const getProjectDisplayName = (p: Project): string => {
@@ -972,7 +975,7 @@ export default function BillingPanel({
       payerName: addPcPayer.trim() || undefined,
       vehicle: addPcVehicle,
       isReturnedToCompany: addPcIsReturnedToCompany,
-      isCompanyOperatingExpense: addPcProjId ? addPcIsOperatingOverhead : true,
+      isCompanyOperatingExpense: addPcType === 'income' ? false : addPcIsOperatingOverhead,
       createdAt: new Date().toISOString()
     };
 
@@ -1084,6 +1087,9 @@ export default function BillingPanel({
     setEditPcPayerName(t.payerName || '');
     setEditPcProjectNameOrId(t.projectNameOrId || '');
     setEditPcIsReturnedToCompany(t.isReturnedToCompany || false);
+    setEditPcIsCompanyOperatingExpense(t.isCompanyOperatingExpense || false);
+    setEditPcCategory(t.category || 'other');
+    setEditPcVehicle(t.vehicle || '公司大庫/銀行');
   };
 
   const handleSavePettyCashEdit = (originalTx: PettyCashTransaction) => {
@@ -1106,7 +1112,10 @@ export default function BillingPanel({
           description: editPcDescription.trim(),
           payerName: editPcPayerName.trim() || undefined,
           projectNameOrId: editPcProjectNameOrId || undefined,
-          isReturnedToCompany: editPcIsReturnedToCompany
+          isReturnedToCompany: editPcIsReturnedToCompany,
+          isCompanyOperatingExpense: editPcIsCompanyOperatingExpense,
+          category: editPcCategory,
+          vehicle: editPcVehicle
         };
       }
       return t;
@@ -1123,11 +1132,23 @@ export default function BillingPanel({
             const expectedPcId = `pc-from-rec-${recordId}-${expId}`;
             if (expectedPcId === originalTx.id) {
               const actualAmount = originalTx.type === 'income' ? -nextAmount : nextAmount;
+              
+              // Map PettyCashTransaction category back to RecordExpense type
+              let expType: 'meal' | 'tool' | 'parking' | 'fuel' | 'hardware' | 'other' = 'other';
+              if (editPcCategory === 'feed') expType = 'meal';
+              else if (editPcCategory === 'tool') expType = 'tool';
+              else if (editPcCategory === 'parking') expType = 'parking';
+              else if (editPcCategory === 'fuel') expType = 'fuel';
+              else if (editPcCategory === 'hardware') expType = 'hardware';
+
               return {
                 ...exp,
                 amount: actualAmount,
+                type: expType,
                 description: editPcDescription.trim(),
-                payerName: editPcPayerName.trim() || undefined
+                payerName: editPcPayerName.trim() || undefined,
+                vehicle: editPcVehicle,
+                isProjectExpense: !editPcIsCompanyOperatingExpense
               };
             }
             return exp;
@@ -3699,50 +3720,6 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
               
               {/* Quick Preset Buttons */}
               <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const d = new Date();
-                    const year = d.getFullYear();
-                    const month = d.getMonth();
-                    const firstDay = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-                    const lastDayDate = new Date(year, month + 1, 0);
-                    const lastDay = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDayDate.getDate()).padStart(2, '0')}`;
-                    setReportStartDate(firstDay);
-                    setReportEndDate(lastDay);
-                  }}
-                  className="px-2.5 py-1.5 text-[11px] font-black rounded-lg bg-[#2D2D2D] text-amber-400 border border-[#3D3D3D] hover:bg-[#3D3D3D] transition-all cursor-pointer"
-                >
-                  📅 統計本月
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const d = new Date();
-                    d.setMonth(d.getMonth() - 1);
-                    const year = d.getFullYear();
-                    const month = d.getMonth();
-                    const firstDay = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-                    const lastDayDate = new Date(year, month + 1, 0);
-                    const lastDay = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDayDate.getDate()).padStart(2, '0')}`;
-                    setReportStartDate(firstDay);
-                    setReportEndDate(lastDay);
-                  }}
-                  className="px-2.5 py-1.5 text-[11px] font-black rounded-lg bg-[#2D2D2D] text-neutral-300 border border-[#3D3D3D] hover:bg-[#3D3D3D] transition-all cursor-pointer"
-                >
-                  📅 統計上月
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReportStartDate('');
-                    setReportEndDate('');
-                  }}
-                  className="px-2.5 py-1.5 text-[11px] font-black rounded-lg bg-[#2D2D2D] text-neutral-300 border border-[#3D3D3D] hover:bg-[#3D3D3D] transition-all cursor-pointer"
-                >
-                  🌐 累計至今
-                </button>
-                
                 {/* Reset filters */}
                 {(reportSelectedProjectId !== 'all' || reportStartDate !== '' || reportEndDate !== '' || reportSearchQuery !== '') && (
                   <button
@@ -3762,7 +3739,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
               {/* Project Select */}
               <div>
                 <label className="block text-[11px] font-extrabold text-neutral-400 mb-1">對口工地案場</label>
@@ -3820,7 +3797,7 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     className="flex-1 py-1.5 border border-[#3D3D3D] bg-[#252525] hover:bg-[#323232] text-amber-500 hover:text-amber-400 rounded-lg text-[11px] font-bold transition-all text-center cursor-pointer"
                     title="回到本月"
                   >
-                    本月
+                    回本月
                   </button>
                   <button
                     type="button"
@@ -3830,21 +3807,6 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   >
                     下月 ▶
                   </button>
-                </div>
-              </div>
-
-              {/* Text Search */}
-              <div>
-                <label className="block text-[11px] font-extrabold text-neutral-400 mb-1">原料/工人名/備註檢索</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="輸入南亞管、陳師傅..."
-                    value={reportSearchQuery}
-                    onChange={(e) => setReportSearchQuery(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 border border-[#3D3D3D] rounded-lg bg-[#252525] text-[#E0E0E0] font-medium placeholder-neutral-500"
-                  />
-                  <Search className="absolute left-2.5 top-2 text-neutral-500" size={12} />
                 </div>
               </div>
             </div>
@@ -5859,7 +5821,15 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   </label>
                   <select
                     value={addPcProjId}
-                    onChange={(e) => setAddPcProjId(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setAddPcProjId(val);
+                      if (!val) {
+                        setAddPcIsOperatingOverhead(true);
+                      } else {
+                        setAddPcIsOperatingOverhead(false);
+                      }
+                    }}
                     className="w-full px-2.5 py-1.5 border border-[#D4AF37]/20 rounded-lg text-xs bg-[#121212] !text-[#E0E0E0] font-medium outline-none focus:border-[#D4AF37]"
                   >
                     <option className="!bg-[#1A1A1A]" value="">-- 無特定工地 / 公司全公用 --</option>
@@ -5869,18 +5839,45 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                   </select>
                 </div>
 
-                {addPcProjId && (
-                  <div className="flex items-center gap-2 py-1.5 px-2 bg-slate-900 border border-slate-800 rounded-lg">
-                    <input
-                      type="checkbox"
-                      id="addPcIsOperatingOverhead"
-                      checked={addPcIsOperatingOverhead}
-                      onChange={(e) => setAddPcIsOperatingOverhead(e.target.checked)}
-                      className="w-3.5 h-3.5 rounded border-[#D4AF37]/25 bg-[#121212] accent-[#D4AF37] cursor-pointer"
-                    />
-                    <label htmlFor="addPcIsOperatingOverhead" className="text-[10px] text-neutral-300 font-bold cursor-pointer select-none">
-                      🏢 此筆為「公司營運開銷」 (不列入案場工程成本)
+                {addPcType === 'expense' && (
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold !text-[#E0E0E0]">
+                      開銷屬性標記 (必填)
                     </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAddPcIsOperatingOverhead(false)}
+                        className={`py-1.5 text-xs font-black rounded-lg border transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                          !addPcIsOperatingOverhead
+                            ? 'bg-[#D4AF37]/20 text-[#F3E5AB] border-[#D4AF37]'
+                            : 'bg-[#121212] text-[#A0A0A0] border-[#D4AF37]/15 hover:border-[#D4AF37]/30'
+                        }`}
+                      >
+                        🏗️ 案場內開銷
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAddPcIsOperatingOverhead(true)}
+                        className={`py-1.5 text-xs font-black rounded-lg border transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                          addPcIsOperatingOverhead
+                            ? 'bg-amber-950/40 text-[#F3E5AB] border-amber-500/50'
+                            : 'bg-[#121212] text-[#A0A0A0] border-[#D4AF37]/15 hover:border-[#D4AF37]/30'
+                        }`}
+                      >
+                        🏢 非案場開銷 / 公司管銷
+                      </button>
+                    </div>
+                    {!addPcIsOperatingOverhead && !addPcProjId && (
+                      <p className="text-[9px] text-amber-400 font-bold leading-tight">
+                        💡 提示：您選擇了「案場內開銷」，建議在上方選擇「關聯工事案場」，以便將此費用精算計入該案場成本。
+                      </p>
+                    )}
+                    {addPcIsOperatingOverhead && addPcProjId && (
+                      <p className="text-[9px] text-neutral-400 leading-tight">
+                        💡 提示：雖然您關聯了案場，但標記為「公司管銷」，此筆支出不會被計入該案場的工程成本中。
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -5926,27 +5923,6 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                     onChange={(e) => setAddPcDescription(e.target.value)}
                     className="w-full px-2.5 py-1.5 border border-[#D4AF37]/20 rounded-lg text-xs bg-[#121212] !text-[#E0E0E0] font-medium outline-none focus:border-[#D4AF37]"
                   />
-                  {/* 動態智慧事由預設標籤 */}
-                  <div className="flex flex-wrap gap-1 mt-1.5">
-                    {addPcType === 'income' ? (
-                      ['撥補公用金新台幣備用', '銀行提領現金入公金袋', '負責人代付存入營運']
-                    ) : (
-                      addPcCategory === 'feed' ? ['購買冰品飲料消暑', '午餐買便當配餐', '午後點心/咖啡']
-                      : addPcCategory === 'tool' ? ['買止洩帶與塑膠硬油', '五金行補螺絲零件', '購置臨時鋸片/鑽尾']
-                      : addPcCategory === 'parking' ? ['工事路邊繳納停車費', '工地臨時停車卡計費']
-                      : addPcCategory === 'fuel' ? ['公司工程貨車加柴油', '機車臨時跑件加汽油']
-                      : ['現場垃圾清理代墊費', '雜頂零星行政零用金支出']
-                    ).map(item => (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => setAddPcDescription(item)}
-                        className="text-[9px] bg-[#D4AF37]/10 hover:bg-[#D4AF37]/25 text-[#F3E5AB] hover:border-[#D4AF37]/50 px-1.5 py-0.5 rounded border border-[#D4AF37]/15 font-bold transition cursor-pointer"
-                      >
-                        ⚡ {item}
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
                 <button
@@ -6057,41 +6033,90 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                               </td>
                               <td className="py-2 px-2 whitespace-nowrap">
                                 <div className="flex flex-col gap-1 items-start">
-                                  <span className="text-neutral-300 font-bold bg-[#121212] px-1.5 py-0.5 rounded border border-[#D4AF37]/15">
-                                    {t.vehicle === '公司大庫/銀行' || !t.vehicle ? '🏦 大庫/銀行' : `🚗 ${vehicleNames[t.vehicle] || t.vehicle}`}
-                                  </span>
                                   {isEditing ? (
-                                    t.type === 'expense' && t.vehicle && t.vehicle !== '公司大庫/銀行' && (
-                                      <div className="flex items-center gap-1 mt-1 bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded">
-                                        <input
-                                          type="checkbox"
-                                          id={`editIsReturned-${t.id}`}
-                                          checked={editPcIsReturnedToCompany}
-                                          onChange={(e) => setEditPcIsReturnedToCompany(e.target.checked)}
-                                          className="w-3 h-3 rounded bg-[#121212] accent-[#D4AF37] cursor-pointer"
-                                        />
-                                        <label htmlFor={`editIsReturned-${t.id}`} className="text-[9px] text-[#F3E5AB] font-bold cursor-pointer select-none">
-                                          繳回大庫
-                                        </label>
-                                      </div>
-                                    )
+                                    <div className="flex flex-col gap-1">
+                                      <select
+                                        value={editPcVehicle}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setEditPcVehicle(val);
+                                          if (val === '公司大庫/銀行') {
+                                            setEditPcIsReturnedToCompany(false);
+                                          }
+                                        }}
+                                        className="px-1.5 py-0.5 bg-[#121212] border border-[#D4AF37]/35 text-[#E5E5E5] text-[10px] rounded font-bold outline-none focus:border-[#D4AF37] cursor-pointer"
+                                      >
+                                        <option className="!bg-[#1A1A1A]" value="公司大庫/銀行">🏦 大庫/銀行</option>
+                                        {vehicles.map(v => (
+                                          <option className="!bg-[#1A1A1A]" key={v.id} value={v.id}>🚗 {v.name}</option>
+                                        ))}
+                                      </select>
+                                      {t.type === 'expense' && editPcVehicle !== '公司大庫/銀行' && (
+                                        <div className="flex items-center gap-1 mt-1 bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded">
+                                          <input
+                                            type="checkbox"
+                                            id={`editIsReturned-${t.id}`}
+                                            checked={editPcIsReturnedToCompany}
+                                            onChange={(e) => setEditPcIsReturnedToCompany(e.target.checked)}
+                                            className="w-3 h-3 rounded bg-[#121212] accent-[#D4AF37] cursor-pointer"
+                                          />
+                                          <label htmlFor={`editIsReturned-${t.id}`} className="text-[9px] text-[#F3E5AB] font-bold cursor-pointer select-none">
+                                            繳回大庫
+                                          </label>
+                                        </div>
+                                      )}
+                                    </div>
                                   ) : (
-                                    t.isReturnedToCompany === true && (
-                                      <span className="text-[9px] text-teal-400 font-extrabold bg-teal-950/40 px-1 py-0.5 rounded border border-teal-900/30">
-                                        📥 繳回大庫
+                                    <>
+                                      <span className="text-neutral-300 font-bold bg-[#121212] px-1.5 py-0.5 rounded border border-[#D4AF37]/15">
+                                        {t.vehicle === '公司大庫/銀行' || !t.vehicle ? '🏦 大庫/銀行' : `🚗 ${vehicleNames[t.vehicle] || t.vehicle}`}
                                       </span>
-                                    )
+                                      {t.isReturnedToCompany === true && (
+                                        <span className="text-[9px] text-teal-400 font-extrabold bg-teal-950/40 px-1 py-0.5 rounded border border-teal-900/30">
+                                          📥 已繳回大庫
+                                        </span>
+                                      )}
+                                    </>
                                   )}
                                 </div>
                               </td>
                               <td className="py-2 px-2 text-[#E0E0E0] font-medium max-w-[130px] sm:max-w-[160px] truncate">
                                 {isEditing ? (
-                                  <input
-                                    type="text"
-                                    value={editPcDescription}
-                                    onChange={(e) => setEditPcDescription(e.target.value)}
-                                    className="w-full px-1.5 py-0.5 bg-[#121212] border border-[#D4AF37]/35 text-[#E5E5E5] text-[10px] rounded outline-none focus:border-[#D4AF37]"
-                                  />
+                                  <div className="flex flex-col gap-1">
+                                    <input
+                                      type="text"
+                                      value={editPcDescription}
+                                      onChange={(e) => setEditPcDescription(e.target.value)}
+                                      className="w-full px-1.5 py-0.5 bg-[#121212] border border-[#D4AF37]/35 text-[#E5E5E5] text-[10px] rounded outline-none focus:border-[#D4AF37]"
+                                      placeholder="交易事由..."
+                                    />
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      <span className="text-[9px] text-neutral-400">分類:</span>
+                                      <select
+                                        value={editPcCategory}
+                                        onChange={(e) => setEditPcCategory(e.target.value as PettyCashTransaction['category'])}
+                                        className="px-1 py-0.5 bg-[#121212] border border-[#D4AF37]/25 text-[#E5E5E5] text-[9px] rounded outline-none focus:border-[#D4AF37] cursor-pointer"
+                                      >
+                                        {t.type === 'income' ? (
+                                          <>
+                                            <option className="!bg-[#1A1A1A]" value="fund_in">📥 公司存入</option>
+                                            <option className="!bg-[#1A1A1A]" value="tool">⚙️ 設備(存)</option>
+                                            <option className="!bg-[#1A1A1A]" value="hardware">🔧 五金(存)</option>
+                                            <option className="!bg-[#1A1A1A]" value="other">💬 其他</option>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <option className="!bg-[#1A1A1A]" value="feed">🍱 伙食開銷</option>
+                                            <option className="!bg-[#1A1A1A]" value="tool">⚙️ 設備購置</option>
+                                            <option className="!bg-[#1A1A1A]" value="parking">🅿️ 停車費用</option>
+                                            <option className="!bg-[#1A1A1A]" value="fuel">⛽ 加油燃料</option>
+                                            <option className="!bg-[#1A1A1A]" value="hardware">🔧 五金雜耗</option>
+                                            <option className="!bg-[#1A1A1A]" value="other">💬 其他雜支</option>
+                                          </>
+                                        )}
+                                      </select>
+                                    </div>
+                                  </div>
                                 ) : (
                                   <div className="flex items-center gap-1.5 truncate" title={t.description}>
                                     {t.type === 'income' ? (
@@ -6101,13 +6126,24 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                                          t.category === 'hardware' ? '五金(存)' : '其他'}
                                       </span>
                                     ) : (
-                                      <span className="text-rose-400 bg-rose-950/45 border border-rose-900/45 font-extrabold px-1.5 py-0.5 rounded text-[9px] shrink-0">
-                                        {t.category === 'feed' ? '🍱 伙食' :
-                                         t.category === 'tool' ? '⚙️ 設備' :
-                                         t.category === 'parking' ? '🅿️ 停車' :
-                                         t.category === 'fuel' ? '⛽ 加油' :
-                                         t.category === 'hardware' ? '🔧 五金' : '💬 其他'}
-                                      </span>
+                                      <>
+                                        <span className="text-rose-400 bg-rose-950/45 border border-rose-900/45 font-extrabold px-1.5 py-0.5 rounded text-[9px] shrink-0">
+                                          {t.category === 'feed' ? '🍱 伙食' :
+                                           t.category === 'tool' ? '⚙️ 設備' :
+                                           t.category === 'parking' ? '🅿️ 停車' :
+                                           t.category === 'fuel' ? '⛽ 加油' :
+                                           t.category === 'hardware' ? '🔧 五金' : '💬 其他'}
+                                        </span>
+                                        {t.isCompanyOperatingExpense === true ? (
+                                          <span className="text-neutral-400 bg-[#252525] border border-[#3D3D3D] font-extrabold px-1.5 py-0.5 rounded text-[9px] shrink-0 font-sans">
+                                            🏢 公司管銷
+                                          </span>
+                                        ) : (
+                                          <span className="text-amber-400 bg-[#D4AF37]/15 border border-[#D4AF37]/25 font-extrabold px-1.5 py-0.5 rounded text-[9px] shrink-0 font-sans">
+                                            🏗️ 案場開銷
+                                          </span>
+                                        )}
+                                      </>
                                     )}
                                     <span className="truncate">{t.description}</span>
                                   </div>
@@ -6115,45 +6151,88 @@ ${record.notes || '   (無特殊異常，配管配線施工一切順利。)'}
                               </td>
                               <td className="py-2 px-2 text-[#E0E0E0] font-extrabold whitespace-nowrap">
                                 {isEditing ? (
-                                  <div className="space-y-1">
+                                  <div className="flex flex-col gap-1">
                                     <input
                                       type="text"
                                       value={editPcPayerName}
                                       onChange={(e) => setEditPcPayerName(e.target.value)}
-                                      className="w-24 px-1.5 py-0.5 bg-[#121212] border border-[#D4AF37]/35 text-[#E5E5E5] text-[10px] font-bold rounded outline-none focus:border-[#D4AF37]"
-                                      placeholder="經手同仁..."
+                                      className="w-28 px-1.5 py-0.5 bg-[#121212] border border-[#D4AF37]/35 text-[#E5E5E5] text-[10px] font-bold rounded outline-none focus:border-[#D4AF37]"
+                                      placeholder="手動輸入/空白為提撥"
                                     />
-                                    <div className="flex flex-wrap gap-1 max-w-[120px]">
-                                      {workersPreset.slice(0, 3).map(w => (
-                                        <button
-                                          key={w.id}
-                                          type="button"
-                                          onClick={() => setEditPcPayerName(w.name)}
-                                          className="text-[8px] bg-[#D4AF37]/10 hover:bg-[#D4AF37]/25 text-[#F3E5AB] px-1 rounded transition cursor-pointer"
-                                        >
-                                          {w.name}
-                                        </button>
+                                    <select
+                                      value={workersPreset.some(w => w.name === editPcPayerName) ? editPcPayerName : ""}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val === "system") {
+                                          setEditPcPayerName("");
+                                        } else if (val) {
+                                          setEditPcPayerName(val);
+                                        }
+                                      }}
+                                      className="w-28 px-1 py-0.5 bg-[#121212] border border-[#D4AF37]/20 text-[#E5E5E5] text-[9px] rounded outline-none focus:border-[#D4AF37] cursor-pointer"
+                                    >
+                                      <option className="!bg-[#1A1A1A]" value="">-- 下拉選擇同仁 --</option>
+                                      <option className="!bg-[#1A1A1A]" value="system">⚙️ 系統提撥 (空白)</option>
+                                      {workersPreset.map(w => (
+                                        <option className="!bg-[#1A1A1A]" key={w.id} value={w.name}>{w.name}</option>
                                       ))}
-                                    </div>
+                                    </select>
                                   </div>
                                 ) : (
-                                  t.payerName || <span className="text-neutral-500">系統提撥</span>
+                                  t.payerName || <span className="text-neutral-500 font-bold italic">⚙️ 系統提撥</span>
                                 )}
                               </td>
                               <td className="py-2 px-2 text-[11px] font-semibold text-neutral-400 max-w-[120px] sm:max-w-[160px] truncate whitespace-nowrap" title={relProj ? getProjectDisplayName(relProj) : ''}>
                                 {isEditing ? (
-                                  <select
-                                    value={editPcProjectNameOrId}
-                                    onChange={(e) => setEditPcProjectNameOrId(e.target.value)}
-                                    className="w-32 px-1 py-0.5 bg-[#121212] border border-[#D4AF37]/35 text-[#E5E5E5] text-[10px] rounded outline-none focus:border-[#D4AF37]"
-                                  >
-                                    <option className="!bg-[#1A1A1A]" value="">-- 無特定工地 --</option>
-                                    {projects.map(p => (
-                                      <option className="!bg-[#1A1A1A]" key={p.id} value={p.id}>{getProjectDisplayName(p)}</option>
-                                    ))}
-                                  </select>
+                                  <div className="flex flex-col gap-1">
+                                    <select
+                                      value={editPcProjectNameOrId}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setEditPcProjectNameOrId(val);
+                                        if (!val) {
+                                          setEditPcIsCompanyOperatingExpense(true);
+                                        } else {
+                                          setEditPcIsCompanyOperatingExpense(false);
+                                        }
+                                      }}
+                                      className="w-32 px-1 py-0.5 bg-[#121212] border border-[#D4AF37]/35 text-[#E5E5E5] text-[10px] rounded outline-none focus:border-[#D4AF37]"
+                                    >
+                                      <option className="!bg-[#1A1A1A]" value="">-- 無特定工地 --</option>
+                                      {projects.map(p => (
+                                        <option className="!bg-[#1A1A1A]" key={p.id} value={p.id}>{getProjectDisplayName(p)}</option>
+                                      ))}
+                                    </select>
+                                    {t.type === 'expense' && (
+                                      <div className="flex items-center gap-1 mt-0.5">
+                                        <input
+                                          type="checkbox"
+                                          id={`editPcIsComp-${t.id}`}
+                                          checked={editPcIsCompanyOperatingExpense}
+                                          onChange={(e) => setEditPcIsCompanyOperatingExpense(e.target.checked)}
+                                          className="w-3 h-3 rounded bg-[#121212] accent-[#D4AF37] cursor-pointer"
+                                        />
+                                        <label htmlFor={`editPcIsComp-${t.id}`} className="text-[9px] text-neutral-300 font-bold cursor-pointer select-none">
+                                          🏢 公司管銷
+                                        </label>
+                                      </div>
+                                    )}
+                                  </div>
                                 ) : (
-                                  relProjName || <span className="text-neutral-600 font-bold">—</span>
+                                  <div className="flex flex-col gap-0.5 items-start">
+                                    <span className="text-neutral-300 font-medium">{relProjName || <span className="text-neutral-600 font-bold">—</span>}</span>
+                                    {t.type === 'expense' && (
+                                      t.isCompanyOperatingExpense === true ? (
+                                        <span className="text-[9px] text-neutral-400 font-extrabold bg-[#252525] border border-[#3D3D3D] px-1 py-0.5 rounded">
+                                          🏢 公司管銷
+                                        </span>
+                                      ) : (
+                                        <span className="text-[9px] text-amber-400 font-extrabold bg-[#D4AF37]/10 border border-[#D4AF37]/20 px-1 py-0.5 rounded">
+                                          🏗️ 案場開銷
+                                        </span>
+                                      )
+                                    )}
+                                  </div>
                                 )}
                               </td>
                               <td className="py-2 px-2 text-center whitespace-nowrap">
