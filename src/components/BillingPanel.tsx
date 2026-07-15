@@ -1103,11 +1103,159 @@ export default function BillingPanel({
       return;
     }
 
+    const expenseId = originalTx.id.startsWith('pc-from-rec-')
+      ? originalTx.id.split('-').slice(4).join('-') || `exp-${Date.now()}`
+      : `exp-${Date.now()}`;
+
+    // Map PettyCashTransaction category back to RecordExpense type
+    let expType: 'meal' | 'tool' | 'parking' | 'fuel' | 'hardware' | 'other' = 'other';
+    if (editPcCategory === 'feed') expType = 'meal';
+    else if (editPcCategory === 'tool') expType = 'tool';
+    else if (editPcCategory === 'parking') expType = 'parking';
+    else if (editPcCategory === 'fuel') expType = 'fuel';
+    else if (editPcCategory === 'hardware') expType = 'hardware';
+
+    const actualAmount = originalTx.type === 'income' ? -nextAmount : nextAmount;
+    const updatedExpense: RecordExpense = {
+      id: expenseId,
+      type: expType,
+      amount: actualAmount,
+      description: editPcDescription.trim(),
+      payerName: editPcPayerName.trim() || undefined,
+      vehicle: editPcVehicle,
+      isProjectExpense: !editPcIsCompanyOperatingExpense
+    };
+
+    let nextSourceRecordId = originalTx.sourceRecordId;
+    const oldProjId = originalTx.projectNameOrId;
+    const newProjId = editPcProjectNameOrId;
+
+    if (setRecords) {
+      if (oldProjId !== newProjId) {
+        // Project changed! Remove from old record if exists
+        if (originalTx.sourceRecordId) {
+          setRecords((prev: DailyRecord[]) => prev.map(r => {
+            if (r.id === originalTx.sourceRecordId) {
+              return {
+                ...r,
+                expenses: r.expenses.filter((exp, idx) => {
+                  const idToCompare = exp.id || idx;
+                  const expPcId = `pc-from-rec-${r.id}-${idToCompare}`;
+                  return expPcId !== originalTx.id;
+                })
+              };
+            }
+            return r;
+          }));
+        }
+
+        // Add to new record if project is selected
+        if (newProjId) {
+          const existingRec = records.find(r => r.projectId === newProjId && r.date === originalTx.date);
+          if (existingRec) {
+            nextSourceRecordId = existingRec.id;
+            setRecords((prev: DailyRecord[]) => prev.map(r => {
+              if (r.id === existingRec.id) {
+                return {
+                  ...r,
+                  expenses: [...r.expenses, updatedExpense]
+                };
+              }
+              return r;
+            }));
+          } else {
+            const newRecordId = `rec-${Date.now()}`;
+            nextSourceRecordId = newRecordId;
+            const matchedProj = projects.find(p => p.id === newProjId);
+            const projNameBackup = matchedProj ? (matchedProj.generatedName || matchedProj.serialNumber) : newProjId;
+            setRecords((prev: DailyRecord[]) => {
+              const newRec: DailyRecord = {
+                id: newRecordId,
+                projectId: newProjId,
+                projectName: projNameBackup,
+                date: originalTx.date,
+                notes: '（由收支帳目往來登記同步自動生成）',
+                expenses: [updatedExpense],
+                workers: [],
+                materials: [],
+                markAsCompleted: false,
+                createdAt: new Date().toISOString()
+              };
+              return [newRec, ...prev];
+            });
+          }
+        } else {
+          nextSourceRecordId = undefined;
+        }
+      } else {
+        // Project did not change
+        if (originalTx.sourceRecordId) {
+          // Just update inside the existing linked record
+          setRecords((prev: DailyRecord[]) => prev.map(r => {
+            if (r.id === originalTx.sourceRecordId) {
+              return {
+                ...r,
+                expenses: r.expenses.map((exp, idx) => {
+                  const idToCompare = exp.id || idx;
+                  const expPcId = `pc-from-rec-${r.id}-${idToCompare}`;
+                  if (expPcId === originalTx.id) {
+                    return updatedExpense;
+                  }
+                  return exp;
+                })
+              };
+            }
+            return r;
+          }));
+        } else if (newProjId) {
+          // Newly linked to a project
+          const existingRec = records.find(r => r.projectId === newProjId && r.date === originalTx.date);
+          if (existingRec) {
+            nextSourceRecordId = existingRec.id;
+            setRecords((prev: DailyRecord[]) => prev.map(r => {
+              if (r.id === existingRec.id) {
+                return {
+                  ...r,
+                  expenses: [...r.expenses, updatedExpense]
+                };
+              }
+              return r;
+            }));
+          } else {
+            const newRecordId = `rec-${Date.now()}`;
+            nextSourceRecordId = newRecordId;
+            const matchedProj = projects.find(p => p.id === newProjId);
+            const projNameBackup = matchedProj ? (matchedProj.generatedName || matchedProj.serialNumber) : newProjId;
+            setRecords((prev: DailyRecord[]) => {
+              const newRec: DailyRecord = {
+                id: newRecordId,
+                projectId: newProjId,
+                projectName: projNameBackup,
+                date: originalTx.date,
+                notes: '（由收支帳目往來登記同步自動生成）',
+                expenses: [updatedExpense],
+                workers: [],
+                materials: [],
+                markAsCompleted: false,
+                createdAt: new Date().toISOString()
+              };
+              return [newRec, ...prev];
+            });
+          }
+        }
+      }
+    }
+
+    const nextTxId = nextSourceRecordId
+      ? `pc-from-rec-${nextSourceRecordId}-${expenseId}`
+      : originalTx.id.startsWith('pc-from-rec-') ? `pc-pure-${Date.now()}` : originalTx.id;
+
     // Update in petty cash book
     setPettyCashTransactions((prev: PettyCashTransaction[]) => prev.map(t => {
       if (t.id === originalTx.id) {
         return {
           ...t,
+          id: nextTxId,
           amount: nextAmount,
           description: editPcDescription.trim(),
           payerName: editPcPayerName.trim() || undefined,
@@ -1115,52 +1263,12 @@ export default function BillingPanel({
           isReturnedToCompany: editPcIsReturnedToCompany,
           isCompanyOperatingExpense: editPcIsCompanyOperatingExpense,
           category: editPcCategory,
-          vehicle: editPcVehicle
+          vehicle: editPcVehicle,
+          sourceRecordId: nextSourceRecordId
         };
       }
       return t;
     }));
-
-    // Synchronize to daily record (施工日誌) if linked
-    if (originalTx.sourceRecordId && setRecords) {
-      const recordId = originalTx.sourceRecordId;
-      setRecords((prev: DailyRecord[]) => prev.map(r => {
-        if (r.id === recordId) {
-          // Find and update the corresponding expense
-          const updatedExpenses = r.expenses.map((exp, idx) => {
-            const expId = exp.id || idx;
-            const expectedPcId = `pc-from-rec-${recordId}-${expId}`;
-            if (expectedPcId === originalTx.id) {
-              const actualAmount = originalTx.type === 'income' ? -nextAmount : nextAmount;
-              
-              // Map PettyCashTransaction category back to RecordExpense type
-              let expType: 'meal' | 'tool' | 'parking' | 'fuel' | 'hardware' | 'other' = 'other';
-              if (editPcCategory === 'feed') expType = 'meal';
-              else if (editPcCategory === 'tool') expType = 'tool';
-              else if (editPcCategory === 'parking') expType = 'parking';
-              else if (editPcCategory === 'fuel') expType = 'fuel';
-              else if (editPcCategory === 'hardware') expType = 'hardware';
-
-              return {
-                ...exp,
-                amount: actualAmount,
-                type: expType,
-                description: editPcDescription.trim(),
-                payerName: editPcPayerName.trim() || undefined,
-                vehicle: editPcVehicle,
-                isProjectExpense: !editPcIsCompanyOperatingExpense
-              };
-            }
-            return exp;
-          });
-          return {
-            ...r,
-            expenses: updatedExpenses
-          };
-        }
-        return r;
-      }));
-    }
 
     setEditingPcTxId(null);
     onSaveToast('🪙 零用金帳目已成功修改，相關施工日誌亦同步更新！');
