@@ -198,11 +198,11 @@ export async function uploadAllToFirebase(
     pettyCashTransactions: any[];
   }
 ): Promise<{ success: boolean; message: string }> {
-  if (!uid) {
+  if (!uid || !auth.currentUser) {
     return { success: false, message: '請先登入 Google 帳號，才能將備份寫入雲端！' };
   }
 
-  const ownerUid = uid;
+  const ownerUid = auth.currentUser.uid;
   const successes: string[] = [];
   const errors: string[] = [];
 
@@ -357,11 +357,11 @@ export async function downloadAllFromFirebase(uid: string): Promise<{
     pettyCashTransactions?: any[];
   };
 }> {
-  if (!uid) {
+  if (!uid || !auth.currentUser) {
     return { success: false, message: '請先登入 Google 帳號，才能從雲端下載備份！' };
   }
 
-  const ownerUid = uid;
+  const ownerUid = auth.currentUser.uid;
   const successes: string[] = [];
   const errors: string[] = [];
 
@@ -480,11 +480,11 @@ export async function syncIncrementalWithFirebase(
   message: string;
   updatedData?: typeof localData;
 }> {
-  if (!uid) {
+  if (!uid || !auth.currentUser) {
     return { success: false, message: '請先登入 Google 帳號，才能進行增量雙向同步！' };
   }
 
-  const ownerUid = uid;
+  const ownerUid = auth.currentUser.uid;
   const successes: string[] = [];
   const errors: string[] = [];
   const nowStr = new Date().toISOString();
@@ -779,7 +779,8 @@ export async function createRollingBackup(
     pettyCashTransactions: any[];
   }
 ): Promise<void> {
-  if (!uid) return;
+  if (!uid || !auth.currentUser) return;
+  const ownerUid = auth.currentUser.uid;
   try {
     const totalCount = 
       (data.workers || []).length +
@@ -842,7 +843,7 @@ export async function createRollingBackup(
     });
 
     // 2. 獲取該使用者所有備份並排序，只保留最新的 5 份
-    const q = query(collection(db, 'backups'), where('ownerUid', '==', uid));
+    const q = query(collection(db, 'backups'), where('ownerUid', '==', ownerUid));
     const snap = await getDocs(q);
     const backupsList: { id: string; timestamp: number }[] = [];
     snap.forEach((docSnap) => {
@@ -873,9 +874,10 @@ export async function createRollingBackup(
  * 取得雲端所有歷史備份還原點
  */
 export async function getBackupSnapshotsList(uid: string): Promise<any[]> {
-  if (!uid) return [];
+  if (!uid || !auth.currentUser) return [];
+  const ownerUid = auth.currentUser.uid;
   try {
-    const q = query(collection(db, 'backups'), where('ownerUid', '==', uid));
+    const q = query(collection(db, 'backups'), where('ownerUid', '==', ownerUid));
     const snap = await getDocs(q);
     const list: any[] = [];
     snap.forEach((docSnap) => {

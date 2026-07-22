@@ -11,66 +11,96 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // 九大工務管理模組安全同步規則 (限擁有者自己讀寫自己的資料)
+    // 連線測試集合
+    match /test/{id} {
+      allow read, write: if true;
+    }
+
+    // 九大工務管理模組與備份設定安全同步規則
     
     match /workers/{id} {
-      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
-      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+      allow get: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
     
     match /customers/{id} {
-      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
-      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+      allow get: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
     
     match /suppliers/{id} {
-      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
-      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+      allow get: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
     
     match /materials/{id} {
-      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
-      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+      allow get: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
     
     match /projects/{id} {
-      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
-      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+      allow get: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
     
     match /records/{id} {
-      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
-      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+      allow get: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
     
     match /transactions/{id} {
-      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
-      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+      allow get: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
     
     match /worker_advances/{id} {
-      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
-      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+      allow get: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
     
     match /petty_cash/{id} {
-      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
-      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+      allow get: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
     
     match /settings/{id} {
-      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
-      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+      allow get: if isSignedIn() && (id == request.auth.uid || resource == null || resource.data.ownerUid == request.auth.uid);
+      allow list: if isSignedIn() && (id == request.auth.uid || resource.data.ownerUid == request.auth.uid);
+      allow create, update: if isSignedIn() && (id == request.auth.uid || request.resource.data.ownerUid == request.auth.uid);
+      allow delete: if isSignedIn() && (id == request.auth.uid || resource.data.ownerUid == request.auth.uid);
     }
     
     match /tombstones/{id} {
-      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
-      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+      allow get: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
     
     match /backups/{id} {
-      allow read: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
-      allow write: if isSignedIn() && (request.resource == null || request.resource.data.ownerUid == request.auth.uid);
+      allow get: if isSignedIn() && (resource == null || resource.data.ownerUid == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
   }
 }
+
