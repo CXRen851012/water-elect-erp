@@ -9,7 +9,6 @@ import {
 } from 'firebase/auth';
 import { 
   getFirestore, 
-  initializeFirestore,
   doc, 
   setDoc, 
   getDoc, 
@@ -44,12 +43,6 @@ const getEnvValue = (envVal: any, fallbackVal: any) => {
   return envVal && !isPlaceholder(envVal) ? envVal : fallbackVal;
 };
 
-// 優先使用 firebase-applet-config.json 內為專案指派的正確 firestoreDatabaseId
-const rawDbId = firebaseConfig.firestoreDatabaseId;
-const dbIdToUse = (rawDbId && !isPlaceholder(rawDbId))
-  ? rawDbId
-  : getEnvValue(metaEnv.VITE_FIREBASE_FIRESTORE_DB_ID, '(default)');
-
 const finalConfig = {
   apiKey: getEnvValue(metaEnv.VITE_FIREBASE_API_KEY, firebaseConfig.apiKey),
   authDomain: getEnvValue(metaEnv.VITE_FIREBASE_AUTH_DOMAIN, firebaseConfig.authDomain),
@@ -58,18 +51,10 @@ const finalConfig = {
   messagingSenderId: getEnvValue(metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID, firebaseConfig.messagingSenderId),
   appId: getEnvValue(metaEnv.VITE_FIREBASE_APP_ID, firebaseConfig.appId),
   measurementId: getEnvValue(metaEnv.VITE_FIREBASE_MEASUREMENT_ID, firebaseConfig.measurementId || ""),
-  firestoreDatabaseId: dbIdToUse
+  firestoreDatabaseId: getEnvValue(metaEnv.VITE_FIREBASE_FIRESTORE_DB_ID, firebaseConfig.firestoreDatabaseId || "(default)")
 };
 
-console.log(`[Firebase Diagnostics] Initializing App:`, {
-  projectId: finalConfig.projectId,
-  authDomain: finalConfig.authDomain,
-  firestoreDatabaseId: finalConfig.firestoreDatabaseId,
-  appId: finalConfig.appId
-});
-
 const app = initializeApp(finalConfig);
-
 export const db = finalConfig.firestoreDatabaseId && finalConfig.firestoreDatabaseId !== '(default)'
   ? getFirestore(app, finalConfig.firestoreDatabaseId)
   : getFirestore(app);
@@ -78,11 +63,11 @@ export const auth = getAuth(app);
 // 驗證與 Firestore 雲端之連線
 async function testConnection() {
   try {
-    console.log(`[Firebase TestConnection] Connecting to DB: "${finalConfig.firestoreDatabaseId}"...`);
-    await getDocFromServer(doc(db, '_health_check', 'ping'));
-    console.log(`[Firebase TestConnection] Connection test successful.`);
-  } catch (error: any) {
-    console.warn(`[Firebase TestConnection Warning] Test connection check finished. DB ID: "${finalConfig.firestoreDatabaseId}", Auth UID: "${auth.currentUser?.uid || 'Not Logged In'}", Msg:`, error?.message || error);
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.warn("請確認您的 Firebase 配置與網路連線狀況。");
+    }
   }
 }
 testConnection();
@@ -109,141 +94,6 @@ export const logoutUser = async () => {
   }
 };
 
-// ==========================================
-// 詳盡網路層請求日誌 (Request Logging) 與診斷機制
-// ==========================================
-export interface NetworkLogEntry {
-  id: string;
-  timestamp: string;
-  operation: string;
-  targetCollection?: string;
-  databaseId: string;
-  ownerUid: string;
-  durationMs?: number;
-  status: 'PENDING' | 'SUCCESS' | 'ERROR';
-  itemCount?: number;
-  details?: string;
-  error?: string;
-}
-
-const networkLogsQueue: NetworkLogEntry[] = [];
-const logListeners: Set<() => void> = new Set();
-
-export function logNetworkRequest(
-  entry: Omit<NetworkLogEntry, 'id' | 'timestamp' | 'databaseId' | 'ownerUid'> & { databaseId?: string; ownerUid?: string }
-): NetworkLogEntry {
-  const fullEntry: NetworkLogEntry = {
-    id: 'log_' + Math.random().toString(36).substring(2, 9),
-    timestamp: new Date().toISOString(),
-    databaseId: entry.databaseId || finalConfig.firestoreDatabaseId || '(default)',
-    ownerUid: entry.ownerUid || auth.currentUser?.uid || 'Not Logged In',
-    ...entry
-  };
-
-  networkLogsQueue.unshift(fullEntry);
-  if (networkLogsQueue.length > 60) {
-    networkLogsQueue.pop();
-  }
-
-  const prefix = `[Firestore Request Log][${fullEntry.status}]`;
-  const metaInfo = `(DB: "${fullEntry.databaseId}", UID: "${fullEntry.ownerUid}"${fullEntry.durationMs ? `, Time: ${fullEntry.durationMs}ms` : ''}${fullEntry.itemCount !== undefined ? `, Items: ${fullEntry.itemCount}` : ''})`;
-
-  if (fullEntry.status === 'ERROR') {
-    console.error(`${prefix} ${fullEntry.operation} ${metaInfo} -> Error: ${fullEntry.error}`, fullEntry.details || '');
-  } else {
-    console.log(`${prefix} ${fullEntry.operation} ${metaInfo} -> ${fullEntry.details || 'Completed'}`);
-  }
-
-  logListeners.forEach(fn => fn());
-  return fullEntry;
-}
-
-export function updateNetworkLog(id: string, updates: Partial<NetworkLogEntry>) {
-  const index = networkLogsQueue.findIndex(item => item.id === id);
-  if (index !== -1) {
-    networkLogsQueue[index] = { ...networkLogsQueue[index], ...updates };
-    const fullEntry = networkLogsQueue[index];
-    const prefix = `[Firestore Request Log][${fullEntry.status}]`;
-    const metaInfo = `(DB: "${fullEntry.databaseId}", UID: "${fullEntry.ownerUid}"${fullEntry.durationMs ? `, Time: ${fullEntry.durationMs}ms` : ''}${fullEntry.itemCount !== undefined ? `, Items: ${fullEntry.itemCount}` : ''})`;
-    if (fullEntry.status === 'ERROR') {
-      console.error(`${prefix} ${fullEntry.operation} ${metaInfo} -> Error: ${fullEntry.error}`, fullEntry.details || '');
-    } else {
-      console.log(`${prefix} ${fullEntry.operation} ${metaInfo} -> ${fullEntry.details || 'Completed'}`);
-    }
-    logListeners.forEach(fn => fn());
-  }
-}
-
-export function getNetworkLogs(): NetworkLogEntry[] {
-  return [...networkLogsQueue];
-}
-
-export function subscribeNetworkLogs(listener: () => void): () => void {
-  logListeners.add(listener);
-  return () => logListeners.delete(listener);
-}
-
-export async function checkFirebaseConnection(): Promise<{
-  success: boolean;
-  message: string;
-  durationMs: number;
-  dbId: string;
-  authUid: string | null;
-}> {
-  const startTime = Date.now();
-  const dbId = finalConfig.firestoreDatabaseId || '(default)';
-  const authUid = auth.currentUser?.uid || null;
-  const logItem = logNetworkRequest({
-    operation: 'HEALTH_CHECK_PING',
-    targetCollection: '_health_check',
-    status: 'PENDING',
-    details: 'Initiating Firestore health check ping'
-  });
-
-  try {
-    await withTimeout(getDocFromServer(doc(db, '_health_check', 'ping')), 25000, 'Health check ping');
-    const durationMs = Date.now() - startTime;
-    updateNetworkLog(logItem.id, {
-      status: 'SUCCESS',
-      durationMs,
-      details: 'Firestore connection response received successfully'
-    });
-    return {
-      success: true,
-      message: `連線正常 (DB: "${dbId}", 響應: ${durationMs}ms)`,
-      durationMs,
-      dbId,
-      authUid
-    };
-  } catch (err: any) {
-    const durationMs = Date.now() - startTime;
-    const errMsg = err?.message || String(err);
-    updateNetworkLog(logItem.id, {
-      status: 'ERROR',
-      durationMs,
-      error: errMsg,
-      details: 'Health check ping failed'
-    });
-    return {
-      success: false,
-      message: `連線異常：${errMsg}`,
-      durationMs,
-      dbId,
-      authUid
-    };
-  }
-}
-
-export function getFirebaseConfigInfo() {
-  return {
-    databaseId: finalConfig.firestoreDatabaseId || '(default)',
-    projectId: finalConfig.projectId,
-    authDomain: finalConfig.authDomain,
-    currentUserUid: auth.currentUser?.uid || null,
-    currentUserEmail: auth.currentUser?.email || null,
-  };
-}
-
 // 錯誤記錄機制（遵循 Firebase Integration規範）
 enum OperationType {
   CREATE = 'create',
@@ -252,21 +102,6 @@ enum OperationType {
   LIST = 'list',
   GET = 'get',
   WRITE = 'write',
-}
-
-/**
- * 輔助函式：防止 Cloud Firestore 網路請求卡死（自動設置響應超時）
- */
-function withTimeout<T>(promise: Promise<T>, ms = 12000, label = '雲端存取'): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(
-        () => reject(new Error(`[${label}連線逾時 (超過 ${Math.round(ms / 1000)} 秒)] 請確認網路連線穩定，或重新嘗試登入通道。`)),
-        ms
-      )
-    )
-  ]);
 }
 
 interface FirestoreErrorInfo {
@@ -387,7 +222,7 @@ export async function uploadAllToFirebase(
     try {
       // 1. 查詢該使用者在雲端所有的現存資料，找出對應的 document IDs
       const q = query(collection(db, mapping.name), where('ownerUid', '==', ownerUid));
-      const querySnapshot = await withTimeout(getDocs(q), 10000, `讀取現存 ${mapping.label}`);
+      const querySnapshot = await getDocs(q);
       
       const remoteIds = new Set<string>();
       querySnapshot.forEach((docSnap) => {
@@ -436,7 +271,7 @@ export async function uploadAllToFirebase(
               });
             }
           }
-          await withTimeout(batch.commit(), 12000, `寫入 ${mapping.label}`);
+          await batch.commit();
         }
 
         if (toDeleteIds.length > 0) {
@@ -477,7 +312,7 @@ export async function uploadAllToFirebase(
       ownerUid: ownerUid,
       updatedAt: new Date().toISOString()
     };
-    await withTimeout(setDoc(doc(db, 'settings', ownerUid), sanitizeForFirestore(settingsData)), 10000, '上傳系統設定檔');
+    await setDoc(doc(db, 'settings', ownerUid), sanitizeForFirestore(settingsData));
     successes.push(`⚙️ 自訂分類與加成配置 (同步寫入雲端設定檔)`);
   } catch (err: any) {
     console.error("Firebase upload settings failed", err);
@@ -485,10 +320,10 @@ export async function uploadAllToFirebase(
   }
 
   if (errors.length > 0) {
-    const successMsg = successes.length > 0 ? "部分表成功：\n" + successes.map(s => `✅ ${s}`).join('\n') + "\n\n" : "";
+    const successMsg = successes.length > 0 ? "部分成功：\n" + successes.map(s => `✅ ${s}`).join('\n') + "\n\n" : "";
     const errorMsg = "⚠️ 以下資料表上傳失敗：\n" + errors.map(e => `❌ ${e}`).join('\n');
     return {
-      success: false,
+      success: successes.length > 0,
       message: successMsg + errorMsg
     };
   }
@@ -557,7 +392,7 @@ export async function downloadAllFromFirebase(uid: string): Promise<{
   for (const [key, mapping] of Object.entries(collectionsMapping)) {
     try {
       const q = query(collection(db, mapping.name), where('ownerUid', '==', ownerUid));
-      const querySnapshot = await withTimeout(getDocs(q), 10000, `拉取 ${mapping.label}`);
+      const querySnapshot = await getDocs(q);
       const list: any[] = [];
       querySnapshot.forEach((docSnap) => {
         const item = { ...docSnap.data() };
@@ -575,7 +410,7 @@ export async function downloadAllFromFirebase(uid: string): Promise<{
 
   // 下載與還原自訂分類與倍率設定
   try {
-    const settingsDoc = await withTimeout(getDoc(doc(db, 'settings', ownerUid)), 10000, '拉取系統設定檔');
+    const settingsDoc = await getDoc(doc(db, 'settings', ownerUid));
     if (settingsDoc.exists()) {
       const sData = settingsDoc.data();
       if (sData.materialCategories) {
@@ -606,10 +441,10 @@ export async function downloadAllFromFirebase(uid: string): Promise<{
   }
 
   if (errors.length > 0) {
-    const successMsg = successes.length > 0 ? "部分表成功下載：\n" + successes.map(s => `✅ ${s}`).join('\n') + "\n\n" : "";
+    const successMsg = successes.length > 0 ? "部分成功下載：\n" + successes.map(s => `✅ ${s}`).join('\n') + "\n\n" : "";
     const errorMsg = "⚠️ 以下資料表同步下載失敗：\n" + errors.map(e => `❌ ${e}`).join('\n');
     return {
-      success: false,
+      success: successes.length > 0,
       message: successMsg + errorMsg,
       data: results
     };
@@ -692,7 +527,7 @@ export async function syncIncrementalWithFirebase(
     try {
       // 僅使用單一欄位 ownerUid 查詢以避免觸發複合索引 (Composite Index) 限制
       const qTomb = query(collection(db, 'tombstones'), where('ownerUid', '==', ownerUid));
-      const tSnap = await withTimeout(getDocs(qTomb), 8000, '讀取雲端墓碑');
+      const tSnap = await getDocs(qTomb);
       tSnap.forEach(docSnap => {
         const data = docSnap.data();
         if (lastSyncTime > 0 && lastSyncStr) {
@@ -734,7 +569,7 @@ export async function syncIncrementalWithFirebase(
       try {
         // 僅使用單一欄位 ownerUid 查詢以避免觸發複合索引 (Composite Index) 限制
         const q = query(collection(db, mapping.name), where('ownerUid', '==', ownerUid));
-        const qSnap = await withTimeout(getDocs(q), 8000, `拉取 ${mapping.label}`);
+        const qSnap = await getDocs(q);
         
         qSnap.forEach(docSnap => {
           const remoteItem = { ...docSnap.data() };
@@ -788,83 +623,73 @@ export async function syncIncrementalWithFirebase(
     }
 
     if (localTombstones.length > 0) {
-      try {
-        const tBatch = writeBatch(db);
-        for (const tomb of localTombstones) {
-          // 1. 寫入雲端 tombstones 記錄（供他端日後增量拉取對齊）
-          const tRef = doc(db, 'tombstones', tomb.id);
-          tBatch.set(tRef, {
-            id: tomb.id,
-            collectionName: tomb.collectionName,
-            deletedAt: tomb.deletedAt || nowStr,
-            ownerUid: ownerUid
-          });
+      const tBatch = writeBatch(db);
+      for (const tomb of localTombstones) {
+        // 1. 寫入雲端 tombstones 記錄（供他端日後增量拉取對齊）
+        const tRef = doc(db, 'tombstones', tomb.id);
+        tBatch.set(tRef, {
+          id: tomb.id,
+          collectionName: tomb.collectionName,
+          deletedAt: tomb.deletedAt || nowStr,
+          ownerUid: ownerUid
+        });
 
-          // 2. 物理刪除雲端原有之正式文件，徹底清空雲端儲存空間
-          const docRef = doc(db, tomb.collectionName, tomb.id);
-          tBatch.delete(docRef);
-        }
-        await withTimeout(tBatch.commit(), 10000, '同步墓碑記錄');
-        
-        // 清空本地墓碑緩衝區
-        localStorage.removeItem('engineering_deleted_tombstones');
-        successes.push(`📤 【本地刪除上傳】成功註銷並清理雲端 ${localTombstones.length} 筆項目，並成功在雲端建立對應墓碑`);
-      } catch (tombErr: any) {
-        console.error("上傳本地墓碑失敗:", tombErr);
-        errors.push(`墓碑刪除同步: ${tombErr.message || tombErr}`);
+        // 2. 物理刪除雲端原有之正式文件，徹底清空雲端儲存空間
+        const docRef = doc(db, tomb.collectionName, tomb.id);
+        tBatch.delete(docRef);
       }
+      await tBatch.commit();
+      
+      // 清空本地墓碑緩衝區
+      localStorage.removeItem('engineering_deleted_tombstones');
+      successes.push(`📤 【本地刪除上傳】成功註銷並清理雲端 ${localTombstones.length} 筆項目，並成功在雲端建立對應墓碑`);
     }
 
     // ==========================================
     // 步驟 D: 上傳本地新增或已修改的異動資料 (含初次遺漏時戳者)
     // ==========================================
     let localUploadCount = 0;
-    try {
-      let uploadBatch = writeBatch(db);
-      let batchOperationsCount = 0;
+    let uploadBatch = writeBatch(db);
+    let batchOperationsCount = 0;
 
-      for (const [key, mapping] of Object.entries(collectionsMapping)) {
-        const localList = mergedData[mapping.key];
+    for (const [key, mapping] of Object.entries(collectionsMapping)) {
+      const localList = mergedData[mapping.key];
 
-        for (const item of localList) {
-          const itemUp = item.updatedAt ? new Date(item.updatedAt).getTime() : 0;
-          
-          // 若項目無 updatedAt（可能在升級前新增）或 updatedAt 比上次同步時間更新，即需要上傳！
-          if (!item.updatedAt || itemUp > lastSyncTime) {
-            if (!item.updatedAt) {
-              item.updatedAt = nowStr;
-            }
+      for (const item of localList) {
+        const itemUp = item.updatedAt ? new Date(item.updatedAt).getTime() : 0;
+        
+        // 若項目無 updatedAt（可能在升級前新增）或 updatedAt 比上次同步時間更新，即需要上傳！
+        if (!item.updatedAt || itemUp > lastSyncTime) {
+          if (!item.updatedAt) {
+            item.updatedAt = nowStr;
+          }
 
-            const docRef = doc(db, mapping.name, item.id);
-            const cleanedData = sanitizeForFirestore(item);
-            uploadBatch.set(docRef, {
-              ...cleanedData,
-              ownerUid: ownerUid
-            });
+          const docRef = doc(db, mapping.name, item.id);
+          const cleanedData = sanitizeForFirestore(item);
+          uploadBatch.set(docRef, {
+            ...cleanedData,
+            ownerUid: ownerUid
+          });
 
-            batchOperationsCount++;
-            localUploadCount++;
+          batchOperationsCount++;
+          localUploadCount++;
 
-            // 保持在 Firestore 批次限制內
-            if (batchOperationsCount >= 400) {
-              await withTimeout(uploadBatch.commit(), 12000, '上傳增量批次');
-              uploadBatch = writeBatch(db);
-              batchOperationsCount = 0;
-            }
+          // 保持在 Firestore 批次限制內
+          if (batchOperationsCount >= 400) {
+            await uploadBatch.commit();
+            uploadBatch = writeBatch(db);
+            batchOperationsCount = 0;
           }
         }
       }
+    }
 
-      if (batchOperationsCount > 0) {
-        await withTimeout(uploadBatch.commit(), 12000, '上傳最後增量批次');
-      }
+    if (batchOperationsCount > 0) {
+      await uploadBatch.commit();
+    }
 
-      if (localUploadCount > 0) {
-        successes.push(`📤 【本地更新上傳】已成功將本地 ${localUploadCount} 筆異動/新品項增量同步上傳至雲端`);
-      }
-    } catch (upErr: any) {
-      console.error("本地異動增量上傳失敗:", upErr);
-      errors.push(`異動上傳: ${upErr.message || upErr}`);
+    if (localUploadCount > 0) {
+      successes.push(`📤 【本地更新上傳】已成功將本地 ${localUploadCount} 筆異動/新品項增量同步上傳至雲端`);
     }
 
     // ==========================================
@@ -893,7 +718,7 @@ export async function syncIncrementalWithFirebase(
         ownerUid: ownerUid,
         updatedAt: nowStr
       };
-      await withTimeout(setDoc(doc(db, 'settings', ownerUid), sanitizeForFirestore(settingsData)), 8000, '寫入組態設定');
+      await setDoc(doc(db, 'settings', ownerUid), sanitizeForFirestore(settingsData));
     } catch (err: any) {
       console.error("⚙️ 同步自訂設定檔失敗:", err);
       errors.push(`⚙️ 自訂設定同步失敗: ${err.message || err}`);
@@ -979,7 +804,7 @@ export async function createRollingBackup(
     const sanitizedPettyCashTransactions = (data.pettyCashTransactions || []).map(sanitizeForFirestore);
 
     // 1. 新增當前備份
-    await withTimeout(addDoc(collection(db, 'backups'), {
+    await addDoc(collection(db, 'backups'), {
       ownerUid: uid,
       createdAt: new Date().toISOString(),
       timestamp: Date.now(),
@@ -1015,11 +840,11 @@ export async function createRollingBackup(
           })()
         })
       }
-    }), 12000, '建立滾動備份快照');
+    });
 
     // 2. 獲取該使用者所有備份並排序，只保留最新的 5 份
     const q = query(collection(db, 'backups'), where('ownerUid', '==', ownerUid));
-    const snap = await withTimeout(getDocs(q), 10000, '清理歷程快照');
+    const snap = await getDocs(q);
     const backupsList: { id: string; timestamp: number }[] = [];
     snap.forEach((docSnap) => {
       const d = docSnap.data();
@@ -1046,100 +871,30 @@ export async function createRollingBackup(
 }
 
 /**
- * 取得雲端所有歷史備份還原點 (含新舊版本格式相容與備用查詢)
+ * 取得雲端所有歷史備份還原點
  */
 export async function getBackupSnapshotsList(uid: string): Promise<any[]> {
-  const currentUser = auth.currentUser;
-  if (!uid || !currentUser) {
-    console.warn(`[getBackupSnapshotsList] 存取拒絕：未登入 Google 帳號或 UID 不匹配 (傳入: "${uid}", 當前 User: "${currentUser?.uid || '無'}")`);
-    return [];
-  }
-  const ownerUid = currentUser.uid;
+  if (!uid || !auth.currentUser) return [];
+  const ownerUid = auth.currentUser.uid;
   try {
-    console.log(`[getBackupSnapshotsList] 開始查詢 'backups' (DB: "${finalConfig.firestoreDatabaseId}", ownerUid: "${ownerUid}")...`);
-    
-    // 1. 主要查詢：按 ownerUid
-    let docsSnaps: any[] = [];
-    try {
-      const q = query(collection(db, 'backups'), where('ownerUid', '==', ownerUid));
-      const snap = await withTimeout(getDocs(q), 10000, '讀取歷史快照 (ownerUid)');
-      snap.forEach(docSnap => docsSnaps.push(docSnap));
-    } catch (e) {
-      console.warn(`[getBackupSnapshotsList] ownerUid 查詢失敗或無索引，嘗試備用查詢:`, e);
-    }
-
-    // 2. 備用查詢：若主要查詢未找到任何記錄，嘗試按舊版 'uid' 欄位查詢
-    if (docsSnaps.length === 0) {
-      try {
-        console.log(`[getBackupSnapshotsList] 主要查詢無結果，嘗試按舊版 uid 欄位查詢...`);
-        const qLegacy = query(collection(db, 'backups'), where('uid', '==', ownerUid));
-        const snapLegacy = await withTimeout(getDocs(qLegacy), 10000, '讀取歷史快照 (uid)');
-        snapLegacy.forEach(docSnap => docsSnaps.push(docSnap));
-      } catch (e2) {
-        console.warn(`[getBackupSnapshotsList] uid 備用查詢失敗:`, e2);
-      }
-    }
-
-    // 3. 全量降級查詢：若依然無紀錄，取得 backups 集合全量進行客戶端安全過濾
-    if (docsSnaps.length === 0) {
-      try {
-        console.log(`[getBackupSnapshotsList] 嘗試降級掃描 backups 集合全量快照...`);
-        const qAll = collection(db, 'backups');
-        const snapAll = await withTimeout(getDocs(qAll), 10000, '讀取歷史快照 (全量)');
-        snapAll.forEach(docSnap => {
-          const d = docSnap.data();
-          // 過濾歸屬於該使用者的舊檔案，或是無歸屬欄位的舊快照
-          if (!d.ownerUid && !d.uid) {
-            docsSnaps.push(docSnap);
-          } else if (d.ownerUid === ownerUid || d.uid === ownerUid) {
-            docsSnaps.push(docSnap);
-          }
-        });
-      } catch (e3) {
-        console.warn(`[getBackupSnapshotsList] 全量降級查詢失敗:`, e3);
-      }
-    }
-
+    const q = query(collection(db, 'backups'), where('ownerUid', '==', ownerUid));
+    const snap = await getDocs(q);
     const list: any[] = [];
-    const seenIds = new Set<string>();
-
-    docsSnaps.forEach((docSnap) => {
-      if (seenIds.has(docSnap.id)) return;
-      seenIds.add(docSnap.id);
-
+    snap.forEach((docSnap) => {
       const d = docSnap.data();
-      
-      // 相容各種時間格式
-      const createdAt = d.createdAt || d.created_at || d.date || (d.timestamp ? new Date(d.timestamp).toISOString() : new Date().toISOString());
-      const timestamp = d.timestamp || (createdAt ? new Date(createdAt).getTime() : 0);
-      
-      // 相容各種資料封包結構 (data, snapshot, backupData 或全量主體)
-      const rawData = d.data || d.snapshot || d.backupData || d;
-
-      // 計算總筆數
-      let calculatedTotal = d.totalCount || 0;
-      if (!calculatedTotal && rawData && typeof rawData === 'object') {
-        calculatedTotal = Object.values(rawData).reduce((acc: number, item: any) => {
-          return acc + (Array.isArray(item) ? item.length : 0);
-        }, 0);
-      }
-
       list.push({
         id: docSnap.id,
-        createdAt: createdAt,
-        timestamp: timestamp,
-        totalCount: calculatedTotal,
-        data: rawData
+        createdAt: d.createdAt,
+        timestamp: d.timestamp || 0,
+        totalCount: d.totalCount || 0,
+        data: d.data
       });
     });
-
-    // 降序排序（最新在最前）
+    // 降序排序
     list.sort((a, b) => b.timestamp - a.timestamp);
-    console.log(`[getBackupSnapshotsList] 成功解析並取得 ${list.length} 筆歷史快照記錄。`);
     return list;
-  } catch (error: any) {
-    const errDetail = `[DB: ${finalConfig.firestoreDatabaseId}, UID: ${ownerUid}, Code: ${error?.code || 'N/A'}] ${error?.message || String(error)}`;
-    console.error(`[getBackupSnapshotsList] 取得備份列表失敗: ${errDetail}`, error);
+  } catch (error) {
+    console.error('取得備份列表失敗:', error);
     return [];
   }
 }

@@ -1,8 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // 允許所有人（或匿名登入用戶）讀寫資料，解決 Missing or insufficient permissions 問題
     match /{document=**} {
       allow read, write: if true;
     }
   }
 }
+
